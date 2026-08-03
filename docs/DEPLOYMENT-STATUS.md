@@ -5,8 +5,8 @@
 | Component | Status |
 |---|---|
 | GitHub repository / `main` | Pushed and tracking `origin/main` |
-| Cloudflare Worker | Deployed |
-| Live application URL | `https://pharmaridge-api.pharmaridge.workers.dev` |
+| Cloudflare Worker | `sample` |
+| Live application URL | `https://sample.pharmaridge.workers.dev` |
 | Worker Static Assets | Deployed from `public/`; API paths run Worker-first |
 | Production D1 database | Created and migrated |
 | D1 schema verification | 41 application tables, 6,801 NAFDAC catalog rows, 19 system GL accounts, 1 client-settings row |

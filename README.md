@@ -276,7 +276,7 @@ npm run deploy
 Confirm it's alive (`workers.dev` URL is in the deploy output):
 
 ```bash
-curl https://pharmaridge-api.<your-subdomain>.workers.dev/api/health
+curl https://<worker-name>.<your-subdomain>.workers.dev/api/health
 # {"ok":true,"env":"production","time":"..."}
 ```
 

@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "pharmaridge-api",
+  "name": "sample",
   "main": "src/index.js",
   "workers_dev": true,
   "compatibility_date": "2025-07-01",
