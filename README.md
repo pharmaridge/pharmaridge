@@ -92,7 +92,7 @@ pharmaridge/
 │   ├── test/                       # historical suite paths referenced by package scripts; sources were not in the supplied artifact
 │   └── src/{index.js, routes/, services/, lib/}
 └── public/                         # deploy this folder to Pages
-    ├── index.html, sw.js, manifest.json, _redirects, _headers
+    ├── index.html, sw.js, manifest.json, _headers
     └── css/, js/, icons/
 ```
 
@@ -287,7 +287,7 @@ npx wrangler pages project create pharmaridge   # first time only
 npx wrangler pages deploy public --project-name pharmaridge
 ```
 
-There is **no build step** — `public/` ships as-is. `_redirects` (SPA fallback) and `_headers` (CSP, nosniff, frame options, `sw.js` no-cache) are picked up automatically.
+There is **no build step** — `public/` ships as-is. `_headers` (CSP, nosniff, frame options, `sw.js` no-cache) is picked up automatically. The application uses hash routing, so no SPA fallback redirect is required when serving its assets from this Worker.
 
 ### Step 7 — Attach your custom domain
 

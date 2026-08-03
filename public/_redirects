@@ -1,9 +1,0 @@
-# Cloudflare Pages SPA fallback: any path that isn't a real static file
-# (e.g. /pos, /attendance, /stock/expiry — the hash-router paths never
-# actually hit the server since they're after the #, but this also
-# covers a user directly navigating to or refreshing a deep link if the
-# app is ever changed to path-based routing) falls back to index.html,
-# matching the Express catch-all in server/app.js for the Node
-# deployment. A 200 (not 404) status is required so the browser
-# actually renders the app shell instead of showing Pages' 404 page.
-/*    /index.html   200
