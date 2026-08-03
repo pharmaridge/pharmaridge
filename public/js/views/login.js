@@ -28,6 +28,7 @@ function renderLogin() {
         <b>manager</b> — General Manager, every branch<br/>
         <b>lagos.mgr</b> — Branch Manager, Lagos only<br/>
         <b>owner</b> — Owner, every branch + plan settings<br/>
+        <b>admin</b> — PharmaRidge Admin Portal (sample environment only)<br/>
         <b>lagos.staff</b> — Staff, Lagos branch only<br/>
         <b>minna.staff</b> — Staff, Minna branch only
       </div>

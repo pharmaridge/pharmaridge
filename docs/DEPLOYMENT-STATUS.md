@@ -20,16 +20,21 @@
 - The app shell is served with CSP, `nosniff`, frame protection, referrer policy, and the geolocation permissions policy.
 - A login attempt against the clean database returns a normal `401 Invalid credentials`, not a deployment/runtime error.
 
-## Intentional clean-start state
+## Shared live-sample state
 
-No demo seed data or default `1234` accounts were loaded into the production database. This avoids exposing a live pharmacy system with public credentials.
+The production database is intentionally loaded with **demonstration data only** so prospective clients can explore the application.
 
-**Before the application can be used, create the first Owner account.** That requires the proprietor's approved full name, username, and an initial PIN supplied through a secure channel. Do not add an owner PIN to Git, a shell history, a ticket, or chat history.
+| Username | PIN | Purpose |
+|---|---|---|
+| `owner` | `1234` | Full pharmacy-owner sample view across every branch and report |
+| `admin` | `1234` | PharmaRidge Admin Portal sample view |
 
-## Still required for go-live
+These are deliberately public sample credentials, not client credentials. The instance contains GreenLife demonstration branches, products, staff, and transaction data. It may be reset after demonstrations; do not enter real patient, customer, staff, supplier, or financial information.
 
-- Create the first Owner account and immediately rotate its initial PIN after first login.
+## Still required before a real client go-live
+
+- Create client-specific Owner/Admin accounts with non-default credentials in a separate client database.
 - Configure business identity, licence details, branch data, VAT/WHT settings, role permissions, and staff.
-- Attach a custom domain when available; the current Workers.dev URL is appropriate for infrastructure verification, not the preferred client-facing address.
+- Attach a custom domain when available; the current Workers.dev URL is appropriate for the live sample, not the preferred client-facing address.
 - Run physical-device PWA, offline sync, and thermal-printer tests.
 - Add monitoring/alerting and record the responsible operational contacts.

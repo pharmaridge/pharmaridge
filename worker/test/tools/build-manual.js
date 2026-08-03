@@ -374,6 +374,13 @@ the pharmacy opens for real trade</b>; PharmaRidge will keep warning you on the 
 form is simply narrower.</p>
 <p>Every screen in PharmaRidge works down to a 320-pixel-wide phone, which is the narrowest device still
 in daily use in Nigerian shops. If a control exists on the laptop, it exists here too.</p>`)}
+  <div class="note">
+    <b>Shared live-sample access.</b> Prospective clients may sign in as
+    <code>owner</code> / <code>1234</code> to see the proprietor's full operating view, or
+    <code>admin</code> / <code>1234</code> to see the PharmaRidge Admin Portal. This is a public
+    demonstration environment with sample data only. Do not enter real patient, customer, staff, or
+    financial data; the sample may be reset as part of demonstrations.
+  </div>
   <div class="warn">
     <b>Change the PINs before you open.</b> A new installation ships with demonstration accounts on
     PIN <code>1234</code>. PharmaRidge shows a red warning on the Users screen listing every account
