@@ -10,7 +10,9 @@ function renderLogin() {
            should not have to authenticate through a bright white card first.
            Icon/label are filled in by Theme.mount() below. -->
       <button id="login-theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode" aria-pressed="false"></button>
-      ${branding.has_logo && branding.logo_url ? `<img class="login-logo" src="${branding.logo_url}" alt="${UI.escapeHtml(name)}" />` : ''}
+      ${branding.has_logo && branding.logo_url
+        ? `<img class="login-logo" src="${branding.logo_url}" alt="${UI.escapeHtml(name)}" />`
+        : `<img class="login-logo login-logo-product" src="/branding/pharmaridge-logo.png" alt="PharmaRidge" />`}
       <h1>${branding.business_name ? UI.escapeHtml(name) : `${Branding.PRODUCT_NAME}`}</h1>
       <p class="subtitle">${branding.business_name ? 'Pharmacy &amp; patent medicine store management' : 'Multi-branch pharmacy &amp; patent medicine store management'}</p>
       <form id="login-form">

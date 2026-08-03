@@ -54,6 +54,9 @@ for (const icon of manifest.icons) {
   assert.ok(exists(`public/${icon.src.replace(/^\//, '')}`), `manifest references missing icon ${icon.src}`);
 }
 assert.ok(exists('public/icons/apple-touch-icon.png'), 'Apple touch icon is required by index.html');
+assert.ok(exists('public/branding/pharmaridge-logo.png'), 'default PharmaRidge logo artwork is required');
+assert.ok(exists('public/branding/pharmaridge-mark.png'), 'default PharmaRidge icon artwork is required');
+assert.match(read('public/js/views/login.js'), /\/branding\/pharmaridge-logo\.png/, 'unbranded login must display the supplied PharmaRidge logo');
 
 const indexSource = read('worker/src/index.js');
 const mounts = [...indexSource.matchAll(/app\.route\('\/api\/[^']+',\s*require\('\.\/routes\/([^']+)'\)\)/g)]

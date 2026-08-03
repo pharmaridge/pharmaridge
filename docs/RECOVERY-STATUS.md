@@ -63,7 +63,8 @@ These files are new and are not claimed to have existed in the attachment:
 - `test/reconstruction.verify.js` — source-tree, wiring, and PWA asset verification;
 - `worker/tools/preflight.js` — deployment guardrails for Node version, D1 ID, and required assets;
 - `worker/.dev.vars.example` — a safe local-secret template;
-- `public/icons/*.png` — regenerated green pharmacy-mark icons because no binary icon payload existed in the text attachment;
+- `public/branding/pharmaridge-logo.png` — the supplied original PharmaRidge logo artwork;
+- `public/branding/pharmaridge-mark.png` and `public/icons/*.png` — purpose-cropped/resized PWA icon variants derived from the supplied artwork;
 - `docs/*` — recovery, architecture, and operational documentation; and
 - `DEPLOY-FROM-WINDOWS.md` — the formerly missing Windows deployment guide.
 
