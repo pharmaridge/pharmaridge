@@ -11,7 +11,7 @@
     {
       "binding": "DB",
       "database_name": "pharmaridge-db",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "425b0c49-dbe5-4b94-a532-28adb8a21af8",
       "migrations_dir": "migrations"
     }
   ],

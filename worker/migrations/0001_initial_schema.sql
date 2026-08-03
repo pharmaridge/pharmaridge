@@ -1766,7 +1766,11 @@ CREATE TRIGGER trg_gl_journal_entry_must_balance_before_posting
 BEFORE UPDATE OF status ON gl_journal_entries
 WHEN NEW.status = 'POSTED' AND OLD.status = 'DRAFT'
 BEGIN
-  SELECT CASE
+  -- Cloudflare D1's remote parser mishandles a bare `SELECT CASE` inside a
+  -- trigger (it returns SQLITE_ERROR: incomplete input, although SQLite and
+  -- local D1 accept it). Parenthesising the CASE is semantically identical and
+  -- is the verified remote-safe form — see Cloudflare workers-sdk issue #4326.
+  SELECT (CASE
     WHEN (SELECT COUNT(*) FROM gl_journal_lines WHERE journal_entry_id = NEW.id) < 2
       THEN RAISE(ABORT, 'gl_journal_entries: cannot post an entry with fewer than 2 lines')
     WHEN (
@@ -1774,7 +1778,7 @@ BEGIN
       FROM gl_journal_lines WHERE journal_entry_id = NEW.id
     ) != 0
       THEN RAISE(ABORT, 'gl_journal_entries: entry does not balance (sum of debits must equal sum of credits)')
-  END;
+  END);
 END;
 
 -- =====================================================================
