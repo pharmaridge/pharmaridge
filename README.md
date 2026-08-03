@@ -14,6 +14,7 @@ Offline-first PWA frontend + Cloudflare Workers & D1 edge backend.
 | **Current verification** | Structural + SQLite migration checks; 227 restored core live-audit checks; 127 browser/PWA checks; 35 icon checks — all passing locally |
 | **UI** | Light **and dark** theme, zero external dependencies — no framework, icon font or webfont |
 | **Audit** | Restored test evidence: [`worker/test/README.md`](worker/test/README.md); historical audit inventory: [`AUDIT-REPORT.md`](AUDIT-REPORT.md) |
+| **Onboarding guide** | 64-page role-based PDF: [`docs/PharmaRidge-Onboarding-Guide.pdf`](docs/PharmaRidge-Onboarding-Guide.pdf) |
 | **Deploying?** | Windows walkthrough: [`DEPLOY-FROM-WINDOWS.md`](DEPLOY-FROM-WINDOWS.md) |
 | **Node** | **22+ required** (Wrangler 4 refuses Node 20) |
 

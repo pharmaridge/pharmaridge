@@ -270,7 +270,7 @@ const permissionTable = (rows) => `
   </tbody>
 </table>`;
 
-const html = `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>
+const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidge Onboarding Guide</title><style>${css}</style></head><body>
 
 <!-- ============ COVER ============ -->
 <section class="page cover">

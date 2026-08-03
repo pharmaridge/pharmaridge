@@ -26,6 +26,7 @@ const expected = [
   'TESTING-PLAYBOOK.md',
   'run-core-live.sh',
   'run-browser-pwa.sh',
+  'build-onboarding-guide.sh',
 ];
 for (const relative of expected) {
   assert.ok(fs.existsSync(path.join(TEST_ROOT, relative)), `missing restored test asset: ${relative}`);
@@ -50,5 +51,6 @@ assert.equal(packageJson.scripts['assets:icons'], 'node test/tools/build-icons.j
 assert.equal(packageJson.scripts['test:icons'], 'node test/tools/probe-icon.js');
 assert.equal(packageJson.scripts['test:live:core'], 'bash test/run-core-live.sh');
 assert.equal(packageJson.scripts['test:browser:pwa'], 'bash test/run-browser-pwa.sh');
+assert.equal(packageJson.scripts['docs:onboarding'], 'bash test/build-onboarding-guide.sh');
 
 console.log(`Restored test suite verified: ${sourceFiles.length} JavaScript files parse; core live audits and browser/icon tooling are wired.`);

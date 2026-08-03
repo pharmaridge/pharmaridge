@@ -24,6 +24,7 @@ npm run assets:icons           # deterministically regenerate every PWA icon
 npm run test:icons             # inspect icon geometry, mask safety and SW wiring
 npm run test:live:core         # fresh D1 per audit: money, WHT, workflows, sync
 npm run docs:manual            # build the onboarding PDF after screenshots exist
+npm run docs:onboarding        # fresh D1 → role data → desktop/mobile captures → PDF
 ```
 
 `test:live:core` resets the local Wrangler D1 database before each audit. This is intentional: these tests create sales, payments, stock, transfers, and ledger entries; no result may depend on test execution order.

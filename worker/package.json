@@ -33,7 +33,8 @@
     "test:scenarios": "node test/tools/seed-scenarios.js",
     "screenshots:manual": "node test/tools/shots-manual.js",
     "screenshots:artefacts": "node test/tools/shots-artefacts.js",
-    "test:browser:pwa": "bash test/run-browser-pwa.sh"
+    "test:browser:pwa": "bash test/run-browser-pwa.sh",
+    "docs:onboarding": "bash test/build-onboarding-guide.sh"
   },
   "dependencies": {
     "hono": "^4.12.32"
