@@ -1,0 +1,53 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pharmaridge-api",
+  "main": "src/index.js",
+  "compatibility_date": "2025-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pharmaridge-db",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    "crons": ["0 */6 * * *"]
+  }
+  // IMPORTANT — routing (see DEPLOYMENT-CLOUDFLARE.md for the full
+  // walkthrough): to keep the frontend's existing relative `/api/...`
+  // fetch() calls working with ZERO code changes, and to avoid CORS
+  // entirely, route ONLY the /api/* path on your domain to this Worker
+  // and let Cloudflare Pages serve everything else. This is configured
+  // in the Cloudflare dashboard under the Worker's
+  // "Settings -> Domains & Routes -> Add route" as:
+  //   yourpharmacy.com/api/*
+  //
+  // ...or, preferably, by uncommenting the block below. Keeping the route
+  // in this file means it is version-controlled and a deploy from a
+  // different machine cannot silently forget it.
+  //
+  // NOTE: `routes` has TWO shapes and they are not interchangeable:
+  //   { "pattern": "api.example.com", "custom_domain": true }
+  //       -> the Worker OWNS the whole hostname; Cloudflare provisions the
+  //          DNS record and certificate, and wildcards are REJECTED.
+  //   { "pattern": "example.com/api/*", "zone_name": "example.com" }
+  //       -> the Worker claims ONE PATH PREFIX in front of an existing
+  //          origin. This deployment is this second form: Pages owns the
+  //          hostname and the Worker takes /api/*. It requires a proxied
+  //          DNS record for the hostname to already exist, which attaching
+  //          the domain to Pages creates.
+  //
+  // An earlier revision of the deployment guides told the deployer to run
+  // `wrangler route add ...`. THAT COMMAND DOES NOT EXIST in Wrangler 4
+  // (it fails with "Unknown argument: route"), and it was the one step the
+  // guide itself flags as "don't skip" — verified against 4.114.0.
+  //
+  // "routes": [
+  //   { "pattern": "yourpharmacy.com/api/*", "zone_name": "yourpharmacy.com" }
+  // ]
+}

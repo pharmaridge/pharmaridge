@@ -1,0 +1,1104 @@
+/* =============================================================================
+   PharmaRidge — design system
+   =============================================================================
+   No framework, no webfont, no external request of any kind. Everything here
+   is one file the service worker already caches, which is why the app opens
+   instantly on a ₦25,000 Android phone on a bad connection — the exact device
+   this product runs on.
+
+   The visual language is deliberately quiet. This is a tool someone stands at
+   for nine hours: the interface should recede and the NUMBERS should carry the
+   emphasis. Colour is used for meaning (money in, money out, something needs
+   attention) and almost nowhere else.
+
+   Conventions that the rest of the app depends on — do not rename:
+     .btn / .btn-primary / .btn-secondary / .btn-ghost / .btn-danger / .btn-sm
+     .card  .stat-card  .page-title  .page-subtitle  .table-wrap  .empty-state
+     .form-row  .form-inline  .grid .grid-2 .grid-3 .grid-4
+     .badge  .badge-green .badge-blue .badge-amber .badge-red .badge-gray
+     .tabs .tab  .modal .modal-actions  .toast  .pos-layout  .receipt
+   audit.pwa.js cross-checks every badge colour the views request against the
+   .badge-* rules defined here, so a new badge kind MUST get a rule.
+   ============================================================================= */
+
+/* =============================================================================
+   THEMING MODEL — read this before changing any colour
+   =============================================================================
+   Two themes, one set of token NAMES. Nothing in the app ever asks for
+   "light blue" or "#fff"; it asks for a ROLE, and each theme answers.
+
+   The token names below are the original palette names (--gray-600,
+   --green-700, ...) and they are kept deliberately, because ~70 inline
+   `style="color:var(--gray-600)"` attributes across public/js/views/*.js
+   already reference them. Renaming would have meant touching 20 view files
+   and would have silently missed one. Instead each name was reclassified as
+   a ROLE and both themes supply a value for it:
+
+     --gray-50   one step RECESSED from a card (page bg, table head, receipt)
+     --gray-100  hairline divider          --gray-200  border
+     --gray-300  input border              --gray-400  muted/placeholder text
+     --gray-600  secondary text            --gray-700  form label text
+     --gray-800  primary body text         --white     card/panel surface
+     --green-900 strongest heading         --green-800 strong accent text
+     --green-700 accent text / link        --green-600 SOLID accent fill
+     --green-500 solid accent hover        --green-100/50 tinted surfaces
+     --red-500 / --amber-500 / --blue-600  status TEXT + rails
+     --red-100 / --amber-100 / --blue-100  status tinted surfaces
+
+   THE TRAP THIS AVOIDS: several roles are "solid chip with light text on it"
+   — the topbar, primary/danger buttons, toasts, the offline banner. Those
+   must NOT invert with the text scale, or a dark theme turns a toast into
+   white-on-white. They therefore get their OWN tokens (--topbar-bg,
+   --toast-*, --solid-*), which stay dark-with-light-text in BOTH themes.
+   Every one of those was found by inverting the scale and looking at what
+   broke; audit.pwa.js now pins the contrast of each so it cannot regress.
+
+   The theme is applied as [data-theme="light"|"dark"] on <html> by
+   public/js/theme.js, which runs render-blocking in <head> (it cannot be an
+   inline script — see that file for the CSP reason). There is no
+   `@media (prefers-color-scheme)` block here on purpose: theme.js already
+   folds the device preference into the attribute, so the attribute is the
+   single source of truth and "follow the system" cannot disagree with an
+   explicit user choice.
+   ============================================================================= */
+
+:root, [data-theme="light"] {
+  color-scheme: light;
+
+  /* ---- Brand ------------------------------------------------------------
+     Deep apothecary green. Kept from the original identity, but re-tuned
+     for contrast: --green-700 on white is 6.4:1, comfortably past WCAG AA
+     for body text, which the previous mid-greens were not. */
+  --green-900: #0a3b2c;
+  --green-800: #0f4a37;
+  --green-700: #145c3f;
+  --green-600: #1a7a52;
+  --green-500: #22945f;
+  --green-300: #7cc4a3;
+  --green-100: #e8f4ee;
+  --green-50:  #f3faf6;
+
+  /* ---- Semantic --------------------------------------------------------- */
+  /* 3.35:1 against --amber-100 as a badge. This is the LOCKED-ACCOUNT badge on
+     the Users screen and the WHT/tax warning ink, so it must be readable, not
+     merely present. #96600a is 4.80:1 on the amber tint and 5.28:1 on white. */
+  --amber-600: #96600a;
+  --amber-500: #d98c1f;
+  --amber-100: #fdf3e2;
+  --red-600:   #a83232;
+  --red-500:   #c94c4c;
+  --red-100:   #fbeaea;
+  --blue-600:  #1b4f8a;
+  --blue-100:  #e8f0fa;
+
+  /* ---- Neutrals ---------------------------------------------------------
+     Very slightly green-shifted greys. Pure grey next to a green brand
+     reads cold; this keeps the whole surface feeling like one material. */
+  --gray-50:  #f7f9f8;
+  --gray-100: #eef1ef;
+  --gray-200: #e0e5e2;
+  --gray-300: #c9d1cc;
+  /* MEASURED, not eyeballed. #94a09a was 2.71:1 on a white card — below the
+     3:1 floor for ANY meaningful text, and this token carries the nav section
+     captions, every placeholder, the empty-state message and the demo-account
+     hint on the login screen. The previous pass claimed "WCAG AA" for the
+     palette; rendering it and computing the ratio proved otherwise. #68766f is
+     4.76:1 on white and 4.50:1 on --gray-50, so it clears AA as real text
+     while still reading as clearly de-emphasised next to --gray-600. */
+  --gray-400: #68766f;
+  --gray-600: #5a665f;
+  --gray-700: #414b45;
+  --gray-800: #262e2a;
+  --white: #ffffff;
+
+  /* Generic border alias. public/js/views/stocktake.js asked for
+     `var(--border,#ddd)` and NOTHING defined --border, so that panel silently
+     fell back to a hard #ddd that ignored the palette entirely — and would
+     have stayed light grey in dark mode. Defined here so the fallback is
+     never taken. */
+  --border: var(--gray-200);
+
+  /* ---- Chrome that is ALWAYS a dark bar with light text ------------------
+     Not derived from the neutral scale: inverting the scale must not turn
+     the topbar white. theme.js mirrors --topbar-bg into <meta name=
+     "theme-color"> so the OS chrome around an installed PWA matches. */
+  --topbar-bg: #0a3b2c;
+  --topbar-fg: #ffffff;
+  --topbar-hover: rgba(255,255,255,.14);
+  --topbar-line: rgba(255,255,255,.20);
+  --login-bg-a: #0a3b2c;
+  --login-bg-b: #145c3f;
+  --login-bg-c: #1a7a52;
+  --login-glow: rgba(34,148,95,.35);
+
+  /* ---- Solid action fills (light text sits ON these) --------------------- */
+  --solid-accent-bg: #1a7a52;
+  --solid-accent-hover: #22945f;
+  --solid-accent-fg: #ffffff;
+  --solid-danger-bg: #c94c4c;
+  --solid-danger-hover: #a83232;
+  --solid-danger-fg: #ffffff;
+  /* The offline banner previously put WHITE on amber — about 2.4:1, below
+     every WCAG threshold, on the one strip that tells a cashier their sale is
+     only queued. Dark ink on amber is ~8:1 and reads instantly. */
+  --solid-warn-bg: #d98c1f;
+  --solid-warn-fg: #3a2606;
+
+  /* ---- Toasts: always a dark chip, in both themes ------------------------ */
+  --toast-bg: #262e2a;
+  --toast-fg: #ffffff;
+  --toast-success-bg: #145c3f;
+  --toast-error-bg: #a83232;
+  --toast-warn-bg: #8a5a0b;
+
+  /* ---- Callout tints -----------------------------------------------------
+     These replace six hardcoded pastels (#fffaf0 #f2f9f4 #fff6f6 #fdf8ee
+     #eef3f1 #f4f5f7) that were written literally into the view files. In
+     dark mode every one of them was a near-white block with light text on
+     it — completely unreadable. */
+  --tint-amber: #fffaf0;
+  --tint-green: #f2f9f4;
+  --tint-red:   #fff6f6;
+  --tint-gray:  #eef3f1;
+  --scrim: rgba(16,32,24,.45);
+
+  /* ---- Elevation --------------------------------------------------------
+     Three levels only. Layered hairline + soft shadow rather than one blunt
+     drop shadow: it reads as paper on a desk instead of a floating box. */
+  --shadow-sm: 0 1px 2px rgba(16, 32, 24, .05), 0 0 0 1px rgba(16, 32, 24, .04);
+  --shadow-md: 0 2px 4px rgba(16, 32, 24, .06), 0 4px 12px rgba(16, 32, 24, .05), 0 0 0 1px rgba(16, 32, 24, .04);
+  --shadow-lg: 0 12px 32px rgba(16, 32, 24, .14), 0 2px 8px rgba(16, 32, 24, .08);
+  --shadow-focus: 0 0 0 3px rgba(26, 122, 82, .22);
+
+  /* ---- Geometry --------------------------------------------------------- */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* ---- Type -------------------------------------------------------------
+     System stack: zero network cost, and each platform renders in the face
+     its users already read all day. */
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --topbar-h: 56px;
+  --sidebar-w: 244px;
+
+  font-family: var(--font);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* =============================================================================
+   DARK THEME
+   =============================================================================
+   Not an inversion — an inversion of a green-shifted grey scale produces a
+   muddy olive that looks broken. This is a purpose-built dark palette on the
+   same green hue family.
+
+   Principles applied here, in order of how much they mattered in practice:
+
+   1. NEVER pure black. #000 with light text causes halation (the text
+      appears to smear) and this is a screen someone stares at for a nine-hour
+      shift. The deepest surface is #0d1512.
+   2. Surfaces get LIGHTER as they come forward, matching how elevation works
+      in the real world: page #111a16 < card #17231e < raised #1e2c26. In light
+      mode the relationship is the opposite (page is darker than the card), and
+      that is exactly why --gray-50 and --white cannot simply be swapped.
+   3. Saturated brand colours are LIGHTENED, not reused. #145c3f on a dark card
+      is 1.6:1 — invisible. The accent text tokens move up to #5fd39a (~8.9:1).
+   4. Shadows barely register on a dark surface, so elevation is carried by a
+      visible 1px border instead; the shadow tokens keep a stronger, tighter
+      spread purely to lift modals off the page.
+   ============================================================================= */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Accent scale, re-tuned for a dark ground. --green-900/800/700 are used as
+     TEXT (headings, links, positive figures), so on dark they must be the
+     LIGHT end of the ramp, not the dark end. This is the single biggest
+     difference from the light theme and the one that a naive inversion gets
+     backwards. */
+  --green-900: #eaf7f0;   /* strongest heading text */
+  --green-800: #b9e9d0;
+  --green-700: #5fd39a;   /* accent text / links / positive money */
+  --green-600: #1f8f60;   /* SOLID fills — light text sits on this */
+  --green-500: #27a871;
+  --green-300: #7cc4a3;
+  --green-100: #123528;   /* tinted surface, not a tinted ink */
+  --green-50:  #14261f;   /* hover wash on rows and nav items */
+
+  /* Status colours lightened to stay legible as text on a dark card, with
+     their -100 partners becoming deep tinted surfaces rather than pastels. */
+  --amber-600: #f0b95e;
+  --amber-500: #e0a040;
+  --amber-100: #3a2c12;
+  --red-600:   #ff9b9b;
+  --red-500:   #f08a8a;
+  --red-100:   #3a1e1e;
+  --blue-600:  #8dc0f5;
+  --blue-100:  #16283d;
+
+  /* Neutrals. Read these as ROLES (see the map at the top of the file):
+     --white is "card surface", --gray-50 is "one step recessed", and the
+     text tokens run light. */
+  --gray-50:  #111a16;   /* page background / table head / receipt paper */
+  --gray-100: #253530;   /* hairline divider */
+  --gray-200: #2e403a;   /* border */
+  --gray-300: #3d534b;   /* input border */
+  --gray-400: #8b9a93;   /* muted + placeholder — 4.9:1 on the card */
+  --gray-600: #b3c1ba;   /* secondary text — 9.4:1 on the card */
+  --gray-700: #cbd6d0;   /* form labels */
+  --gray-800: #e8eeea;   /* primary body text — 14.1:1 on the card */
+  --white:    #17231e;   /* THE CARD SURFACE (not a colour, a role) */
+  --border: var(--gray-200);
+
+  --topbar-bg: #0d1512;
+  --topbar-fg: #e8eeea;
+  --topbar-hover: rgba(255,255,255,.10);
+  --topbar-line: rgba(255,255,255,.14);
+  --login-bg-a: #0b1310;
+  --login-bg-b: #10201a;
+  --login-bg-c: #143026;
+  --login-glow: rgba(34,148,95,.18);
+
+  --solid-accent-bg: #1f8f60;
+  --solid-accent-hover: #27a871;
+  --solid-accent-fg: #05130d;   /* dark ink on a bright green chip: ~7.5:1 */
+  --solid-danger-bg: #c9484c;
+  --solid-danger-hover: #e05a5e;
+  --solid-danger-fg: #ffffff;
+  --solid-warn-bg: #d9a03a;
+  --solid-warn-fg: #2a1c04;
+
+  /* Toasts stay a raised chip; on dark they must be LIGHTER than the page,
+     not darker, or they disappear into it. */
+  --toast-bg: #2b3a34;
+  --toast-fg: #f2f6f4;
+  --toast-success-bg: #1c6a48;
+  --toast-error-bg: #8f3236;
+  --toast-warn-bg: #7a5410;
+
+  --tint-amber: #33270f;
+  --tint-green: #14301f;
+  --tint-red:   #331c1c;
+  --tint-gray:  #1e2c26;
+  --scrim: rgba(0,0,0,.62);
+
+  /* Elevation by border first, shadow second — see principle 4 above. */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.40), 0 0 0 1px rgba(255,255,255,.055);
+  --shadow-md: 0 2px 6px rgba(0,0,0,.45), 0 6px 16px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.06);
+  --shadow-lg: 0 16px 40px rgba(0,0,0,.60), 0 4px 12px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.07);
+  --shadow-focus: 0 0 0 3px rgba(95, 211, 154, .34);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; min-height: 100%;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  /* BUG 58 backstop. The topbar's min-width:0 fix removes the CAUSE of the
+     69px sideways scroll; this makes sure no future wide child can silently
+     reintroduce it and drag the whole document sideways again. Wide CONTENT
+     (a 12-column report) is still scrollable — that scrolling belongs to
+     .table-wrap / .view, which have their own overflow-x:auto, not to the
+     page. Only `x` is clipped: clipping `y` would break page scrolling. */
+  overflow-x: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; font-size: 14px; color: var(--gray-800); }
+
+/* Tabular figures everywhere money or quantities appear. Without this,
+   proportional digits make a column of Naira amounts jitter and become
+   genuinely harder to scan down — the single highest-value typographic
+   detail in a system like this. */
+td, th, .value, .stat-card .value, .cart-total-row, .receipt, input[type="number"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* One consistent focus ring for keyboard users. :focus-visible means mouse
+   users never see it, so it costs nothing visually while making the whole
+   app keyboard-operable — which matters on a counter machine with a
+   barcode scanner and no time for a mouse. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+
+.hidden { display: none !important; }
+.screen { min-height: 100vh; }
+.muted { color: var(--gray-600); }
+
+/* ---------- Offline banner ------------------------------------------------
+   Sticky and loud on purpose: a cashier must know their sale is queued, not
+   sent, before they hand over goods. */
+.offline-banner {
+  background: var(--solid-warn-bg); color: var(--solid-warn-fg); text-align: center;
+  padding: 9px 12px; font-size: 13px; font-weight: 600;
+  position: sticky; top: 0; z-index: 50;
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,.08);
+}
+/* A permanently-failed queued request needs a human decision (retry or
+   discard on the Sync Status screen) — it will never clear itself just
+   because connectivity returns, unlike an ordinary pending item, so it
+   gets a visually distinct, more urgent colour than the normal amber
+   "still syncing" state. */
+.offline-banner-danger { background: var(--solid-danger-bg); color: var(--solid-danger-fg); }
+
+/* ---------- Login --------------------------------------------------------- */
+#login-screen {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 20px;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, var(--login-glow), transparent 60%),
+    linear-gradient(150deg, var(--login-bg-a) 0%, var(--login-bg-b) 55%, var(--login-bg-c) 100%);
+}
+.login-card {
+  background: var(--white); border-radius: var(--radius-lg);
+  padding: 38px 34px; width: 100%; max-width: 380px;
+  box-shadow: var(--shadow-lg);
+  /* Positioned so the theme toggle can pin to the card's top-right corner
+     rather than the viewport — without this it would anchor to <body> and
+     drift over the gradient on a short screen. */
+  position: relative;
+}
+.login-card h1 { font-size: 21px; margin: 0 0 4px; color: var(--green-900); letter-spacing: -.2px; }
+.login-card .login-logo { display: block; height: 56px; max-width: 100%; object-fit: contain; margin: 0 auto 16px; }
+.login-card p.subtitle { margin: 0 0 22px; color: var(--gray-600); font-size: 13px; }
+.login-card label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-700); margin: 15px 0 6px; }
+.login-card input {
+  width: 100%; padding: 11px 13px;
+  border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+  background: var(--white); transition: border-color .15s ease, box-shadow .15s ease;
+}
+.login-card input:focus { border-color: var(--green-500); box-shadow: var(--shadow-focus); outline: none; }
+.login-card .btn-primary { width: 100%; margin-top: 24px; padding: 12px; font-size: 14px; }
+.login-card .powered-by-footer { margin-top: 20px; text-align: center; font-size: 11px; color: var(--gray-400); }
+.login-error {
+  color: var(--red-600); font-size: 13px; margin-top: 12px;
+  background: var(--red-100); border-radius: var(--radius-sm); padding: 9px 11px;
+}
+.demo-hint {
+  margin-top: 20px; font-size: 11px; color: var(--gray-400); line-height: 1.6;
+  border-top: 1px dashed var(--gray-200); padding-top: 13px;
+}
+
+/* ---------- Topbar -------------------------------------------------------- */
+/* BUG 58 — THE WHOLE APP SCROLLED SIDEWAYS ON EVERY PHONE.
+   The topbar is a flex row, and a flex item's default `min-width: auto` means
+   it REFUSES to shrink below its content. The branch switcher, the user label
+   and the Logout button therefore kept their full intrinsic widths and pushed
+   the row past the viewport: measured 69px of horizontal overflow at 320, 360,
+   390 AND 414px — i.e. on every phone this product ships to. Because the
+   overflow is on the document, the ENTIRE page scrolled left-right, which is
+   why a tap could land 14px away from where the user aimed.
+
+   This predates the theme work (reproduced against the previous commit before
+   changing anything, so it is not something this pass introduced) and it
+   survived an earlier "mobile topbar overflow" fix, which hid .user-label and
+   .scope-label but never removed the reason the row could not shrink. Hiding
+   individual children treats the symptom; `min-width: 0` plus an explicit
+   overflow guard on the page treats the cause. */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; height: var(--topbar-h); padding: 0 16px;
+  background: var(--topbar-bg); color: var(--topbar-fg);
+  position: sticky; top: 0; z-index: 40;
+  /* The bar owns the full width and never contributes to page scroll. */
+  max-width: 100%; box-sizing: border-box;
+}
+.topbar-left, .topbar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* min-width:0 lets these actually shrink; without it the row is unshrinkable
+   no matter what the children do. */
+.topbar-right { flex-wrap: nowrap; flex-shrink: 1; min-width: 0; }
+.topbar-left { flex-shrink: 1; min-width: 0; }
+/* Controls that must never be squashed out of existence keep their size; the
+   flexible ones (brand text, branch name) give up space instead. */
+#nav-toggle, #theme-toggle, #logout-btn { flex-shrink: 0; }
+/* BUG 64 — THE BRAND MARK COLLAPSED TO A SLIVER.
+   Bug 58's `min-width: 0` is what lets the topbar shrink, but it applies to
+   .topbar-left as a whole, so the brand — the only flexible thing in it once
+   the word is hidden — absorbed ALL the shrinkage. Measured: the container
+   rendered 0px wide at 320/360px and 3-6px at 390/414px while the <svg> inside
+   still reported 20px, i.e. the mark was clipped to a vertical line. Visible in
+   a screenshot as a stray 1px tick between the hamburger and the branch
+   selector, which is how it was spotted.
+   The mark is the app's identity in standalone/installed mode where there is no
+   browser chrome and no title bar; it is 20px and must not be negotiable. Only
+   the WORD may give up space (it is already display:none below 560px). */
+/* BUG 94 — `flex-shrink: 0` here is what let the brand OVERFLOW .topbar-left
+   rather than compress inside it. .topbar-left has min-width:0 (Bug 58) so it
+   shrinks on a phone; a non-shrinking child then spills past its parent's
+   right edge and .topbar-right paints on top of the spill. The MARK must stay
+   20px and never shrink (see .brand-ico), but the brand BOX must be allowed
+   to give up the space its (already hidden below 560px) word occupied. */
+/* `flex-basis: auto` + `flex-shrink: 1` lets the BOX give up the width its
+   (already hidden below 560px) word occupied, while min-width pins the box to
+   the mark's own 20px so the mark can never be clipped — Bug 64's guarantee,
+   kept, but expressed as a floor rather than as "never shrink at all". */
+.brand { flex: 0 1 auto; min-width: 20px; overflow: hidden; }
+.brand-ico { flex-shrink: 0; min-width: 20px; }
+.brand > span { min-width: 0; }
+.brand { font-weight: 700; font-size: 15.5px; letter-spacing: -.2px; white-space: nowrap; }
+.topbar-logo { height: 30px; width: 30px; object-fit: contain; border-radius: var(--radius-sm); background: #fff; padding: 2px; }  /* stays white: a client logo is usually a dark mark on transparency */
+.icon-btn {
+  background: transparent; border: none; color: currentColor; font-size: 19px;
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s ease;
+}
+.icon-btn:hover { background: var(--topbar-hover); }
+.scope-label {
+  font-size: 12px; font-weight: 600; background: var(--topbar-hover);
+  padding: 5px 11px; border-radius: var(--radius-pill); white-space: nowrap;
+}
+.branch-switcher {
+  padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--topbar-line);
+  background: var(--topbar-hover); color: var(--topbar-fg); font-size: 13px; max-width: 190px;
+}
+.branch-switcher option { color: var(--gray-800); }
+.user-label { font-size: 13px; opacity: .92; white-space: nowrap; }
+
+/* ---------- Theme toggle --------------------------------------------------
+   One button, two states, and it states the action it performs rather than
+   the state it is in ("Switch to dark mode", not "Dark mode"). It sits in the
+   topbar next to the identity controls, and again on the login card — a
+   cashier opening the app at 6am in a dim shop must be able to dim it BEFORE
+   signing in, not after.
+
+   40px hit target: this is pressed with a thumb, often one-handed. */
+.theme-toggle {
+  background: transparent; border: 1px solid transparent; color: inherit;
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; padding: 0;
+  transition: background .15s ease, border-color .15s ease;
+}
+.theme-toggle:hover { background: var(--topbar-hover); }
+.theme-toggle svg { display: block; }
+/* The login card is a light panel on a dark ground, so the toggle there needs
+   the page's own ink and border, not the topbar's. */
+.login-card .theme-toggle {
+  position: absolute; top: 14px; right: 14px;
+  color: var(--gray-600); border-color: var(--gray-200);
+}
+.login-card .theme-toggle:hover { background: var(--gray-50); color: var(--green-700); border-color: var(--gray-300); }
+
+/* ---------- Buttons -------------------------------------------------------
+   An action must look pressable and state its consequence. One primary per
+   view wherever possible — if everything is emphasised, nothing is. */
+.btn {
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+  padding: 9px 15px; font-size: 13px; font-weight: 600; line-height: 1.2;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  /* anchors .btn-sm's enlarged hit area (see below) */
+  position: relative;
+  min-height: 36px;
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .06s ease;
+  /* BUG 76 — A BUTTON WIDER THAN THE PHONE, WITH NO WAY TO REACH IT.
+     `white-space: nowrap` on every .btn meant a long label could not wrap, so
+     the button simply grew past the screen. Measured at 320px: "Verify
+     Tamper-Evidence Chain for this Branch" rendered 391px wide in a 320px
+     viewport — 105px of it, including its right edge, permanently off-screen.
+     The document itself did NOT overflow (the parent clipped it), which is why
+     every previous responsive pass reported this screen green: overflow and
+     reachability are different measurements.
+     Buttons still prefer one line, but may now wrap rather than escape, and
+     can never exceed the width they are given. */
+  white-space: normal;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+/* Keep single-word/short controls visually tight: only labels that genuinely
+   cannot fit will take a second line. */
+.btn { text-wrap: balance; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn-primary { background: var(--solid-accent-bg); color: var(--solid-accent-fg); box-shadow: 0 1px 2px rgba(10,59,44,.18); }
+.btn-primary:hover:not(:disabled) { background: var(--solid-accent-hover); }
+.btn-ghost { background: var(--topbar-hover); color: var(--topbar-fg); }
+.btn-ghost:hover:not(:disabled) { background: var(--topbar-line); }
+.btn-secondary { background: var(--white); color: var(--gray-800); border-color: var(--gray-300); }
+.btn-secondary:hover:not(:disabled) { background: var(--gray-50); border-color: var(--gray-400); }
+.btn-danger { background: var(--solid-danger-bg); color: var(--solid-danger-fg); }
+.btn-danger:hover:not(:disabled) { background: var(--solid-danger-hover); }
+/* BUG 62 — every compact button was below a usable touch target.
+   Measured across all 19 screens at 8 widths: .btn-sm rendered 28px tall
+   (6+6 padding + 12px x 1.2 line-height + 2px border). That clears the WCAG
+   2.2 AA floor of 24px, but it is well under Apple's 44pt and Material's 48dp,
+   and these are the row actions a pharmacist taps hundreds of times a shift —
+   Edit, Receive, Pay, Void, Unlock — often on a phone, standing, one-handed.
+   32px of box plus an invisible 44px-tall hit area via ::after: the button
+   still LOOKS compact (dense tables stay dense, which is the point of btn-sm)
+   while the tappable region is full size. `position: relative` on .btn scopes
+   the pseudo-element. */
+.btn-sm { padding: 7px 12px; font-size: 12px; min-height: 32px; }
+.btn-sm::after {
+  content: ""; position: absolute; left: 0; right: 0;
+  top: 50%; height: 44px; transform: translateY(-50%);
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---------- Layout + sidebar ---------------------------------------------- */
+.layout { display: flex; min-height: calc(100vh - var(--topbar-h)); }
+.sidebar {
+  width: var(--sidebar-w); flex-shrink: 0;
+  background: var(--white); border-right: 1px solid var(--gray-200);
+  padding: 12px 10px 8px; display: flex; flex-direction: column; gap: 1px;
+  overflow-y: auto; max-height: calc(100vh - var(--topbar-h));
+}
+.sidebar a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 11px; border-radius: var(--radius-sm);
+  font-size: 13.5px; font-weight: 500; color: var(--gray-700);
+  transition: background .13s ease, color .13s ease;
+}
+.sidebar a:hover { background: var(--green-50); color: var(--green-800); }
+/* ICONS ARE INLINE SVG, NOT EMOJI.
+   The nav previously used emoji glyphs. On the budget Android devices this
+   product actually runs on, emoji coverage is patchy and a missing glyph
+   renders as a tofu box — verified here: with no emoji font present EVERY
+   nav icon rendered as an empty rectangle, turning the menu into a column
+   of unlabelled boxes. It is the same failure the codebase already avoids
+   for the Naira sign (see UI.money in js/ui.js). Inline SVG costs no extra
+   request, is already in the service-worker-cached shell, scales crisply
+   at any DPI, and inherits currentColor so it follows the active state. */
+.nav-ico { width: 18px; height: 18px; flex-shrink: 0; opacity: .78; }
+.sidebar a:hover .nav-ico { opacity: 1; }
+.sidebar a.active .nav-ico { opacity: 1; }
+.brand-ico { width: 20px; height: 20px; flex-shrink: 0; }
+.brand { display: inline-flex; align-items: center; gap: 9px; }
+.sidebar a.active {
+  background: var(--solid-accent-bg); color: var(--solid-accent-fg); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(10,59,44,.2);
+}
+/* Section captions. The sidebar carries ~18 destinations; ungrouped, a
+   cashier hunting for the till scans past Accounting and Admin every time.
+   Grouping turns a list into a map. */
+.nav-section {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--gray-400); padding: 14px 11px 5px; user-select: none;
+}
+.nav-section:first-child { padding-top: 4px; }
+.sidebar-footer {
+  margin-top: auto; padding: 14px 11px 6px; font-size: 11px;
+  color: var(--gray-400); text-align: center; border-top: 1px solid var(--gray-100);
+}
+.view { flex: 1; padding: 22px 26px 40px; overflow-x: auto; min-width: 0; }
+
+/* Dim the page behind the drawer on mobile so the sidebar reads as a layer
+   rather than a panel that has appeared over unrelated content. */
+.nav-scrim {
+  position: fixed; inset: var(--topbar-h) 0 0 0; background: var(--scrim);
+  z-index: 44; opacity: 0; pointer-events: none; transition: opacity .2s ease;
+}
+.nav-scrim.show { opacity: 1; pointer-events: auto; }
+
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed; left: -280px; top: var(--topbar-h); bottom: 0; z-index: 45;
+    width: 268px; transition: left .22s cubic-bezier(.4,0,.2,1); box-shadow: var(--shadow-lg);
+  }
+  .sidebar.open { left: 0; }
+  .view { padding: 15px 14px 32px; }
+  /* TOPBAR OVERFLOW ON A PHONE (found by rendering at 390px, not by
+     reading the CSS): the brand, branch switcher, user name, Install and
+     Logout all competed for ~360px, so the brand text ran UNDER the
+     switcher and Install App was clipped off-screen. Identity and scope
+     matter more than chrome here: keep the brand and the branch selector,
+     drop the rest to the menu/desktop. */
+  .user-label, .scope-label { display: none; }
+  .topbar { gap: 8px; padding: 0 10px; }
+  /* BUG 94 follow-up. `min-width: 0` lets this group shrink without limit, so
+     below ~300px it collapsed narrower than its own two fixed children and
+     clipped the 20px brand mark to 14px — the very "mark reduced to a sliver"
+     failure Bug 64 exists to prevent, arrived at from the opposite direction.
+     Measured at 280px before this floor: brand box 14px, mark still 20x20 but
+     cut off. The floor is the menu button (36) + gap (8) + mark (20) = 64px;
+     the brand WORD is already hidden below 560px, so nothing else needs room. */
+  .topbar-left { flex: 1 1 auto; min-width: 64px; }
+  .topbar-right { flex: 0 1 auto; min-width: 0; }
+  /* min-width is the MARK's width, not 0: this rule previously reset the
+     20px floor set in the base .brand rule, which let the box clip the mark
+     to 18px at 280px. Found by dumping computed styles rather than reading
+     the cascade — the base rule looked correct in isolation. */
+  .brand { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 20px; }
+  .brand > span { overflow: hidden; text-overflow: ellipsis; }
+  /* BUG 94 — THE BRANCH SWITCHER SAT ON TOP OF THE BRAND MARK.
+     Measured at 320/360/390/414px as both ADMIN and OWNER: the switcher's
+     left edge was at x=57 while the mortar-and-pestle mark occupies x=56..76,
+     so the control covered 19 of the mark's 20px — effectively all of it.
+     Two separate causes, both fixed here and below:
+       1. .topbar-left carries min-width:0 (Bug 58's fix, which is what lets
+          the bar shrink) but .brand inside it is flex-shrink:0. The brand
+          therefore OVERFLOWED its shrunken parent instead of compressing,
+          and .topbar-right — laid out after it — painted over the overflow.
+       2. The switcher itself was allowed to grow to the full remaining
+          width, so it started as far left as the flex line permitted.
+     Client instruction: make the switcher roughly 3/4 to 3/5 of its current
+     mobile width. 150px -> 112px is 3/4, the top of that range. Measured
+     rather than chosen: at this breakpoint the label reads "All Branches"
+     (see app.js), which needs 81px of text plus 20px of padding and caret,
+     so 105px truncated it to "All Branche…" and 112px is the smallest width
+     in the agreed band that renders the phrase whole. There is no crowding
+     risk here — even at 561px the switcher's left edge lands ~230px clear of
+     the 20px brand mark; the tight case is the <=560px rule below. */
+  .branch-switcher { max-width: 112px; flex: 0 1 auto; min-width: 0; }
+  #install-app-btn { display: none !important; }
+  /* The theme toggle stays on a phone — a dim shop at 6am is exactly when it
+     is wanted — but it is the narrowest useful control, so it gives up its
+     padding first. */
+  .theme-toggle { width: 32px; height: 32px; }
+}
+/* Below ~430px even the brand WORD is too much next to a branch selector a
+   manager must be able to read. The logo/mark alone still identifies the
+   app, and the branch is the operationally critical one. */
+@media (max-width: 560px) {
+  .brand > span { display: none; }
+  /* BUG 94, second half. This was `max-width: 100%`, which let the switcher
+     claim the whole flex line on the narrowest phones — the widest it is
+     anywhere, on the screens with least room. At 320px it measured 132px and
+     began at x=57, i.e. underneath the brand mark. Capped at 3/5 of the old
+     150px mobile figure (90px), which is the low end of the range the client
+     asked for and is where "All Branch…" still reads. */
+  .branch-switcher { max-width: 90px; }
+  /* Logout is destructive-adjacent and rarely wanted mid-shift; the branch
+     a manager is looking at is needed constantly. Give the selector the
+     room and keep Logout reachable but compact. */
+  #logout-btn { padding: 8px 10px; font-size: 12px; }
+}
+
+/* A bare <input> outside a .form-row previously inherited NO styling at
+   all — it rendered as the browser default box. The POS product search is
+   exactly that: a 200px unstyled field inside a 700px panel, which looks
+   unfinished and truncates the product name a cashier is confirming before
+   adding it to the cart. Style inputs by element so nothing can be missed,
+   with .form-row keeping its own (identical) rules for clarity. */
+.card > input[type="text"],
+.card > input[type="search"],
+.card > input[type="number"],
+.card > select {
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--gray-300); border-radius: var(--radius-sm);
+  background: var(--white);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.card > input:hover, .card > select:hover { border-color: var(--gray-400); }
+.card > input:focus, .card > select:focus {
+  outline: none; border-color: var(--green-500); box-shadow: var(--shadow-focus);
+}
+@media (min-width: 901px) { .nav-scrim { display: none; } }
+
+/* ---------- Page furniture ------------------------------------------------ */
+.page-title {
+  font-size: 21px; font-weight: 700; margin: 0 0 5px;
+  color: var(--green-900); letter-spacing: -.3px;
+}
+.page-subtitle { font-size: 13px; color: var(--gray-600); margin: 0 0 20px; max-width: 78ch; }
+
+.card {
+  background: var(--white); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm); padding: 18px 20px; margin-bottom: 16px;
+}
+/* On a dark ground a drop shadow is almost invisible, so a card would bleed
+   into the page. A hairline border does the separating instead — this is the
+   one structural rule the dark theme genuinely needs beyond swapping tokens.
+   Verified by rendering: without it the dashboard reads as one flat sheet. */
+[data-theme="dark"] .card,
+[data-theme="dark"] .stat-card,
+[data-theme="dark"] .login-card,
+[data-theme="dark"] .modal { border: 1px solid var(--gray-200); }
+.card h3 {
+  margin: 0 0 14px; font-size: 15px; font-weight: 700;
+  color: var(--green-900); letter-spacing: -.15px;
+}
+.card .page-subtitle { margin-top: -8px; }
+
+.grid { display: grid; gap: 14px; }
+.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px)  { .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px)  { .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; } }
+
+/* ---------- Stat cards ----------------------------------------------------
+   The headline numbers. Big, tabular, and colour-coded only by the accent
+   rail so the figure itself stays readable. */
+.stat-card {
+  background: var(--white); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm); padding: 16px 18px;
+  border-left: 3px solid var(--green-600);
+  transition: box-shadow .15s ease;
+}
+.stat-card:hover { box-shadow: var(--shadow-md); }
+.stat-card .label {
+  font-size: 11px; color: var(--gray-600); font-weight: 700;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.stat-card .value {
+  font-size: 24px; font-weight: 700; margin-top: 7px;
+  color: var(--gray-800); letter-spacing: -.5px; line-height: 1.15;
+}
+.stat-card.warn { border-left-color: var(--amber-500); }
+.stat-card.danger { border-left-color: var(--red-500); }
+
+/* ---------- Tables --------------------------------------------------------
+   Sticky headers: a stock list runs to hundreds of rows, and losing the
+   column labels while scrolling is how a quantity gets read as a price. */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--gray-100); }
+th {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--gray-600); background: var(--gray-50);
+  position: sticky; top: 0; z-index: 1;
+  border-bottom: 1px solid var(--gray-200);
+}
+tbody tr { transition: background .1s ease; }
+tbody tr:hover td { background: var(--green-50); }
+tbody tr:last-child td { border-bottom: none; }
+.table-wrap {
+  overflow-x: auto; overflow-y: auto; max-height: 68vh;
+  border-radius: var(--radius-sm); border: 1px solid var(--gray-100);
+  -webkit-overflow-scrolling: touch;
+}
+.r-small { font-size: 12px; }
+.r-center { text-align: center; }
+.r-rule { border-top: 1px solid var(--gray-200); }
+
+/* ---------- Badges --------------------------------------------------------
+   audit.pwa.js asserts every colour requested by a view exists here. */
+.badge {
+  display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill);
+  font-size: 11px; font-weight: 700; letter-spacing: .2px; white-space: nowrap;
+}
+.badge-green { background: var(--green-100); color: var(--green-700); }
+/* Branch Manager badge — visually distinct from a General Manager's green
+   so an owner can tell at a glance which managers are scoped to a single
+   branch. Added with the General/Branch Manager naming change; `blue` was
+   previously an undefined variant that would have rendered unstyled. */
+.badge-blue { background: var(--blue-100); color: var(--blue-600); }
+.badge-amber { background: var(--amber-100); color: var(--amber-600); }
+.badge-red { background: var(--red-100); color: var(--red-600); }
+.badge-gray { background: var(--gray-100); color: var(--gray-600); }
+
+/* ---------- Forms ---------------------------------------------------------
+   Inputs are 40px+ tall: this is used on a phone, standing up, sometimes
+   with one hand while the other holds a product box. */
+.form-row { margin-bottom: 14px; }
+.form-row label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: var(--gray-700); margin-bottom: 6px;
+}
+.form-row input, .form-row select, .form-row textarea {
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--gray-300); border-radius: var(--radius-sm);
+  background: var(--white);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.form-row input:hover, .form-row select:hover, .form-row textarea:hover { border-color: var(--gray-400); }
+.form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+  outline: none; border-color: var(--green-500); box-shadow: var(--shadow-focus);
+}
+.form-row input:disabled, .form-row select:disabled, .form-row textarea:disabled {
+  background: var(--gray-50); color: var(--gray-400); cursor: not-allowed;
+}
+.form-row input::placeholder, .form-row textarea::placeholder { color: var(--gray-400); }
+/* ---------- Checkboxes and radios ----------------------------------------
+   BUG 61 — THE HIGHEST-CONSEQUENCE CONTROLS IN THE PRODUCT WERE 13x13 PIXELS.
+
+   Nothing in the stylesheet ever styled a checkbox, so all 13 of them across
+   Plan, Admin, Purchase Orders and Stocktake rendered at the browser default —
+   measured 13x13 CSS px, barely half the WCAG 2.2 AA minimum target of 24x24,
+   and about a quarter of Apple's and Material's guidance.
+
+   These are not incidental toggles. They are: "Managers can void sales",
+   "Managers can approve expenses", "Managers can change branch prices",
+   "Cashiers can void their own sale", "Cashiers can write off stock",
+   "Enable VAT tracking", "Receive this delivery on credit", and "this batch has
+   no expiry date". Mis-tapping one silently grants a standing power over money
+   or files a delivery as unpaid debt. A 13px target on a phone, with a thumb,
+   is a coin-flip.
+
+   18x18 box, and the surrounding <label> becomes the real target: every one of
+   these ships as `<label style="display:flex;align-items:center;gap:6px">` with
+   the input inside, so giving the label a 44px min-height makes the whole
+   sentence tappable — which is also how a person expects a labelled checkbox to
+   behave. accent-color themes the native control in both light and dark without
+   replacing it, so keyboard behaviour, the indeterminate state and screen-reader
+   semantics are all untouched. */
+input[type="checkbox"], input[type="radio"] {
+  width: 18px; height: 18px; min-width: 18px; min-height: 18px;
+  margin: 0; flex-shrink: 0; cursor: pointer;
+  accent-color: var(--green-600);
+}
+input[type="radio"] { border-radius: 50%; }
+/* Any label that directly contains a checkbox/radio is the touch target. */
+label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) {
+  min-height: 44px; display: flex; align-items: center; gap: 10px;
+  cursor: pointer; user-select: none;
+}
+/* :has() is unsupported on genuinely old WebViews. This fallback costs nothing
+   and gives those devices a bigger target anyway: the checkbox itself is
+   already 18px, and the padding here widens the row. */
+.form-row > label > input[type="checkbox"],
+.form-row > label > input[type="radio"] { margin-right: 4px; }
+
+/* Number inputs used as inline rate/quantity editors inside a table cell were
+   22px tall (the WHT rate editors on the Plan screen, which set the percentage
+   actually withheld from a supplier payment). Same floor as every other field. */
+input[type="number"], input[type="text"], input[type="search"],
+input[type="password"], input[type="date"], input[type="tel"], select {
+  min-height: 36px;
+}
+/* ...but never force height onto a checkbox/radio, which the selector above
+   would otherwise not touch anyway — stated explicitly so a future edit that
+   broadens the selector cannot silently re-break Bug 61. */
+input[type="checkbox"], input[type="radio"] { min-height: 18px; }
+
+/* BUG 90 — INLINE FORM FIELDS DRIFTED APART WHEN ONE CARRIED HELPER TEXT.
+   `align-items: flex-end` bottom-aligns every column, which is right only while
+   all columns are the same height. On the Add User form two columns carry
+   explanatory helper text under the control ("Staff accounts are locked to one
+   branch", and the longer note about job title vs role). Those columns grew to
+   228px while the plain ones stayed 62px, so with everything bottom-aligned the
+   INPUTS ended up 166px apart vertically — measured, not eyeballed — leaving a
+   large empty gap above the short fields and a form that reads as broken.
+   Aligning to the TOP and letting the helper text hang below keeps every
+   control on one line, which is the entire point of an inline form. */
+.form-inline { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.form-inline .form-row { flex: 1; min-width: 150px; margin-bottom: 0; }
+/* Helper text must not stretch its column's control away from its siblings. */
+.form-inline .form-row small,
+.form-inline .form-row .muted { display: block; margin-top: 4px; }
+/* A label that WRAPS to two lines pushed its own input below its neighbour's:
+   at 390px "Packs per Carton (optional)" needs two lines while "Reorder Level"
+   needs one, so their inputs sat 18px apart on the same row.
+   Bottom-aligning inside a stretched column was tried and REVERTED — it
+   reintroduced the original 166px gap on the Users form, because a column with
+   helper text is far taller than one without. Reserving two lines of label
+   height instead fixes the wrap case without touching the helper-text case:
+   short labels simply occupy the same vertical space as wrapped ones, so every
+   control on a row starts at the same y. Verified at 390/768/1440px on every
+   screen that uses .form-inline. */
+.form-inline .form-row > label { display: block; min-height: 2.8em; }
+
+/* BUG 92 — the fix above aligned every LABELLED column and left the bare
+   action button floating 40px above the row it belongs to.
+
+   Reserving label height works because every column then starts its control
+   at the same y. A submit button placed directly inside .form-inline has no
+   label to reserve, so with align-items:flex-start it began at the top of the
+   row while every input began one label-height lower. Measured, not guessed:
+   on Add User at 1440px #u-add spanned y=533..569 while the inputs spanned
+   573..611 — the button's BOTTOM edge sat 4px above the inputs' TOP edge, so
+   it read as belonging to the heading rather than to the form.
+
+   19 such buttons exist across 9 views (users, customers, suppliers,
+   products, expenses, purchase-orders, transfers, till, accounting, admin),
+   so this is corrected once here rather than by wrapping each one.
+
+   `align-self: flex-start` keeps the button on the control baseline without
+   stretching it, and the top margin reproduces exactly the space the reserved
+   label occupies in its siblings. Buttons that ARE inside a .form-row keep
+   their existing behaviour — hence the child combinator. */
+.form-inline > .btn { align-self: flex-start; margin-top: 2.8em; }
+
+/* ---------- Tabs ---------------------------------------------------------- */
+.tabs {
+  display: flex; gap: 2px; margin-bottom: 18px;
+  border-bottom: 1px solid var(--gray-200); overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tab {
+  padding: 10px 15px; font-size: 13px; font-weight: 600; color: var(--gray-600);
+  border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap;
+  transition: color .13s ease, border-color .13s ease, background .13s ease;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.tab:hover { color: var(--green-700); background: var(--green-50); }
+.tab.active { color: var(--green-700); border-color: var(--green-600); }
+
+/* ---------- Modal --------------------------------------------------------- */
+.modal-backdrop {
+  position: fixed; inset: 0; background: var(--scrim);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 16px;
+  animation: fade-in .14s ease;
+}
+.modal {
+  background: var(--white); border-radius: var(--radius-lg);
+  max-width: 580px; width: 100%; max-height: 90vh; overflow-y: auto;
+  padding: 24px; box-shadow: var(--shadow-lg);
+  animation: modal-rise .18s cubic-bezier(.4,0,.2,1);
+}
+.modal h3 { margin-top: 0; font-size: 17px; color: var(--green-900); }
+.modal-actions {
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px;
+  padding-top: 16px; border-top: 1px solid var(--gray-100);
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-rise { from { opacity: 0; transform: translateY(12px) scale(.99); } to { opacity: 1; transform: none; } }
+
+/* ---------- Toasts -------------------------------------------------------- */
+.toast-container {
+  position: fixed; bottom: 20px; right: 20px;
+  display: flex; flex-direction: column; gap: 9px; z-index: 200;
+  max-width: calc(100vw - 40px);
+}
+.toast {
+  background: var(--toast-bg); color: var(--toast-fg); padding: 12px 16px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  box-shadow: var(--shadow-lg); max-width: 380px; line-height: 1.45;
+  animation: toast-in .2s cubic-bezier(.4,0,.2,1);
+  border-left: 3px solid rgba(255,255,255,.35);
+}
+.toast.success { background: var(--toast-success-bg); color: var(--toast-fg); }
+.toast.error { background: var(--toast-error-bg); color: var(--toast-fg); }
+.toast.warn { background: var(--toast-warn-bg); color: var(--toast-fg); }
+@keyframes toast-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+@media (max-width: 620px) {
+  .toast-container { left: 14px; right: 14px; bottom: 14px; }
+  .toast { max-width: none; }
+}
+
+/* ---------- Empty state ---------------------------------------------------
+   Deliberately calm, not apologetic. An empty table is usually a new shop,
+   not a failure. */
+.empty-state {
+  text-align: center; color: var(--gray-400);
+  padding: 46px 20px; font-size: 13px; line-height: 1.6;
+}
+
+/* ---------- POS -----------------------------------------------------------
+   The money screen. Everything here optimises for speed with a scanner in
+   one hand: large hit targets, the running total always visible. */
+.pos-layout { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1040px) { .pos-layout { grid-template-columns: 1fr; } }
+
+.product-search-results {
+  max-height: 300px; overflow-y: auto;
+  border: 1px solid var(--gray-200); border-radius: var(--radius-sm); margin-top: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+.product-search-item {
+  padding: 11px 13px; border-bottom: 1px solid var(--gray-100);
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 10px; cursor: pointer; transition: background .1s ease;
+}
+.product-search-item:last-child { border-bottom: none; }
+.product-search-item:hover { background: var(--green-50); }
+.product-search-item .meta { font-size: 11.5px; color: var(--gray-600); }
+
+.cart-line {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--gray-100); gap: 10px;
+}
+.cart-line:last-of-type { border-bottom: none; }
+.cart-line .name { font-weight: 600; font-size: 13.5px; }
+.cart-line .meta { font-size: 11.5px; color: var(--gray-600); margin-top: 2px; }
+.cart-total-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
+.cart-total-row.grand {
+  font-weight: 700; font-size: 19px; color: var(--green-800);
+  border-top: 2px solid var(--gray-200); margin-top: 10px; padding-top: 12px;
+  letter-spacing: -.4px;
+}
+.qty-input {
+  width: 64px; padding: 7px; border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm); text-align: center; font-weight: 600;
+}
+.qty-input:focus { outline: none; border-color: var(--green-500); box-shadow: var(--shadow-focus); }
+.remove-line {
+  background: none; border: none; color: var(--red-500); font-size: 18px;
+  line-height: 1; padding: 4px 8px; border-radius: var(--radius-sm);
+  transition: background .12s ease;
+}
+.remove-line:hover { background: var(--red-100); }
+
+.pill-toggle { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill-toggle button {
+  padding: 7px 14px; border-radius: var(--radius-pill);
+  border: 1px solid var(--gray-300); background: var(--white);
+  font-size: 12px; font-weight: 600; color: var(--gray-700);
+  transition: background .13s ease, border-color .13s ease, color .13s ease;
+}
+.pill-toggle button:hover { border-color: var(--green-500); color: var(--green-700); }
+.pill-toggle button.active { background: var(--solid-accent-bg); color: var(--solid-accent-fg); border-color: var(--solid-accent-bg); }
+
+.receipt {
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.6;
+  background: var(--gray-50); border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm); padding: 16px;
+}
+.receipt .line { display: flex; justify-content: space-between; gap: 12px; }
+.receipt hr { border: none; border-top: 1px dashed var(--gray-300); margin: 9px 0; }
+
+/* THE ON-SCREEN RECEIPT PREVIEW MUST LOOK LIKE THE PAPER.
+   Receipt.screenHtml() renders the THERMAL markup (.r-center, .r-business,
+   .r-line ...) inside .receipt, but those classes were only ever defined in
+   export.js's THERMAL_CSS — which is injected into the print frame and does
+   not exist on the app page. So the preview a cashier checks before printing
+   was unstyled text: no centring, no bold business name, and the label/amount
+   pairs stacked instead of sitting on one line.
+   These mirror THERMAL_CSS so what the counter sees is what the roll prints. */
+.receipt .r-center { text-align: center; }
+.receipt .r-business { font-size: 14px; font-weight: 700; }
+.receipt .r-poweredby { font-size: 9px; color: var(--gray-600); letter-spacing: .2px; }
+.receipt .r-line { display: flex; justify-content: space-between; gap: 6px; }
+.receipt .r-line > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.receipt .r-line > span:nth-child(2) { white-space: nowrap; }
+.receipt .r-rule { border-top: 1px dashed var(--gray-400); margin: 5px 0; }
+.receipt .r-total { font-size: 13px; font-weight: 700; }
+.receipt .r-small { font-size: 10px; color: var(--gray-600); }
+.receipt .r-logo { max-width: 120px; max-height: 60px; object-fit: contain; }
+
+/* ---------- Export toolbar ------------------------------------------------ */
+.export-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+
+/* ---------- Printing the live app itself ----------
+   Documents are normally rendered into a dedicated hidden iframe by
+   Exporter.printDocument(), which carries its own stylesheet. These rules are
+   the safety net for a user who hits Ctrl+P / the browser's own Print on the
+   app: hide the interactive chrome so they still get a usable page instead of
+   a navigation sidebar and a row of buttons. */
+@media print {
+  .topbar, .sidebar, .nav-scrim, .toast-container, .offline-banner,
+  .export-toolbar, .no-print, .modal-actions, #nav-toggle { display: none !important; }
+  .layout { display: block !important; }
+  .view { padding: 0 !important; }
+  .card { box-shadow: none !important; border: 1px solid #ccc !important; page-break-inside: avoid; }
+  .table-wrap { max-height: none !important; overflow: visible !important; border: none !important; }
+  th { position: static !important; }
+  .modal-backdrop { position: static !important; background: none !important; padding: 0 !important; }
+  .modal { max-height: none !important; overflow: visible !important; box-shadow: none !important; max-width: none !important; }
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  thead { display: table-header-group; }
+  a[href]::after { content: ""; }
+  body { background: #fff !important; }
+}
+
+/* ---------- Goods-received conversion preview (Bug 112) ------------------- */
+/* Shows "10 cartons x 10 packs x 10 pieces = 1,000 pieces" and the derived
+   unit costs BEFORE the storekeeper commits. Deliberately prominent: it is
+   the confirmation that the system understood the delivery the same way the
+   person standing at the door did. */
+.receive-preview {
+  margin: 6px 0 2px; padding: 7px 10px; font-size: 12.5px; line-height: 1.5;
+  background: var(--green-50, #f0f7f3); border-left: 3px solid var(--green-600);
+  border-radius: var(--radius-sm); color: var(--gray-800);
+}
+.receive-preview .rp-wait { color: var(--gray-600); font-style: italic; }
+// UI helpers: toasts, modals, formatting, offline banner.

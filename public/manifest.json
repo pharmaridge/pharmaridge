@@ -1,0 +1,46 @@
+{
+  "id": "/",
+  "name": "PharmaRidge",
+  "short_name": "PharmaRidge",
+  "description": "Multi-branch pharmacy / patent medicine store management system — offline-first POS, inventory, accounting and compliance, by PharmaRidge.",
+  "start_url": "/",
+  "scope": "/",
+  "lang": "en",
+  "dir": "ltr",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "background_color": "#333942",
+  "theme_color": "#0b3d2e",
+  "orientation": "portrait-primary",
+  "categories": ["business", "medical", "productivity", "finance"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Point of Sale",
+      "short_name": "POS",
+      "description": "Jump straight to the checkout screen",
+      "url": "/#/pos",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Till / Cash",
+      "short_name": "Till",
+      "description": "Open or close a till session",
+      "url": "/#/till",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Stock & Expiry",
+      "short_name": "Stock",
+      "description": "Check stock levels and expiry alerts",
+      "url": "/#/stock",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

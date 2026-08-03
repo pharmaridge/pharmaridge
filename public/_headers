@@ -1,0 +1,15 @@
+# Cloudflare Pages security headers — replicates what `helmet` provided
+# for the Node deployment (server/app.js), since static assets served
+# directly by Pages don't pass through our Express/Hono app at all.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: no-referrer
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';
+  Permissions-Policy: geolocation=(self)
+
+# The service worker file must always be revalidated so app updates
+# (bugfixes, new cached asset lists) reach field devices promptly —
+# same rationale as the Node deployment's sw.js no-cache header.
+/sw.js
+  Cache-Control: no-cache

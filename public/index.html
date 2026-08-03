@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
+  <title id="page-title">PharmaRidge — Multi-Branch Pharmacy Management</title>
+  <meta name="theme-color" content="#0b3d2e" />
+  <meta name="description" content="Multi-branch pharmacy / patent medicine store management system — offline-first POS, inventory, accounting and compliance, by PharmaRidge." />
+  <!-- Canonical manifest path: /api/manifest.json is served dynamically by
+       BOTH deployment backends (server/app.js for Node, worker/src/index.js
+       for Cloudflare Workers+D1) so a client's own branding (business name +
+       logo, set via the Admin Portal) is reflected in the PWA install
+       experience on either deployment target with zero extra routing config
+       — see DEPLOYMENT-CLOUDFLARE.md Part 5 for why a bare /manifest.json
+       would NOT work on the Cloudflare deployment (Pages would serve the
+       static fallback file instead of routing to the Worker). -->
+  <link rel="manifest" href="/api/manifest.json" />
+  <link rel="icon" id="favicon-link" href="/icons/icon-192.png" />
+  <!-- iOS Safari has never fully implemented the Web App Manifest spec —
+       "Add to Home Screen" on iOS reads its own dedicated Apple meta tags
+       instead of (or in addition to) manifest.json, so a PWA that relies
+       on the manifest alone gets an unstyled browser-chrome icon and a
+       plain white-background splash flash on iPhone/iPad even though the
+       exact same install works perfectly on Android/desktop Chrome. These
+       tags are additive — every other browser (which DOES support the
+       manifest) simply ignores tags it doesn't recognize, so this is a
+       pure compatibility improvement with zero downside on any platform. -->
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="PharmaRidge" />
+  <!-- Legacy Android/older-Chrome equivalent of apple-mobile-web-app-capable
+       (deprecated in modern Chrome in favor of the manifest's own
+       "display": "standalone", but costs nothing to include for an older
+       WebView/Chrome version that still only understands this tag). -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <!-- MSTile support for a client who pins this PWA to a Windows Start
+       Menu via legacy Edge/IE — again additive, ignored everywhere else. -->
+  <meta name="msapplication-TileColor" content="#0b3d2e" />
+  <meta name="msapplication-TileImage" content="/icons/icon-192.png" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <!-- THEME BOOTSTRAP — must be in <head>, must be render-blocking, and must
+       be an EXTERNAL file.
+       * In <head> and before <body> so the correct theme is on <html> before
+         the first pixel is painted; loaded at the end of <body> instead, a
+         dark-mode user gets a full white flash on every navigation.
+       * NOT inline: public/_headers sends `script-src 'self'` with no
+         'unsafe-inline' and no nonce, so an inline bootstrap would be blocked
+         by the browser on the real Pages deployment while still working in
+         local dev — a defect that only ever appears in production.
+       * No `defer`/`async` for the same reason: both would let the paint
+         happen first, which is precisely what this script exists to prevent.
+         It is ~4 KB, same-origin, and precached by the service worker. -->
+  <script src="/js/theme.js"></script>
+</head>
+<body>
+  <div id="offline-banner" class="offline-banner hidden">
+    ⚠ You are OFFLINE — sales will be queued locally and synced automatically when connection returns.
+    <span id="queue-count"></span>
+  </div>
+
+  <div id="app">
+    <div id="login-screen" class="screen"></div>
+
+    <div id="main-screen" class="screen hidden">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="nav-toggle" class="icon-btn" aria-label="Menu" aria-expanded="false" aria-controls="sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" width="20" height="20"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          <img id="topbar-logo" class="topbar-logo hidden" alt="" />
+          <span class="brand" id="topbar-brand"><svg class="brand-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5.9 3.9h12.2v1.8a6.1 6.1 0 01-12.2 0z" fill="currentColor"/><path d="M11.35 10.2h1.3v1.3h-1.3z" fill="currentColor"/><path d="M9.4 11.4h5.2v1.3H9.4z" fill="currentColor"/><path d="M15.1 3.4l2.6-2.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M0.9 22.6l6.1-6.5 3.6 3.9 2.5-2.7 3.4 3.7 1.9-2.1 4.7 3.7z" fill="currentColor"/></svg><span>PharmaRidge</span></span>
+        </div>
+        <div class="topbar-right">
+          <span id="branch-scope-label" class="scope-label"></span>
+          <select id="branch-switcher" class="branch-switcher hidden"></select>
+          <span id="user-label" class="user-label"></span>
+          <!-- Icon + aria-label are written by js/theme.js so the button can
+               never disagree with the theme actually being rendered. It ships
+               with the moon (the light-mode state) so it is never empty for
+               the instant before Theme.mount() runs. -->
+          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="18" height="18"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/></svg></button>
+          <button id="install-app-btn" class="btn btn-secondary hidden" title="Install this app for offline, full-screen use"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="15" height="15"><path d="M12 3v11M8 11l4 4 4-4M4 19h16"/></svg><span>Install App</span></button>
+          <button id="logout-btn" class="btn btn-ghost">Logout</button>
+        </div>
+      </header>
+
+      <div class="layout">
+        <nav id="sidebar" class="sidebar">
+          <!-- Grouped by WHAT THE PERSON IS DOING, not by which table the data
+               lives in. Eighteen flat links meant a cashier hunting for the
+               till scanned past Accounting and Admin every single time; the
+               captions turn a list into a map. Section captions are inert
+               <div>s, so every data-nav anchor and every #nav-* id the router
+               and role-gating in app.js depend on is unchanged. -->
+          <div class="nav-section">Daily Work</div>
+          <a href="#/pos" data-nav="pos"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M7 20h10M9 16v4M15 16v4"/></svg><span>Point of Sale</span></a>
+          <a href="#/dashboard" data-nav="dashboard"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>Dashboard</span></a>
+          <a href="#/sales" data-nav="sales"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5M9 13h7M9 17h5"/></svg><span>Sales History</span></a>
+          <a href="#/till" data-nav="till"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg><span>Till / Cash</span></a>
+          <a href="#/attendance" data-nav="attendance"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Staff Attendance</span></a>
+
+          <div class="nav-section">Stock</div>
+          <a href="#/stock" data-nav="stock"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg><span>Stock &amp; Expiry</span></a>
+          <a href="#/stocktake" data-nav="stocktake"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg><span>Stocktake</span></a>
+          <a href="#/products" data-nav="products" id="nav-products" style="display:none;"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4L13.4 20.6a2 2 0 01-2.8 0l-7.2-7.2A2 2 0 013 12V5a2 2 0 012-2h7a2 2 0 011.4.6l7.2 7.2a2 2 0 010 2.6z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg><span>Products</span></a>
+          <a href="#/purchase-orders" data-nav="purchase-orders"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 7h11v9H2z"/><path d="M13 10h4l4 3v3h-8z"/><circle cx="6" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg><span>Purchase Orders</span></a>
+          <a href="#/transfers" data-nav="transfers"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg><span>Branch Transfers</span></a>
+          <a href="#/controlled-register" data-nav="controlled-register"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg><span>Controlled Drug Register</span></a>
+
+          <div class="nav-section">Money &amp; People</div>
+          <a href="#/customers" data-nav="customers"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0112 0"/><path d="M16 11.2A3 3 0 1016 5.4M18 20a5.5 5.5 0 00-3-4.9"/></svg><span>Customers / Debtors</span></a>
+          <a href="#/suppliers" data-nav="suppliers" id="nav-suppliers" style="display:none;"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l6-3v3l6-3v3l6-3v15z"/><path d="M9 21v-4h3v4"/></svg><span>Suppliers / Creditors</span></a>
+          <a href="#/expenses" data-nav="expenses" id="nav-expenses" style="display:none;"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15 9.5A3 3 0 0012 8c-1.7 0-3 1-3 2.3 0 3 6 1.6 6 4.4 0 1.3-1.3 2.3-3 2.3a3 3 0 01-3-1.5M12 6.5v11"/></svg><span>Expenses</span></a>
+          <a href="#/accounting" data-nav="accounting" id="nav-accounting" style="display:none;"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h4M8 16h6"/></svg><span>Accounting / GL</span></a>
+
+          <div class="nav-section">Setup</div>
+          <a href="#/users" data-nav="users" id="nav-users"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0114 0"/></svg><span>Users &amp; Branches</span></a>
+          <a href="#/sync" data-nav="sync"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 01-15.5 6.2M3 12a9 9 0 0115.5-6.2"/><path d="M3 18v-4h4M21 6v4h-4"/></svg><span>Sync Status</span></a>
+          <a href="#/plan" data-nav="plan" id="nav-plan" style="display:none;"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M6 20V12M11 20V6M16 20v-5M21 20V9"/></svg><span>My Plan</span></a>
+          <a href="#/admin" data-nav="admin" id="nav-admin" style="display:none;"><svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l8 4v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg><span>Admin Portal</span></a>
+          <div id="sidebar-footer" class="sidebar-footer hidden"></div>
+        </nav>
+        <div id="nav-scrim" class="nav-scrim"></div>
+        <main id="view" class="view"></main>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- js/theme.js is deliberately NOT listed here — it is loaded in <head>
+       (see the comment there). It is still part of the service worker's
+       APP_SHELL so the app themes correctly with no network at all. -->
+  <script src="/js/state.js"></script>
+  <script src="/js/deviceId.js"></script>
+  <script src="/js/offline.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/branding.js"></script>
+  <script src="/js/export.js"></script>
+  <script src="/js/receipt.js"></script>
+  <script src="/js/router.js"></script>
+  <script src="/js/views/login.js"></script>
+  <script src="/js/views/dashboard.js"></script>
+  <script src="/js/views/pos.js"></script>
+  <script src="/js/views/sales.js"></script>
+  <script src="/js/views/till.js"></script>
+  <script src="/js/views/attendance.js"></script>
+  <script src="/js/views/stock.js"></script>
+  <script src="/js/views/stocktake.js"></script>
+  <script src="/js/views/products.js"></script>
+  <script src="/js/views/purchaseOrders.js"></script>
+  <script src="/js/views/transfers.js"></script>
+  <script src="/js/views/customers.js"></script>
+  <script src="/js/views/suppliers.js"></script>
+  <script src="/js/views/expenses.js"></script>
+  <script src="/js/views/controlledRegister.js"></script>
+  <script src="/js/views/sync.js"></script>
+  <script src="/js/views/users.js"></script>
+  <script src="/js/views/accounting.js"></script>
+  <script src="/js/views/plan.js"></script>
+  <script src="/js/views/admin.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

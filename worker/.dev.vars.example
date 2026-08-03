@@ -1,0 +1,2 @@
+# Local development only. Never use this value in production.
+JWT_SECRET=replace-with-a-long-random-local-development-secret
