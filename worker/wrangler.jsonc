@@ -17,6 +17,10 @@
   ],
   "triggers": {
     "crons": ["0 */6 * * *"]
+  },
+  "assets": {
+    "directory": "../public",
+    "run_worker_first": ["/api/*"]
   }
   // IMPORTANT — routing (see DEPLOYMENT-CLOUDFLARE.md for the full
   // walkthrough): to keep the frontend's existing relative `/api/...`
