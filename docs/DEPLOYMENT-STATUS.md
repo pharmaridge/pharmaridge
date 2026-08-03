@@ -22,14 +22,15 @@
 
 ## Shared live-sample state
 
-The production database is intentionally loaded with **demonstration data only** so prospective clients can explore the application.
+The production database is intentionally a **blank first-run sample**. It retains the 6,801-row NAFDAC reference catalog and system accounting/tax configuration, but has no branches, stock, owners, staff, suppliers, customers, transactions, or operational records.
 
 | Username | PIN | Purpose |
 |---|---|---|
-| `owner` | `1234` | Full pharmacy-owner sample view across every branch and report |
-| `admin` | `1234` | PharmaRidge Admin Portal sample view |
+| `admin` | `1234` | Public sample Admin Portal access; create the first Owner account |
 
-These are deliberately public sample credentials, not client credentials. The instance contains GreenLife demonstration branches, products, staff, and transaction data. It may be reset after demonstrations; do not enter real patient, customer, staff, supplier, or financial information.
+A prospect signs in as Admin, creates an Owner, then signs in as that Owner to create branches, staff, suppliers, and receive stock. This is the actual first-run workflow, rather than a pre-filled shop.
+
+The instance is public and resettable. Do not enter real patient, customer, staff, supplier, or financial information. `npm run sample:reset:remote` rebuilds this blank sample state and restores the Admin login plus the NAFDAC product set.
 
 ## Still required before a real client go-live
 

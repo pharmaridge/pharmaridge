@@ -81,6 +81,7 @@ build/
 # including 0002_nafdac_catalog.sql (the 6,801-product NAFDAC reference table)
 # — are schema and must ship with the repo.
 worker/seed.sql
+worker/live-sample-reset.sql
 worker/first-user.sql
 
 # Database exports / backups produced by `wrangler d1 export`. These contain

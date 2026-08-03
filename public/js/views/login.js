@@ -24,13 +24,10 @@ function renderLogin() {
         <div id="login-error" class="login-error hidden"></div>
       </form>
       <div class="demo-hint">
-        Demo accounts (PIN <b>1234</b> for all):<br/>
-        <b>manager</b> — General Manager, every branch<br/>
-        <b>lagos.mgr</b> — Branch Manager, Lagos only<br/>
-        <b>owner</b> — Owner, every branch + plan settings<br/>
-        <b>admin</b> — PharmaRidge Admin Portal (sample environment only)<br/>
-        <b>lagos.staff</b> — Staff, Lagos branch only<br/>
-        <b>minna.staff</b> — Staff, Minna branch only
+        <b>Shared live sample:</b> <b>admin</b> — PIN <b>1234</b><br/>
+        Sign in as Admin to create a new Owner. The Owner can then create branches,
+        staff, suppliers, and receive stock using the full NAFDAC product catalog.<br/>
+        <span style="font-size:11px;">Sample data only — this environment may be reset. Do not enter real records.</span>
       </div>
       ${poweredBy ? `<div class="powered-by-footer">${UI.escapeHtml(poweredBy)}</div>` : ''}
     </div>

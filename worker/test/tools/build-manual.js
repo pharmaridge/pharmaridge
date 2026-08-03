@@ -375,11 +375,11 @@ form is simply narrower.</p>
 <p>Every screen in PharmaRidge works down to a 320-pixel-wide phone, which is the narrowest device still
 in daily use in Nigerian shops. If a control exists on the laptop, it exists here too.</p>`)}
   <div class="note">
-    <b>Shared live-sample access.</b> Prospective clients may sign in as
-    <code>owner</code> / <code>1234</code> to see the proprietor's full operating view, or
-    <code>admin</code> / <code>1234</code> to see the PharmaRidge Admin Portal. This is a public
-    demonstration environment with sample data only. Do not enter real patient, customer, staff, or
-    financial data; the sample may be reset as part of demonstrations.
+    <b>Shared live-sample access.</b> Start with <code>admin</code> / <code>1234</code>. The
+    sample begins empty except for that Admin account and the full NAFDAC product catalog. Use Admin
+    to create an Owner; the new Owner then creates branches, staff, suppliers and receives stock —
+    the same first-run workflow a real client follows. This is a public demonstration environment:
+    do not enter real patient, customer, staff, or financial data; it may be reset after a demo.
   </div>
   <div class="warn">
     <b>Change the PINs before you open.</b> A new installation ships with demonstration accounts on

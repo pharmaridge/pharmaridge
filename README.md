@@ -152,7 +152,7 @@ npx wrangler pages dev ../public --port 8788 --proxy 9001   # terminal 2 — fro
 
 Open `http://localhost:8788`.
 
-**Demo logins** (all PIN `1234`): `manager` (General Manager), `lagos.mgr` (Branch Manager — Lagos only), `owner`, `admin`, `lagos.staff`, `minna.staff`.
+**Public live-sample login:** `admin` / PIN `1234`. The sample starts with no Owner, branches, stock, staff, or transactions; create an Owner from the Admin Portal, then use that Owner account to exercise first-run setup. The NAFDAC catalog is already available as products, ready for stock receiving.
 
 **Run verification** (Node.js 22+ for the live/browser commands):
 
