@@ -2,6 +2,7 @@ const { Hono } = require('hono');
 const { hashPin, verifyPin, signToken } = require('../lib/crypto');
 const { assertLoginAllowed, recordLoginAttempt } = require('../lib/loginThrottle');
 const { readJsonBody } = require('../lib/http');
+const { roleLabel } = require('../lib/auth');
 
 const auth = new Hono();
 

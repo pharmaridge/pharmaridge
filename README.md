@@ -1,6 +1,6 @@
 # PharmaRidge
 
-> **Recovery notice — 2026-08-04.** This repository was reconstructed from a single concatenated text artifact. Source structure, migrations, static asset wiring, and JavaScript syntax have been verified; the artifact did **not** contain the behavioural, browser, or integration tests it claimed. `npm test` therefore runs a recovery-level structural verifier only. Do not treat historical test totals in older project documents as current certification. See [docs/RECOVERY-STATUS.md](docs/RECOVERY-STATUS.md) and [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md).
+> **Recovery notice — 2026-08-04.** The project source and a second test artifact have been reconstructed into this repository. The restored suite now includes live cash/till, WHT/GL, procurement/transfer, sync, icon, and browser/PWA checks. Historical aggregate totals in older project documents still are not production certification. See [docs/RECOVERY-STATUS.md](docs/RECOVERY-STATUS.md), [worker/test/README.md](worker/test/README.md), and [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md).
 
 **Multi-branch pharmacy / patent medicine store management system for Nigeria.**
 Offline-first PWA frontend + Cloudflare Workers & D1 edge backend.
@@ -11,9 +11,9 @@ Offline-first PWA frontend + Cloudflare Workers & D1 edge backend.
 | **Frontend** | Vanilla-JS PWA, no build step, 23 screens — ~5,600 LOC |
 | **Database** | 41 tables · 14 views · 1 trigger · 64 indexes |
 | **Drug catalog** | **6,801 NAFDAC-approved products** across 1,197 active ingredients, searchable |
-| **Current verification** | Recovery structural test + SQLite migration execution; original behavioural/browser/integration test sources were not supplied |
+| **Current verification** | Structural + SQLite migration checks; 227 restored core live-audit checks; 127 browser/PWA checks; 35 icon checks — all passing locally |
 | **UI** | Light **and dark** theme, zero external dependencies — no framework, icon font or webfont |
-| **Audit** | Pre-launch audit complete & live-verified — see [`AUDIT-REPORT.md`](AUDIT-REPORT.md) |
+| **Audit** | Restored test evidence: [`worker/test/README.md`](worker/test/README.md); historical audit inventory: [`AUDIT-REPORT.md`](AUDIT-REPORT.md) |
 | **Deploying?** | Windows walkthrough: [`DEPLOY-FROM-WINDOWS.md`](DEPLOY-FROM-WINDOWS.md) |
 | **Node** | **22+ required** (Wrangler 4 refuses Node 20) |
 
@@ -152,17 +152,20 @@ Open `http://localhost:8788`.
 
 **Demo logins** (all PIN `1234`): `manager` (General Manager), `lagos.mgr` (Branch Manager — Lagos only), `owner`, `admin`, `lagos.staff`, `minna.staff`.
 
-**Run the recovered structural verification** (plain Node; validates source wiring,
-PWA asset references, mounted routes, and catalog presence):
+**Run verification** (Node.js 22+ for the live/browser commands):
 
 ```bash
-npm test
+npm test                       # fast structural recovery verification
+npm run test:restored:syntax   # parses and verifies the restored test artifact
+npm run assets:icons           # rebuilds every PWA icon from one artwork source
+npm run test:icons             # validates icon geometry, mask safety and SW wiring
+npm run test:live:core         # fresh-D1 cash, WHT/GL, workflows and sync audits
+npm run test:browser:pwa       # fresh-D1 Chromium PWA/theme/accessibility audit
 ```
 
-The original behaviour/integration/browser suites referenced by the historical package
-scripts were not included in the source artifact. `test:artifact-suite`,
-`test:integration`, and `test:live` remain unavailable until those tests are restored or
-replaced; see [docs/RECOVERY-STATUS.md](docs/RECOVERY-STATUS.md).
+`test:live:core` resets local D1 before each audit so database mutation from one audit
+cannot affect another. The restored suite, commands, and evidence boundary are documented
+in [worker/test/README.md](worker/test/README.md) and [docs/RECOVERY-STATUS.md](docs/RECOVERY-STATUS.md).
 
 ---
 
@@ -381,7 +384,7 @@ npx wrangler d1 migrations list pharmaridge-db --remote
 npm run db:migrate:remote
 ```
 
-**Updating the app.** Bump `CACHE_NAME` in `public/sw.js` (currently `pharmaridge-v72`) whenever you change cached assets, or field devices keep the stale shell.
+**Updating the app.** Bump `CACHE_NAME` in `public/sw.js` (currently `pharmaridge-v73`) whenever you change cached assets, or field devices keep the stale shell.
 
 ---
 

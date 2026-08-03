@@ -1,0 +1,2 @@
+# Forensic source artifacts are byte-preserved evidence, not editable text.
+provenance/*.txt -text -diff

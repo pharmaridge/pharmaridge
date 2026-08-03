@@ -1,6 +1,6 @@
 # Production Readiness Gate
 
-**Current verdict: NOT APPROVED FOR PRODUCTION.** The repository has been structurally reconstructed and locally validated, but the supplied artifact did not contain its claimed functional/browser/integration test sources and has never been exercised on the target Cloudflare account.
+**Current verdict: NOT APPROVED FOR PRODUCTION.** The repository has been reconstructed and now has a restored core behavioural/browser suite executed against local Wrangler D1, but it has never been exercised on the target Cloudflare account or a real production domain/device fleet.
 
 ## Mandatory blockers
 
@@ -8,7 +8,7 @@
 - [ ] Create the production D1 database and replace `REPLACE_WITH_YOUR_D1_DATABASE_ID` in `worker/wrangler.jsonc`.
 - [ ] Set a unique high-entropy production `JWT_SECRET` using `wrangler secret put JWT_SECRET`; never reuse a development value.
 - [ ] Apply both migrations remotely to an empty/staging D1 database and record the result.
-- [ ] Restore or replace the absent behavioral test suite. At minimum cover authentication/RBAC, sale creation/voids, stock decrement races, till close, GL balancing, WHT, offline idempotency, and branch scope.
+- [ ] Run and retain evidence for `npm run test:live:core`; then restore/replace the remaining historical integration and aggregate tests not present as independently named files.
 - [ ] Deploy to a staging Worker and Pages project on the same hostname; route only `your-domain/api/*` to the Worker.
 - [ ] Execute a real-device PWA install/offline/reconnect/receipt-print smoke test.
 - [ ] Change every seeded/demo PIN (`1234`) before any public or client use.
@@ -20,8 +20,12 @@
 ```bash
 cd worker
 npm install
-npm test                 # recovered structural verification only
-npm run preflight        # must pass before deployment
+npm test                       # structural recovery verification
+npm run test:restored:syntax   # restored suite parses and is wired
+npm run test:icons             # PWA icon contract
+npm run test:live:core         # fresh-D1 core behavioural audits
+npm run test:browser:pwa       # Chromium PWA/theme/accessibility audit
+npm run preflight              # must pass before deployment
 ```
 
 `npm run preflight` is intentionally expected to fail in a clean recovery checkout until the real D1 database ID is configured. It checks the runtime version, D1 binding placeholder, required migrations, PWA shell files, and the recovery-status warning.

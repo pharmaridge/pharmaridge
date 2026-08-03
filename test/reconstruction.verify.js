@@ -83,6 +83,9 @@ for (const file of workerSourceFiles) {
   }
 }
 
+const authRoute = read('worker/src/routes/auth.js');
+assert.match(authRoute, /\{\s*roleLabel\s*\}\s*=\s*require\(['"]\.\.\/lib\/auth['"]\)/, 'login response uses roleLabel and must import it from the auth library');
+
 const schema = read('worker/migrations/0001_initial_schema.sql');
 const catalog = read('worker/migrations/0002_nafdac_catalog.sql');
 assert.match(schema, /CREATE TABLE users\s*\(/, 'core user table is missing');

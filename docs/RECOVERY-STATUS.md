@@ -60,21 +60,37 @@ The migration compatibility check uses Python's standard-library SQLite in this 
 These files are new and are not claimed to have existed in the attachment:
 
 - `tools/reconstruct-from-artifact.py` — repeatable, range-recorded source extraction from the original artifact;
+- `tools/reconstruct-test-artifact.py` — repeatable, range-recorded extraction of the supplied test artifact;
 - `test/reconstruction.verify.js` — source-tree, wiring, and PWA asset verification;
 - `worker/tools/preflight.js` — deployment guardrails for Node version, D1 ID, and required assets;
 - `worker/.dev.vars.example` — a safe local-secret template;
 - `public/branding/pharmaridge-logo.png` — the supplied original PharmaRidge logo artwork;
-- `public/branding/pharmaridge-mark.png` and `public/icons/*.png` — purpose-cropped/resized PWA icon variants derived from the supplied artwork;
+- `public/branding/pharmaridge-mark.png` — a small in-app crop derived from that supplied artwork;
+- `public/icons/*.png` — deterministic PWA icon output from the restored `worker/test/tools/build-icons.js` artwork source;
 - `docs/*` — recovery, architecture, and operational documentation; and
 - `DEPLOY-FROM-WINDOWS.md` — the formerly missing Windows deployment guide.
 
-## Not recovered — do not treat as certified
+## Restored test evidence — 2026-08-04
 
-The attachment did **not** include the test files referenced by the original `package.json` (`worker/test/audit.*`, integration tests, dev-server scripts, browser probes, and related fixtures). It also did not include a Git history, a remote origin, Cloudflare account configuration, a real D1 database ID, a production JWT secret, a deployed Pages project, or a custom domain route.
+A second supplied artifact, `test.txt`, restored the core audit, browser, icon, scenario, screenshot, and manual-generation sources. It is preserved at `provenance/TEST-ARTIFACT.txt` with SHA-256:
 
-For that reason:
+```text
+373e197cb09e02637ac620c5106bf44eaa7c38e819e8ee47f1ca41090e54a38d
+```
 
-1. `npm test` now runs the recovered structural verifier, not the historical 2,283-check behavioural suite.
-2. `npm run test:artifact-suite`, `npm run test:integration`, and `npm run test:live` remain historical command definitions and will not run until their absent test sources are restored.
-3. Historical test totals and audit claims in `AUDIT-REPORT.md` and `PROJECT-SETUP-STATUS.md` are **unverified artifact assertions**, not current certification.
-4. This repository is suitable for controlled local reconstruction work, but it is **not production-approved** until the production checklist is completed and the missing functional tests are restored or replaced.
+The restored suite contains 60 JavaScript files. All parse, and the following evidence has been executed against a fresh local Wrangler D1 database under Node 22.23.2:
+
+| Command / probe | Result |
+|---|---:|
+| `npm run assets:icons` | Built all PWA icon variants from one SVG artwork source |
+| `npm run test:icons` | 35 passed, 0 failed |
+| `npm run test:live:core` | 227 passed, 0 failed across four isolated databases |
+| `audit.pwa.js` browser/theme/accessibility probe | 127 passed, 0 failed |
+
+`worker/test/README.md` documents the restored layout and commands. `npm test` remains the fast structural verifier; use `npm run test:live:core` for the fresh-D1 core behavioural gate.
+
+## Still not recovered — do not overstate certification
+
+The source still does not include every historical filename referenced by the old aggregate package scripts — notably the original `integration.test.js`, original dev-server variants, and some historical audit aggregators. Nor does it include a Git history before recovery, a remote origin, Cloudflare account configuration, a real production D1 ID, a production JWT secret, a deployed Pages project, or a custom domain route.
+
+Therefore historical totals in `AUDIT-REPORT.md` and `PROJECT-SETUP-STATUS.md` remain **artifact assertions**, not production certification. The project is materially better evidenced than at initial recovery, but remains **not production-approved** until the staging/remote controls in `docs/PRODUCTION-READINESS.md` are completed.

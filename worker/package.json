@@ -24,16 +24,26 @@
     "test:artifact-suite": "node test/audit.harness.js && node test/audit.money.js && node test/audit.wht.js && node test/audit.sync.js && node test/audit.workflows.js && node test/audit.catalog.js && node test/audit.exports.js && node test/audit.expiry.js && node test/audit.pwa.js && node test/audit.docs.js && node test/audit.http.js && node test/audit.concurrency.js && node test/audit.d1limits.js && node test/audit.roles.js && node test/audit.adminowner.js && node test/audit.ownermanager.js && node test/audit.managerstaff.js && node test/audit.staffstaff.js && node test/audit.vendorseat.js && node test/audit.branchscope.js && node test/audit.rolelabels.js && node test/audit.golive.js && node test/audit.e2e.js",
     "test:recovered": "node ../test/reconstruction.verify.js",
     "verify:structure": "npm run test:recovered",
-    "preflight": "node tools/preflight.js"
+    "preflight": "node tools/preflight.js",
+    "assets:icons": "node test/tools/build-icons.js",
+    "test:icons": "node test/tools/probe-icon.js",
+    "test:restored:syntax": "node test/verify-restored-suite.js",
+    "test:live:core": "bash test/run-core-live.sh",
+    "docs:manual": "node test/tools/build-manual.js",
+    "test:scenarios": "node test/tools/seed-scenarios.js",
+    "screenshots:manual": "node test/tools/shots-manual.js",
+    "screenshots:artefacts": "node test/tools/shots-artefacts.js",
+    "test:browser:pwa": "bash test/run-browser-pwa.sh"
   },
   "dependencies": {
     "hono": "^4.12.32"
   },
   "devDependencies": {
-    "wrangler": "^4.114.0",
     "better-sqlite3": "^11.0.0",
+    "fake-indexeddb": "^6.0.0",
     "jsdom": "^25.0.0",
-    "fake-indexeddb": "^6.0.0"
+    "puppeteer": "^24.43.1",
+    "wrangler": "^4.114.0"
   },
   "engines": {
     "node": ">=22"
