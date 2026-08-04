@@ -108,20 +108,26 @@ const Branding = (() => {
     // Now only the <span>'s text is replaced; the SVG mark is left alone.
     const topbarBrand = document.getElementById('topbar-brand');
     const topbarLogo = document.getElementById('topbar-logo');
+    const hasClientLogo = !!(b.has_logo && b.logo_url);
     if (topbarBrand) {
       const brandText = topbarBrand.querySelector('span');
       if (brandText) brandText.textContent = b.business_name ? name : PRODUCT_NAME;
       else topbarBrand.textContent = b.business_name ? name : PRODUCT_NAME;
-      // The old inline placeholder mark is retained in index.html only as a
-      // no-JavaScript fallback. Once branding has loaded, use the canonical
-      // premium mountain/mortar mark (or the client's own logo) everywhere.
-      const legacyMark = topbarBrand.querySelector('.brand-ico');
-      if (legacyMark) legacyMark.classList.add('hidden');
+      // The default header mark is inline SVG and uses currentColor, so it
+      // automatically inherits the header's foreground colour in either theme.
+      // A client's uploaded logo intentionally replaces only that default.
+      const navMark = topbarBrand.querySelector('.brand-ico');
+      if (navMark) navMark.classList.toggle('hidden', hasClientLogo);
     }
     if (topbarLogo) {
-      topbarLogo.src = (b.has_logo && b.logo_url) ? b.logo_url : '/branding/pharmaridge-mark.png';
-      topbarLogo.alt = name;
-      topbarLogo.classList.remove('hidden');
+      if (hasClientLogo) {
+        topbarLogo.src = b.logo_url;
+        topbarLogo.alt = name;
+        topbarLogo.classList.remove('hidden');
+      } else {
+        topbarLogo.classList.add('hidden');
+        topbarLogo.removeAttribute('src');
+      }
     }
 
     const sidebarFooter = document.getElementById('sidebar-footer');

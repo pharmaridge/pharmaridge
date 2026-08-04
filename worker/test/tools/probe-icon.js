@@ -124,19 +124,26 @@ if (as) {
 console.log('\n=== THE CANONICAL PREMIUM MARK IS WIRED INTO THE APPLICATION ===');
 {
   const full = pngPixels(path.join(PUB, 'branding', 'pharmaridge-logo.png'));
+  const pwaFull = pngPixels(path.join(PUB, 'branding', 'pharmaridge-pwa-logo.png'));
   const mark = pngPixels(path.join(PUB, 'branding', 'pharmaridge-mark.png'));
   check('the transparent full PHARMARIDGE lockup decodes', !!full);
+  check('the prompt-derived transparent PWA lockup decodes', !!pwaFull);
   check('the transparent mountain/mortar application mark decodes', !!mark);
-  if (full) {
+  for (const [label, image] of [['application logo', full], ['PWA source logo', pwaFull]]) {
+    if (!image) continue;
     let visible = 0;
-    for (let y = 0; y < full.height; y++) for (let x = 0; x < full.width; x++) if (full.at(x, y)[3] > 15) visible++;
-    check('the full lockup has true transparent surroundings', full.at(0, 0)[3] === 0, `corner alpha=${full.at(0, 0)[3]}`);
-    check('the full lockup has substantial visible artwork', visible > full.width * full.height * 0.20, `${visible} visible pixels`);
+    for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) if (image.at(x, y)[3] > 15) visible++;
+    check(`${label} has true transparent surroundings`, image.at(0, 0)[3] === 0, `corner alpha=${image.at(0, 0)[3]}`);
+    check(`${label} has substantial visible artwork`, visible > image.width * image.height * 0.20, `${visible} visible pixels`);
   }
   const brandingSrc = fs.readFileSync(path.join(PUB, 'js', 'branding.js'), 'utf8');
   const loginSrc = fs.readFileSync(path.join(PUB, 'js', 'views', 'login.js'), 'utf8');
-  check('topbar branding uses the canonical premium mark', brandingSrc.includes('/branding/pharmaridge-mark.png'));
+  const html = fs.readFileSync(path.join(PUB, 'index.html'), 'utf8');
+  check('top navigation keeps an inline SVG mark', /<svg class="brand-ico"/.test(html));
+  check('top navigation SVG inherits its foreground via currentColor', /<svg class="brand-ico"[\s\S]*?fill="currentColor"/.test(html));
+  check('topbar branding preserves the SVG mark without a client logo', brandingSrc.includes("navMark.classList.toggle('hidden', hasClientLogo)"));
   check('login branding uses the full premium lockup', loginSrc.includes('/branding/pharmaridge-logo.png'));
+  check('login has an animated SVG submit-progress state', loginSrc.includes('login-submit-spinner') && loginSrc.includes('Signing in…'));
 }
 
 console.log('\n=== THE MASKABLE ICON SURVIVES ANDROID\'S STRICT SAFE-ZONE CROP ===');

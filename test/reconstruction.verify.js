@@ -58,10 +58,13 @@ for (const icon of manifest.icons) {
 assert.ok(exists('public/icons/apple-touch-icon.png'), 'Apple touch icon is required by index.html');
 assert.ok(exists('public/branding/pharmaridge-logo.png'), 'default PharmaRidge logo artwork is required');
 assert.ok(exists('public/branding/pharmaridge-mark.png'), 'default PharmaRidge icon artwork is required');
+assert.ok(exists('public/branding/pharmaridge-pwa-logo.png'), 'prompt-derived PWA logo artwork is required');
 const loginSource = read('public/js/views/login.js');
 assert.match(loginSource, /\/branding\/pharmaridge-logo\.png/, 'unbranded login must display the premium full logo');
 assert.match(loginSource, /live-sample-label">Live Sample 1/, 'login must show the concise Live Sample 1 label');
+assert.match(loginSource, /login-submit-spinner/, 'login must provide an animated in-progress submit state');
 assert.doesNotMatch(loginSource, /Shared live sample|PIN <b>1234<\/b>/, 'login must not expose shared admin credentials beneath the sign-in button');
+assert.match(html, /<svg class="brand-ico"[\s\S]*?fill="currentColor"/, 'default top navigation mark must be an SVG that inherits currentColor');
 
 const indexSource = read('worker/src/index.js');
 const mounts = [...indexSource.matchAll(/app\.route\('\/api\/[^']+',\s*require\('\.\/routes\/([^']+)'\)\)/g)]
