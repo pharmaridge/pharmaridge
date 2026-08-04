@@ -63,6 +63,7 @@ run_one() {
 # Controls, role-gated triggers, dropdowns, form alignment, touch targets and
 # responsive states. These probes re-read live backend state after UI actions.
 run_one test/tools/probe-role-triggers.js
+run_one test/tools/probe-data-management-ui.js
 run_one test/audit.responsive.js
 run_one test/tools/probe-topbar.js
 run_one test/tools/probe-formbaseline.js

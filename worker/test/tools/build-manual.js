@@ -364,7 +364,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
   <h2>Before you commit: what has been proven</h2>
   <p class="lead">A proprietor should pay for a system because it is useful and evidenced, not because a sales page makes a promise. This sample is deliberately set up so you can test the important flows yourself.</p>
   <div class="note">
-    <b>Live audit evidence.</b> The current release completed a fresh-data, end-to-end audit across sales, VAT/WHT, debtors, suppliers, change owed, till and safe movements, stock receiving, transfers, user promotion/demotion, one-device sessions, role boundaries, forms, dropdowns, responsive layouts and PWA behaviour. A separate 90-day operating simulation verified dated sales, VAT/WHT, creditor/debtor, attendance, stock and transfer history. The final passing run exercised <b>3,177 checks</b> across API, database, browser and PWA surfaces.
+    <b>Live audit evidence.</b> The current release completed a fresh-data, end-to-end audit across sales, VAT/WHT, debtors, suppliers, change owed, till and safe movements, stock receiving, transfers, user promotion/demotion, one-device sessions, role boundaries, forms, dropdowns, responsive layouts and PWA behaviour. A separate 90-day operating simulation verified dated sales, VAT/WHT, creditor/debtor, attendance, stock and transfer history. The final passing run exercised <b>3,207 checks</b> across API, database, browser and PWA surfaces.
   </div>
   <h3>What each person can prove in a demonstration</h3>
   <table>
@@ -463,13 +463,22 @@ consolidated picture.</p>`)}
     <li><b>Decide what cashiers may do</b> — whether they can void their own sale, within how many
       minutes, and how much stock they may write off without a manager.</li>
     <li><b>Write off change the shop owes</b> a customer who never came back.</li>
+    <li><b>Review and, only when appropriate, remove data</b> through the guarded Owner Data Management process described below. A General Manager can see capacity warnings but cannot erase records.</li>
   </ul>
   ${fig('11-owner-plan.png', 'My Plan: your subscription, how many branches and staff you are using, and the switches that belong to you', `<p>What you are paying for, and what you are actually using.</p>
-<p>The two bars show branches and staff against your contracted limits. <b>You are only billed for what is
-live</b>: close a shop and its slot frees the same day, retire a member of staff and their seat frees
-immediately. PharmaRidge's own support account is never counted.</p>
+<p>The two bars show branches and staff against your contracted limits. They show operational use and room to grow; they do not replace the commercial terms you agree before payment. Confirm your plan price, renewal timing, included support and any cancellation/refund terms in writing. PharmaRidge's own support account is never counted as a pharmacy staff seat.</p>
 <p>Further down this screen are the switches that belong to you alone — VAT, withholding-tax rates, and what
 managers and cashiers are permitted to do without asking you.</p>`)}
+  ${fig('11a-owner-data-management.png', 'Owner Data Management: preview first, then make a deliberate retention decision', `<p><b>This is not an everyday housekeeping button.</b> It is the Owner’s controlled route for a genuine retention or capacity decision. The system estimates active database use, warns the Owner and General Manager at 75%, and calls the situation critical at 90% of the configured database reference ceiling.</p>
+<p>Use it in this exact order:</p>
+<ol>
+<li>Make sure every active device has synchronised. A reported offline queue, open till, open stocktake, open attendance shift, pending stock/staff transfer blocks the action.</li>
+<li>Export or verify the reports and backup your business must retain. Financial, VAT/WHT, prescription and controlled-drug records may have retention obligations; ask your accountant, tax adviser or relevant regulator where needed.</li>
+<li>Choose the scope and select <b>Preview impact</b>. You see current matching row counts before anything changes.</li>
+<li>Tick both acknowledgements and type the displayed phrase exactly. The server repeats the role, range, active-operation and confirmation checks; changing a browser field cannot bypass them.</li>
+</ol>
+<p>There are three choices: remove a selected dated period while keeping current master setup; clear all business data while keeping branches and existing credentials; or perform a full business-and-team reset that also removes Manager and Staff credentials, devices and branches. A full reset still preserves the Owner account, support/admin seat, plan/tax setup, system accounts, NAFDAC reference catalogue and a minimal cleanup log so the business is never locked out.</p>
+<p>Old offline requests are quarantined for review after a cleanup instead of silently recreating removed records. Deletion reduces active rows, but Cloudflare controls physical allocation; it is not a promise of an immediate storage/billing reduction. Plan capacity early as well as retaining records correctly.</p>`)}
   <h3>Your books, kept as you trade</h3>
   <p>Every sale, delivery, expense, write-off and payment posts a double entry as it happens. There is
   no month-end bookkeeping exercise: the trial balance, profit and loss, and balance sheet are correct
@@ -606,8 +615,8 @@ without an emoji font and would render a row of empty boxes.</p>`)}
   ${fig('20-gm-dashboard.png', 'A General Manager sees and runs every branch', `<p>A General Manager runs every shop on the proprietor's behalf, and sees what the Owner
 sees.</p>
 <p>The difference is authority over the business itself rather than its operations: a General Manager cannot
-change VAT or withholding-tax rates, cannot alter what managers and cashiers are permitted to do, and cannot
-touch the subscription. Everything operational — stock, staff, pricing, transfers, cash — is theirs.</p>`)}
+change VAT or withholding-tax rates, cannot alter what managers and cashiers are permitted to do, cannot
+touch the subscription, and cannot remove business data. They do receive the organisation-wide storage warning so they can alert the Owner early. Everything operational — stock, staff, pricing, transfers and cash — is theirs.</p>`)}
   <h3>What you can do everywhere</h3>
   <ul>
     <li>Open branches, hire staff, and move people between shops.</li>
@@ -1132,6 +1141,7 @@ is the fast path, never the only one, because a lost receipt must not mean lost 
     ['Edit withholding-tax rates', 'Yes', 'No', 'No', 'No'],
     ['Set what managers may do', 'Yes', 'No', 'No', 'No'],
     ['Set what cashiers may do', 'Yes', 'No', 'No', 'No'],
+    ['Preview or permanently remove business data', 'Yes', 'No — capacity warning only', 'No', 'No'],
   ])}
 
   <h3>The rules that protect you from yourself</h3>
@@ -1464,31 +1474,16 @@ product name typed as <code>=cmd</code> cannot execute on the machine that opens
   <p>A five-branch group pays <b>${N(plan(5, 20).perYear)}</b> a year. Preventing expiry write-offs
   alone — one pack per shop per month — covers it nearly twice over.</p>
 
+  <h3>Before you make an upfront payment</h3>
+  <div class="note"><b>Decide from evidence, not a promise.</b> Before paying, demonstrate the roles you will use, receive stock into your own test branch, complete a cash and a credit sale, print a receipt, close a till, inspect a report/CSV, test the PWA on the actual phone/printer you intend to use, and agree the commercial/support terms directly with PharmaRidge. The walkthrough and audit evidence show what was tested; they do not replace your own acceptance check, accounting advice, regulatory advice, or a written commercial agreement.</div>
+
   <h3>Technical support, and what it covers</h3>
-  <p><b>If a feature that is meant to work does not work, that is ours to fix, and support
-  costs you nothing.</b> Reporting a broken function is not a favour you are asking &mdash;
-  it is the service you have paid for.</p>
+  <p>Use the contact details shown on <b>My Plan</b> to agree the support and commercial arrangement for your deployment before payment. The system does enforce several important boundaries itself: the support/admin seat is excluded from staff count and cannot move a branch safe or operate a till as a pharmacy employee.</p>
   <ul>
-    <li><b>Anything documented in this guide is a promise.</b> If a screen, a calculation, a
-      receipt or a report behaves differently from what is written here, contact support and
-      we will correct it. You do not need to prove anything first; a description of what you
-      did and what happened is enough.</li>
-    <li><b>Reach us however is easiest</b> &mdash; the phone number, e-mail and contact name
-      on your <b>My Plan</b> screen are the live details for your deployment, and they are
-      also printed at the bottom of every refusal message the system shows you.</li>
-    <li><b>Support can also recover you from the situations you cannot fix yourself:</b> an
-      Owner locked out of their own account, a branch or staff ceiling that needs raising,
-      a subscription question. Support can read your settings and adjust your plan.</li>
-    <li><b>Support can never move your money.</b> The vendor account is refused outright from
-      every safe and till movement &mdash; that is enforced in the software, not promised in
-      a policy.</li>
+    <li><b>Bring a reproducible question.</b> Note the role, branch, action and screen involved so the responsible person can review it efficiently.</li>
+    <li><b>Agree practical operating terms before paying.</b> Confirm onboarding help, response expectations, printer/PWA compatibility, data export arrangements, subscription timing and any refund/cancellation terms in writing with PharmaRidge.</li>
+    <li><b>Keep ownership controls with the Owner.</b> The Owner can control permissions and data-management decisions; support and managers cannot use those controls to silently take cash or erase client data.</li>
   </ul>
-  <div class="warn"><b>Payment is non-refundable.</b> Subscription payments, once made, are
-  not refunded &mdash; including for capacity you have paid for and chosen not to use, and
-  for any unused part of a period after a cancellation. What you are entitled to instead is
-  that <b>everything works</b>: if a feature that should work does not, we fix it, for as
-  long as your subscription runs. Please satisfy yourself during the demonstration period
-  that the product does what your pharmacy needs before you pay.</div>
 
   <h3>Billing questions, answered plainly</h3>
   <table>

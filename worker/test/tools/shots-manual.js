@@ -128,6 +128,11 @@ async function shot(page, file, caption, { hash, wait = 2600, action, focus, mob
       const { ctx, page } = await session(browser, 'owner');
       await shot(page, '10-owner-dashboard.png', 'The Owner dashboard — every branch at a glance', { hash: '#/dashboard', wait: 3600 });
       await shot(page, '11-owner-plan.png', 'My Plan — what you are paying for and what you are using', { hash: '#/plan', wait: 3000 });
+      await shot(page, '11a-owner-data-management.png', 'Owner Data Management — preview before any permanent removal', {
+        hash: '#/plan', wait: 3000, action: async (pg) => {
+          await pg.evaluate(() => { const b = document.getElementById('owner-data-management'); if (b) b.click(); });
+          await sl(900);
+        } });
       await shot(page, '12-owner-accounting.png', 'Accounting — the books, kept automatically', { hash: '#/accounting', wait: 3600 });
       await shot(page, '13-owner-users.png', 'Users & Branches — everyone who can sign in', { hash: '#/users', wait: 3200 });
       await shot(page, '14-owner-transfer-modal.png', 'Transfer & Promote — moving a person, keeping one account', {

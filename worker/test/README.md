@@ -24,6 +24,7 @@ npm run assets:icons           # deterministically regenerate every PWA icon
 npm run test:icons             # inspect icon geometry, mask safety and SW wiring
 npm run test:live:core         # fresh D1 per audit: money, WHT, workflows, sync
 npm run test:data-management   # isolated Owner-only cleanup/reset control audit
+# test:frontend:full also includes the browser/API Owner Data Management modal probe
 npm run docs:manual            # build the onboarding PDF after screenshots exist
 npm run docs:onboarding        # fresh D1 → role data → desktop/mobile captures → PDF
 ```

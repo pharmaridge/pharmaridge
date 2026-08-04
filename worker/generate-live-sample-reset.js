@@ -59,6 +59,9 @@ DELETE FROM login_attempts;
 DELETE FROM sync_conflicts;
 DELETE FROM sync_change_log;
 DELETE FROM branch_sync_status;
+-- Owner data-management audit rows contain no business records, but the
+-- shared public sample is deliberately reset to a blank demonstration state.
+DELETE FROM data_cleanup_log;
 
 -- Clear user/branch/product business state. NAFDAC catalog remains as the
 -- reference source; products below are rebuilt from every active catalog row.
@@ -84,6 +87,7 @@ UPDATE client_settings SET
   business_name = 'PharmaRidge Live Sample',
   logo_data_url = NULL,
   notes = 'Shared public demonstration environment. Resettable; do not store real data.',
+  data_reset_at = NULL,
   updated_by = '${adminId}',
   updated_at = datetime('now')
 WHERE id = 1;

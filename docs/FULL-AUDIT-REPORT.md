@@ -1,25 +1,38 @@
 # Full Domain, Frontend, and 90-Day Simulation Audit
 
-**Run date:** 2026-08-04
+**Run date:** 2026-08-05
 **Scope:** local fresh D1 databases only; production sample data was not used for audit execution.
 
 ## Result
 
 | Audit surface | Passing checks |
 |---|---:|
-| Fresh-D1 full domain audit | 1,026 |
-| Scenario-driven frontend control, dropdown and geometry audit | 1,956 |
+| Fresh-D1 full domain audit (including Owner Data Management) | 1,043 |
+| Scenario-driven frontend control, dropdown and geometry audit (including Owner Data Management UI/API correlation) | 1,972 |
 | PWA/browser theme, contrast, print and responsive audit | 127 |
 | Login spinner/logout lifecycle audit | 3 |
 | PWA icon, manifest and Android safe-zone audit | 45 |
 | Three-month operating simulation audit | 20 |
-| **Total executed checks** | **3,177** |
+| **Total executed checks** | **3,207** |
 
 ## Two-way audit method
 
 The API/domain tests write through real REST routes, then re-read operational records, ledgers, journal entries, balances, and database constraints. The frontend tests drive controls, forms, triggers, navigation, dropdowns, role-gated views, responsive widths, and modal actions in Chromium, then correlate the visible outcome with the API/database result.
 
 Every major test script starts from a fresh migrated and seeded local D1 state. That prevents a prior sale, session, open till, branch setting, or service worker cache from falsely affecting another result.
+
+## Owner Data Management coverage
+
+The re-run includes the Owner-only retention and capacity control from both directions:
+
+- browser/mobile control reachability and no-overflow geometry for the Owner modal;
+- all three scopes: selected period, all business data, and full business-and-team reset;
+- exact typed confirmation plus export/retention acknowledgements enforced on the server;
+- General Manager and vendor Admin denied by both the UI and API;
+- open till, active operations and reported offline queue blockers;
+- preservation of Owner access, support/Admin access, tax/system configuration and the NAFDAC reference catalogue after full reset;
+- removal of Manager/Staff credentials and branches only in the full-reset scope; and
+- stale offline replay fencing plus retained minimal cleanup audit log.
 
 ## Three-month operating simulation
 
