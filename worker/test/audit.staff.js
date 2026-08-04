@@ -308,9 +308,13 @@ const listOf = (x) => (Array.isArray(x) ? x : (x && x.results) || []);
     // Age the sale by 30 minutes at the DATABASE, which is where the check
     // measures from — a device clock cannot widen it.
     const { execSync } = require('child_process');
+    const path = require('path');
     const sql = `UPDATE sales SET created_at = datetime(created_at, '-30 minutes') WHERE id = '${id3}'`;
-    execSync(`npx wrangler d1 execute pharmaridge-db --local --command ${JSON.stringify(sql)}`,
-      { cwd: __dirname + '/../..', stdio: ['ignore', 'pipe', 'pipe'] });
+    // This file lives in worker/test. ../.. is the repository root (which has
+    // no Wrangler config); run from the Worker root so the local D1 binding is
+    // resolved from worker/wrangler.jsonc.
+    execSync(`npx --no-install wrangler d1 execute pharmaridge-db --local --command ${JSON.stringify(sql)}`,
+      { cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'pipe'] });
     const late = await api('POST', `/api/sales/${id3}/void`, { token: tS, body: { reason: 'too late' } });
     check('a sale older than the window is refused', late.status === 403, `status=${late.status}`);
     check('...with the window code', late.body && late.body.code === 'STAFF_VOID_WINDOW_EXPIRED',

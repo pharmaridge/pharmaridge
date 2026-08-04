@@ -375,6 +375,7 @@ td, th, .value, .stat-card .value, .cart-total-row, .receipt, input[type="number
      drift over the gradient on a short screen. */
   position: relative;
 }
+#login-screen:not(.is-loading) .login-loading { display: none; }
 .login-loading {
   display: flex; flex-direction: column; align-items: center; gap: 14px;
   color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .02em;

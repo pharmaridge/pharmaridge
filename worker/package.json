@@ -36,7 +36,8 @@
     "test:browser:pwa": "bash test/run-browser-pwa.sh",
     "docs:onboarding": "bash test/build-onboarding-guide.sh",
     "sample:reset:generate": "node generate-live-sample-reset.js",
-    "sample:reset:remote": "npm run sample:reset:generate && wrangler d1 execute pharmaridge-db --remote --file=./live-sample-reset.sql"
+    "sample:reset:remote": "npm run sample:reset:generate && wrangler d1 execute pharmaridge-db --remote --file=./live-sample-reset.sql",
+    "test:live:roles": "bash test/run-role-domain-audits.sh"
   },
   "dependencies": {
     "hono": "^4.12.32"

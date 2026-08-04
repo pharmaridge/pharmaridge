@@ -230,15 +230,12 @@ app.get('/api/manifest.json', async (c) => {
     description: 'Multi-branch pharmacy / patent medicine store management system — offline-first POS, inventory, accounting and compliance, by PharmaRidge.',
     start_url: '/', scope: '/', lang: 'en', dir: 'ltr',
     display: 'standalone', display_override: ['standalone', 'minimal-ui', 'browser'],
-    // background_color is the PWA SPLASH-SCREEN colour, painted behind the
-    // launch icon before first paint; theme_color is the browser/OS chrome
-    // colour, which must match the app's own green topbar (--green-900).
-    // These are deliberately DIFFERENT: the brand icon is a dark-slate badge,
-    // so a green splash would show a visible slate-on-green mismatch for the
-    // ~1s before the app renders. #333942 is sampled from the icon's own
-    // badge interior so the splash reads as an extension of the icon.
-    // Keep in sync with public/manifest.json (the static fallback manifest).
-    background_color: '#333942', theme_color: '#0b3d2e', orientation: 'portrait-primary',
+    // background_color is the first PWA splash surface shown before login
+    // JavaScript or application branding has loaded. The premium logo is
+    // transparent and emerald-forward, so this deliberately matches the app's
+    // deepest green instead of the former slate badge colour. Keep in sync
+    // with public/manifest.json (the static fallback manifest).
+    background_color: '#0a3b2c', theme_color: '#0b3d2e', orientation: 'portrait-primary',
     categories: ['business', 'medical', 'productivity', 'finance'],
     prefer_related_applications: false,
     icons,

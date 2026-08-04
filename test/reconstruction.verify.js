@@ -22,6 +22,7 @@ const manifest = json('public/manifest.json');
 assert.equal(packageJson.name, 'pharmaridge-worker');
 assert.equal(lockfile.lockfileVersion, 3);
 assert.equal(manifest.display, 'standalone');
+assert.equal(manifest.background_color, '#0a3b2c', 'PWA first splash background must be deep PharmaRidge green');
 assert.ok(Array.isArray(manifest.icons) && manifest.icons.length >= 4, 'manifest must expose install icons');
 
 const html = read('public/index.html');
@@ -65,8 +66,11 @@ assert.match(loginSource, /\/branding\/pharmaridge-logo\.png/, 'unbranded login 
 assert.match(loginSource, /live-sample-label">Live Sample 1/, 'login must show the concise Live Sample 1 label');
 assert.match(loginSource, /login-submit-spinner/, 'login must provide an animated in-progress submit state');
 assert.doesNotMatch(loginSource, /Shared live sample|PIN <b>1234<\/b>/, 'login must not expose shared admin credentials beneath the sign-in button');
-assert.match(read('public/js/app.js'), /openInstallModal/, 'sidebar must open a PWA install/reinstall compatibility modal');
-assert.match(read('public/js/app.js'), /PWA Download Not Compatible/, 'unsupported devices must receive a clear browser-use message');
+const appSource = read('public/js/app.js');
+assert.match(appSource, /openInstallModal/, 'sidebar must open a PWA install/reinstall compatibility modal');
+assert.match(appSource, /PWA Download Not Compatible/, 'unsupported devices must receive a clear browser-use message');
+assert.match(appSource, /startupLogin\.classList\.add\('is-loading'\)/, 'first-paint loader must activate while branding starts');
+assert.match(appSource, /readyLogin\.classList\.remove\('is-loading'\)/, 'first-paint loader must turn off once the login is ready');
 assert.match(html, /<svg class="brand-ico"[\s\S]*?fill="currentColor"/, 'default top navigation mark must be an SVG that inherits currentColor');
 
 const indexSource = read('worker/src/index.js');

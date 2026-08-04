@@ -1,5 +1,14 @@
 const App = (() => {
   async function init() {
+    // The first-paint SVG loader is visible only while startup branding is
+    // genuinely loading. Branding.load() handles its own offline/error
+    // fallback, so resolving it is the single honest moment to turn the loader
+    // off and render a usable sign-in form.
+    const startupLogin = document.getElementById('login-screen');
+    if (startupLogin) {
+      startupLogin.classList.add('is-loading');
+      startupLogin.setAttribute('aria-busy', 'true');
+    }
     // Load this deployment's branding (business name/logo, if the Admin
     // Portal has set any) before anything else renders, so the login
     // screen a first-time visitor sees is already correctly branded
@@ -179,6 +188,11 @@ const App = (() => {
     Router.register('/admin', renderAdmin);
 
     renderLogin();
+    const readyLogin = document.getElementById('login-screen');
+    if (readyLogin) {
+      readyLogin.classList.remove('is-loading');
+      readyLogin.setAttribute('aria-busy', 'false');
+    }
 
     document.getElementById('logout-btn').addEventListener('click', () => {
       State.clearSession();

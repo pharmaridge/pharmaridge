@@ -9,7 +9,7 @@
   "dir": "ltr",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],
-  "background_color": "#333942",
+  "background_color": "#0a3b2c",
   "theme_color": "#0b3d2e",
   "orientation": "portrait-primary",
   "categories": ["business", "medical", "productivity", "finance"],
