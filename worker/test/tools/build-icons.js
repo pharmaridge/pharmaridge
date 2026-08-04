@@ -30,6 +30,16 @@ const PUB = path.join(__dirname, '..', '..', '..', 'public');
 const ICONS = path.join(PUB, 'icons');
 const OUT = process.env.ICON_OUT || ICONS;
 
+// ONE CANONICAL MARK FOR LOGIN + LAUNCHER.
+// The app’s login page uses this transparent mountain/mortar image. Reusing
+// the exact pixels for desktop and phone launcher icons prevents the visual
+// mismatch where a user saw one logo before sign-in and a different symbol on
+// their home screen. The icon builder only positions/scales it; it does not
+// redraw a competing version of the brand.
+const LOGIN_MARK_PATH = path.join(PUB, 'branding', 'pharmaridge-mark.png');
+const LOGIN_MARK_DATA = `data:image/png;base64,${fs.readFileSync(LOGIN_MARK_PATH).toString('base64')}`;
+const LOGIN_MARK = { width: 600, height: 580 };
+
 // ---------------------------------------------------------------------------
 // Palette
 // ---------------------------------------------------------------------------
@@ -293,23 +303,20 @@ function artwork(compact = false) {
 //
 // The icon is used on a laptop desktop and on mobile home screens, where the
 // user—not the app—chooses the wallpaper/background. It therefore has NO
-// painted square, badge, fill or carrier element behind it. The compact mark
-// is fitted inside the Android safe circle even though the PNG canvas itself
-// stays fully transparent; launchers may crop/mask it without slicing the
-// mortar, ridge or wordmark.
-function compactTransform() {
-  const bw = MASK_BOX.x1 - MASK_BOX.x0;
-  const bh = MASK_BOX.y1 - MASK_BOX.y0;
-  const bcx = (MASK_BOX.x0 + MASK_BOX.x1) / 2;
-  const bcy = (MASK_BOX.y0 + MASK_BOX.y1) / 2;
-  const halfDiag = Math.sqrt((bw / 2) ** 2 + (bh / 2) ** 2);
-  const s = (SAFE_R * 0.985) / halfDiag; // 1.5% anti-aliasing margin
-  return `translate(512 512) scale(${s.toFixed(5)}) translate(${-bcx} ${-bcy})`;
-}
-
+// painted square, badge, fill or carrier element behind it. It is the exact
+// same transparent mark that the login page presents, scaled as one whole
+// object into Android's strict 80% safe circle.
 function svgTransparentLauncher() {
+  const safeRadius = 1024 * 0.4 * 0.985; // 1.5% anti-aliasing margin
+  const sourceHalfDiagonal = Math.hypot(LOGIN_MARK.width / 2, LOGIN_MARK.height / 2);
+  const scale = safeRadius / sourceHalfDiagonal;
+  const width = LOGIN_MARK.width * scale;
+  const height = LOGIN_MARK.height * scale;
+  const x = (1024 - width) / 2;
+  const y = (1024 - height) / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <g transform="${compactTransform()}">${artwork(true)}</g>
+  <image href="${LOGIN_MARK_DATA}" x="${x.toFixed(3)}" y="${y.toFixed(3)}"
+         width="${width.toFixed(3)}" height="${height.toFixed(3)}" preserveAspectRatio="xMidYMid meet"/>
 </svg>`;
 }
 
@@ -330,18 +337,10 @@ function svgAny() {
 // sliced off and the icon read "HARMARIDG". Verified by compositing the real
 // mask over the real PNG, not by inspecting coordinates.
 //
-// A full-bleed band cannot be made safe by scaling: it runs to the edge by
-// definition, so its ends are always the first thing a circular crop eats.
-// The fix is a different COMPOSITION, not a different scale — compact mode
-// turns the nameplate into a pill with a finite bounding box, which is then
-// fitted inside the safe circle by its own half-diagonal.
+// The canonical login mark is a finite transparent image, so it can be
+// fitted as one whole object inside the safe circle without changing its
+// silhouette, colours or proportions.
 //
-// CONTENT BOX of the compact lockup, in artwork units:
-//   x: COMPACT_L .. COMPACT_R          (the pill, and the ridge clamped to it)
-//   y: 118 (top of the pestle knob) .. 982 (bottom of the pill)
-const MASK_BOX = { x0: COMPACT_L, y0: 118, x1: COMPACT_R, y1: 982 };
-const SAFE_R = 1024 * 0.4;   // strict Android safe radius
-
 function svgMaskable() {
   // "maskable" describes how a launcher may crop this asset; it does NOT
   // require the PNG itself to be an opaque coloured tile. Reuse the same

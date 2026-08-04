@@ -138,6 +138,7 @@ console.log('\n=== THE CANONICAL PREMIUM MARK IS WIRED INTO THE APPLICATION ==='
   }
   const brandingSrc = fs.readFileSync(path.join(PUB, 'js', 'branding.js'), 'utf8');
   const loginSrc = fs.readFileSync(path.join(PUB, 'js', 'views', 'login.js'), 'utf8');
+  const iconBuilderSrc = fs.readFileSync(path.join(__dirname, 'build-icons.js'), 'utf8');
   const html = fs.readFileSync(path.join(PUB, 'index.html'), 'utf8');
   check('top navigation keeps an inline SVG mark', /<svg class="brand-ico"/.test(html));
   check('top navigation SVG inherits its foreground via currentColor', /<svg class="brand-ico"[\s\S]*?fill="currentColor"/.test(html));
@@ -145,6 +146,9 @@ console.log('\n=== THE CANONICAL PREMIUM MARK IS WIRED INTO THE APPLICATION ==='
   check('first-paint splash uses the full transparent PWA lockup', html.includes('/branding/pharmaridge-pwa-logo.png'));
   check('login uses the transparent application mark without a coloured stage',
     loginSrc.includes('/branding/pharmaridge-mark.png') && /login-logo-stage-transparent/.test(loginSrc));
+  check('desktop and home-screen icons are built from that same login mark',
+    iconBuilderSrc.includes("LOGIN_MARK_PATH = path.join(PUB, 'branding', 'pharmaridge-mark.png')")
+    && iconBuilderSrc.includes('LOGIN_MARK_DATA'));
   const css = fs.readFileSync(path.join(PUB, 'css', 'style.css'), 'utf8');
   check('login theme toggle keeps a transparent mobile surface',
     /\.login-card \.theme-toggle[\s\S]*?background:\s*transparent/.test(css)
