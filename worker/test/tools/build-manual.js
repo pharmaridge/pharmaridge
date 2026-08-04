@@ -364,7 +364,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
   <h2>Before you commit: what has been proven</h2>
   <p class="lead">A proprietor should pay for a system because it is useful and evidenced, not because a sales page makes a promise. This sample is deliberately set up so you can test the important flows yourself.</p>
   <div class="note">
-    <b>Live audit evidence.</b> The current release completed a fresh-data, end-to-end audit across sales, VAT/WHT, debtors, suppliers, change owed, till and safe movements, stock receiving, transfers, user promotion/demotion, one-device sessions, role boundaries, forms, dropdowns, responsive layouts and PWA behaviour. The final passing run exercised <b>3,157 checks</b> across API, database, browser and PWA surfaces.
+    <b>Live audit evidence.</b> The current release completed a fresh-data, end-to-end audit across sales, VAT/WHT, debtors, suppliers, change owed, till and safe movements, stock receiving, transfers, user promotion/demotion, one-device sessions, role boundaries, forms, dropdowns, responsive layouts and PWA behaviour. A separate 90-day operating simulation verified dated sales, VAT/WHT, creditor/debtor, attendance, stock and transfer history. The final passing run exercised <b>3,177 checks</b> across API, database, browser and PWA surfaces.
   </div>
   <h3>What each person can prove in a demonstration</h3>
   <table>
