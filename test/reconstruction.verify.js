@@ -34,6 +34,8 @@ for (const ref of assetRefs) {
 }
 const favicon = (html.match(/<link\s+rel="icon"[^>]*href="([^"]+)"/) || [])[1];
 assert.ok(favicon && exists(`public/${favicon.replace(/^\//, '')}`), 'index.html favicon must exist');
+assert.match(html, /class="login-loading"/, 'first paint must show the animated logo loader while branding loads');
+assert.match(html, /<animateTransform[^>]+type="rotate"/, 'the first-paint loader must contain an animated SVG ring');
 
 const browserSource = walk(path.join(ROOT, 'public/js')).filter((file) => file.endsWith('.js'))
   .map((file) => fs.readFileSync(file, 'utf8')).join('\n');
@@ -56,7 +58,10 @@ for (const icon of manifest.icons) {
 assert.ok(exists('public/icons/apple-touch-icon.png'), 'Apple touch icon is required by index.html');
 assert.ok(exists('public/branding/pharmaridge-logo.png'), 'default PharmaRidge logo artwork is required');
 assert.ok(exists('public/branding/pharmaridge-mark.png'), 'default PharmaRidge icon artwork is required');
-assert.match(read('public/js/views/login.js'), /\/branding\/pharmaridge-logo\.png/, 'unbranded login must display the supplied PharmaRidge logo');
+const loginSource = read('public/js/views/login.js');
+assert.match(loginSource, /\/branding\/pharmaridge-logo\.png/, 'unbranded login must display the premium full logo');
+assert.match(loginSource, /live-sample-label">Live Sample 1/, 'login must show the concise Live Sample 1 label');
+assert.doesNotMatch(loginSource, /Shared live sample|PIN <b>1234<\/b>/, 'login must not expose shared admin credentials beneath the sign-in button');
 
 const indexSource = read('worker/src/index.js');
 const mounts = [...indexSource.matchAll(/app\.route\('\/api\/[^']+',\s*require\('\.\/routes\/([^']+)'\)\)/g)]

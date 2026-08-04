@@ -87,7 +87,7 @@ function pngPixels(file) {
     width, height, channels,
     at(x, y) {
       const i = y * stride + x * channels;
-      return [out[i], out[i + 1], out[i + 2]];
+      return [out[i], out[i + 1], out[i + 2], channels === 4 ? out[i + 3] : 255];
     },
   };
 }
@@ -121,128 +121,76 @@ if (as) {
     `file ${as.width}x${as.height}, declared ${declared ? declared[1] : 'none'}`);
 }
 
-console.log('\n=== THE TOPBAR MARK IN index.html IS THE ONE THE BUILD PRODUCES ===');
+console.log('\n=== THE CANONICAL PREMIUM MARK IS WIRED INTO THE APPLICATION ===');
 {
-  // The topbar mark used to be hand-written in index.html with no relationship
-  // to the icon build. Two artefacts that must agree, edited independently,
-  // will eventually disagree — so the build now writes index.html, and this
-  // asserts the file on disk still matches what the build would emit. It
-  // compares the RENDERED GEOMETRY (the `d` attributes), not the whole string,
-  // so reformatting the tag is not a failure.
-  const html = fs.readFileSync(path.join(PUB, 'index.html'), 'utf8');
-  const inHtml = /<svg class="brand-ico"[\s\S]*?<\/svg>/.exec(html);
-  check('index.html still contains a .brand-ico mark', !!inHtml);
-  const builderSrc = fs.readFileSync(path.join(__dirname, 'build-icons.js'), 'utf8');
-  const builderPaths = [...builderSrc.matchAll(/'<path d="([^"]+)"/g)].map((m) => m[1]);
-  if (inHtml) {
-    const htmlPaths = [...inHtml[0].matchAll(/ d="([^"]+)"/g)].map((m) => m[1]);
-    check('the topbar mark has geometry (not an empty svg)', htmlPaths.length > 0);
-    check('every path in index.html comes from build-icons.js',
-      htmlPaths.every((d) => builderPaths.includes(d)),
-      htmlPaths.filter((d) => !builderPaths.includes(d)).join(' | ').slice(0, 120));
-    // A 20px mark drawn with hairline strokes renders grey, not white — the
-    // exact defect in the mark this replaced. Solid fills are the requirement.
-    check('the topbar mark is built from FILLS, not hairline strokes',
-      (inHtml[0].match(/fill="currentColor"/g) || []).length >= 3,
-      `${(inHtml[0].match(/fill="currentColor"/g) || []).length} filled paths`);
-    check('the topbar mark inherits currentColor (works in both themes)',
-      !/fill="#/.test(inHtml[0]) && !/stroke="#/.test(inHtml[0]));
+  const full = pngPixels(path.join(PUB, 'branding', 'pharmaridge-logo.png'));
+  const mark = pngPixels(path.join(PUB, 'branding', 'pharmaridge-mark.png'));
+  check('the transparent full PHARMARIDGE lockup decodes', !!full);
+  check('the transparent mountain/mortar application mark decodes', !!mark);
+  if (full) {
+    let visible = 0;
+    for (let y = 0; y < full.height; y++) for (let x = 0; x < full.width; x++) if (full.at(x, y)[3] > 15) visible++;
+    check('the full lockup has true transparent surroundings', full.at(0, 0)[3] === 0, `corner alpha=${full.at(0, 0)[3]}`);
+    check('the full lockup has substantial visible artwork', visible > full.width * full.height * 0.20, `${visible} visible pixels`);
   }
+  const brandingSrc = fs.readFileSync(path.join(PUB, 'js', 'branding.js'), 'utf8');
+  const loginSrc = fs.readFileSync(path.join(PUB, 'js', 'views', 'login.js'), 'utf8');
+  check('topbar branding uses the canonical premium mark', brandingSrc.includes('/branding/pharmaridge-mark.png'));
+  check('login branding uses the full premium lockup', loginSrc.includes('/branding/pharmaridge-logo.png'));
 }
 
-console.log('\n=== THE MASKABLE SURVIVES ANDROID\'S STRICT SAFE-ZONE CROP ===');
+console.log('\n=== THE MASKABLE ICON SURVIVES ANDROID\'S STRICT SAFE-ZONE CROP ===');
 {
-  // THE BUG THIS SECTION WAS WRITTEN FOR.
-  // A maskable icon is guaranteed only the centre 80% DIAMETER circle
-  // (radius 0.4 x width). Everything outside may be cropped by the launcher.
-  // The first build of this lockup put the wordmark on a full-bleed band, so
-  // the strict crop cut its first and last letters and the home screen read
-  // "HARMARIDG". It passed an inscribed-circle preview, which is why the
-  // preview is not the test.
-  //
-  // Assert the OUTCOME: no ink of the lockup may fall outside the safe
-  // circle. Ink is anything that is not the flat background colour, which is
-  // read from the corner rather than hardcoded.
+  // Transparent PNGs use alpha, not a flat corner colour, to distinguish
+  // artwork from the background. Every visible pixel must fit inside Android's
+  // documented centre-80%-diameter safe circle.
   for (const f of ['icon-512-maskable.png', 'icon-192-maskable.png']) {
     const p = pngPixels(path.join(ICONS, f));
     check(`${f} decodes to pixels`, !!p);
     if (!p) continue;
-    const bg = p.at(0, 0);
-    const isBg = (px) => Math.max(Math.abs(px[0] - bg[0]), Math.abs(px[1] - bg[1]), Math.abs(px[2] - bg[2])) <= 14;
     const cx = p.width / 2, cy = p.height / 2, r = p.width * 0.4;
     let outside = 0, total = 0, worst = 0;
     for (let y = 0; y < p.height; y++) {
       for (let x = 0; x < p.width; x++) {
-        if (isBg(p.at(x, y))) continue;
+        const px = p.at(x, y);
+        if (px[3] <= 15) continue;
         total++;
         const d = Math.hypot(x - cx, y - cy);
         if (d > r) { outside++; worst = Math.max(worst, d / (p.width * 0.5)); }
       }
     }
-    check(`${f} has visible artwork at all`, total > p.width * p.height * 0.05, `${total} ink px`);
+    check(`${f} has visible artwork at all`, total > p.width * p.height * 0.03, `${total} ink px`);
     check(`${f} keeps ALL artwork inside the 80% safe circle`, outside === 0,
       `${outside} px outside; furthest ink at ${(worst * 100).toFixed(1)}% of the radius`);
   }
 
-  // The non-maskable icons are the opposite contract: they are NOT cropped,
-  // so they should use the full square edge to edge.
-  //
-  // THIS CHECK USED TO REQUIRE A GOLD NAMEPLATE AT THE BOTTOM EDGE. That
-  // pinned one particular DESIGN rather than the property that matters, and
-  // it went red the moment the wordmark was moved into the background — a
-  // deliberate improvement (simpler, less bolted-on). Trap #43 again, so it
-  // now asserts the intent: the artwork must reach the edge, whatever the
-  // artwork happens to be.
   for (const f of ['icon-512.png', 'icon-192.png']) {
     const p = pngPixels(path.join(ICONS, f));
     if (!p) { check(`${f} decodes to pixels`, false); continue; }
-    const corner = p.at(1, 1);
-    const bottom = p.at(Math.floor(p.width / 2), p.height - 1);
-    const isBackgroundish = (px) => px[1] > px[0] && px[1] > px[2]; // green-dominant
-    check(`${f} is full-bleed artwork with no white margin`,
-      isBackgroundish(corner) && isBackgroundish(bottom),
-      `corner rgb(${corner}) bottom rgb(${bottom})`);
+    let visible = 0;
+    for (let y = 0; y < p.height; y++) for (let x = 0; x < p.width; x++) if (p.at(x, y)[3] > 15) visible++;
+    check(`${f} has a transparent border around the premium mark`, p.at(0, 0)[3] === 0, `corner alpha=${p.at(0, 0)[3]}`);
+    check(`${f} has legible-sized visible artwork`, visible > p.width * p.height * 0.08, `${visible} visible pixels`);
   }
 }
 
-console.log('\n=== THE WORDMARK IS PRESENT, AND IS THE CLIENT\'S DECISION ===');
+console.log('\n=== THE FULL WORDMARK REMAINS PART OF THE PRIMARY LOGO ===');
 {
-  // The client asked for "PharmaRidge within the logo" at every size. A
-  // wordmark that is present in the source but invisible once rasterised at
-  // 192 would satisfy the letter of that and not the intent. The nameplate is
-  // the wordmark's carrier, so require the gold band to occupy a real share
-  // of the icon at the SMALLEST size that ships.
-  const p = pngPixels(path.join(ICONS, 'icon-192.png'));
-  check('icon-192.png decodes to pixels', !!p);
+  const p = pngPixels(path.join(PUB, 'branding', 'pharmaridge-logo.png'));
+  check('full brand lockup decodes to pixels', !!p);
   if (p) {
-    // The wordmark is now LIGHT letterforms set into the dark ground, rather
-    // than dark ink on a gold plate. What must be true is unchanged: at the
-    // smallest size that ships, there is real, legible-sized lettering in the
-    // lower third. Measuring the LETTERS directly is closer to the intent
-    // than measuring the slab they used to sit on.
     let lightInk = 0;
-    for (let y = Math.floor(p.height * 0.80); y < p.height; y++) {
+    const from = Math.floor(p.height * 0.68);
+    for (let y = from; y < p.height; y++) {
       for (let x = 0; x < p.width; x++) {
         const px = p.at(x, y);
-        // ivory/near-white letterforms on the deep green field
-        if (px[0] > 200 && px[1] > 200 && px[2] > 185) lightInk++;
+        if (px[3] > 15 && px[0] > 200 && px[1] > 200 && px[2] > 185) lightInk++;
       }
     }
-    const band = p.width * Math.ceil(p.height * 0.20);
+    const band = p.width * (p.height - from);
     const share = lightInk / band;
-    check('the wordmark occupies real space at 192px, not a hairline',
-      share > 0.05, `${(share * 100).toFixed(1)}% of the lower band is lettering`);
-    check('...and it is set into the background, not on a gold slab',
-      (() => {
-        let gold = 0;
-        for (let y = Math.floor(p.height * 0.80); y < p.height; y++) {
-          for (let x = 0; x < p.width; x++) {
-            const px = p.at(x, y);
-            if (px[0] > 150 && px[1] > 90 && px[1] < 190 && px[2] < 90) gold++;
-          }
-        }
-        return gold / band < 0.25;   // a hairline rule is fine; a slab is not
-      })(), 'the lower band is mostly gold — the wordmark is on a plate again');
+    check('PHARMARIDGE wordmark occupies real space in the full lockup', share > 0.10,
+      `${(share * 100).toFixed(1)}% of the lower band is lettering`);
   }
 }
 

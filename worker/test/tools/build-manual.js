@@ -32,14 +32,15 @@ const SHAPES = [
   ['Ten shops, 40 staff', plan(10, 40)],
 ];
 
-// The app icon, embedded in the document. Read from the SHIPPED icon file
-// rather than a copy, so the manual can never show a logo the application does
-// not use — the two cannot drift apart.
-const iconData = (() => {
-  const p = path.join(__dirname, '..', '..', '..', 'public', 'icons', 'icon-512.png');
-  if (!fs.existsSync(p)) { console.log('  MISSING app icon at ' + p); return ''; }
+// Brand assets are read from the SHIPPED application files rather than copied
+// into this builder, so the guide cannot drift from the login/PWA identity.
+function assetData(relativePath, label) {
+  const p = path.join(__dirname, '..', '..', '..', 'public', ...relativePath);
+  if (!fs.existsSync(p)) { console.log(`  MISSING ${label} at ${p}`); return ''; }
   return 'data:image/png;base64,' + fs.readFileSync(p).toString('base64');
-})();
+}
+const brandData = assetData(['branding', 'pharmaridge-logo.png'], 'full brand logo');
+const iconData = assetData(['icons', 'icon-512.png'], 'application icon');
 
 const img = (file, { quiet = false } = {}) => {
   const p = path.join(SHOTS, file);
@@ -239,13 +240,13 @@ const css = `
   .warn { background: #fdf6ec; border-left: 3pt solid #c77700; padding: 8pt 11pt; margin: 10pt 0;
           page-break-inside: avoid; }
   .cover { text-align: center; padding-top: 38mm; }
-  /* The icon is reproduced at its own proportions with no frame added around
-     it — the artwork now runs edge to edge by design, and drawing a border here
-     would put back exactly what was removed. */
-  .cover-mark { width: 46mm; height: 46mm; display: block; margin: 0 auto 12mm;
-                border-radius: 4mm; }
+  /* The transparent brand lockup is reproduced at its natural wide proportion
+     with no frame or background added around it. */
+  .cover-mark { width: 108mm; max-width: 90%; height: auto; max-height: 52mm;
+                object-fit: contain; display: block; margin: 0 auto 12mm; }
   .mark-inline { width: 13mm; height: 13mm; vertical-align: middle;
-                 border-radius: 1.6mm; margin-right: 4mm; }
+                 object-fit: contain; margin-right: 4mm; }
+
   .cover .sub { font-size: 13pt; color: #3c554b; margin-top: 8pt; }
   .cover .meta { margin-top: 40mm; font-size: 9.5pt; color: #6b7d75; }
   .lead { font-size: 11.5pt; color: #3c554b; margin-bottom: 14pt; }
@@ -274,7 +275,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
 
 <!-- ============ COVER ============ -->
 <section class="page cover">
-  <img class="cover-mark" src="${iconData}" alt="PharmaRidge" />
+  <img class="cover-mark" src="${brandData}" alt="PharmaRidge" />
   <h1>PharmaRidge</h1>
   <div class="sub">Pharmacy &amp; PPMV Management — Onboarding Guide</div>
   <div class="sub" style="font-size:11pt;margin-top:22pt;">

@@ -375,10 +375,27 @@ td, th, .value, .stat-card .value, .cart-total-row, .receipt, input[type="number
      drift over the gradient on a short screen. */
   position: relative;
 }
+.login-loading {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .02em;
+}
+.login-loading-mark { width: 156px; height: 156px; overflow: visible; }
 .login-card h1 { font-size: 21px; margin: 0 0 4px; color: var(--green-900); letter-spacing: -.2px; }
 .login-card .login-logo { display: block; height: 56px; max-width: 100%; object-fit: contain; margin: 0 auto 16px; }
-/* The supplied PharmaRidge wordmark remains visible before a client uploads their own logo. */
-.login-card .login-logo.login-logo-product { height: 104px; width: 104px; border-radius: 18px; box-shadow: 0 8px 20px rgba(4, 41, 30, .16); margin-bottom: 12px; }
+/* The generated transparent PHARMARIDGE lockup needs a dark presentation
+   surface; the LOGO itself remains borderless and background-free. */
+.login-logo-stage {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 132px; margin: -8px -10px 16px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #0a3b2c, #08744f 55%, #063326);
+  border-radius: 14px;
+  box-shadow: 0 10px 22px rgba(4, 41, 30, .18);
+}
+.login-card .login-logo.login-logo-product {
+  width: min(100%, 300px); height: auto; max-height: 126px;
+  margin: 0; filter: drop-shadow(0 4px 6px rgba(0,0,0,.2));
+}
 .login-card p.subtitle { margin: 0 0 22px; color: var(--gray-600); font-size: 13px; }
 .login-card label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-700); margin: 15px 0 6px; }
 .login-card input {
@@ -393,9 +410,9 @@ td, th, .value, .stat-card .value, .cart-total-row, .receipt, input[type="number
   color: var(--red-600); font-size: 13px; margin-top: 12px;
   background: var(--red-100); border-radius: var(--radius-sm); padding: 9px 11px;
 }
-.demo-hint {
-  margin-top: 20px; font-size: 11px; color: var(--gray-400); line-height: 1.6;
-  border-top: 1px dashed var(--gray-200); padding-top: 13px;
+.live-sample-label {
+  margin-top: 18px; text-align: center; font-size: 11px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .14em; color: var(--gray-500);
 }
 
 /* ---------- Topbar -------------------------------------------------------- */

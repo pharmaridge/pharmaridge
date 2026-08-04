@@ -12,7 +12,7 @@ function renderLogin() {
       <button id="login-theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode" aria-pressed="false"></button>
       ${branding.has_logo && branding.logo_url
         ? `<img class="login-logo" src="${branding.logo_url}" alt="${UI.escapeHtml(name)}" />`
-        : `<img class="login-logo login-logo-product" src="/branding/pharmaridge-logo.png" alt="PharmaRidge" />`}
+        : `<div class="login-logo-stage"><img class="login-logo login-logo-product" src="/branding/pharmaridge-logo.png" alt="PharmaRidge" /></div>`}
       <h1>${branding.business_name ? UI.escapeHtml(name) : `${Branding.PRODUCT_NAME}`}</h1>
       <p class="subtitle">${branding.business_name ? 'Pharmacy &amp; patent medicine store management' : 'Multi-branch pharmacy &amp; patent medicine store management'}</p>
       <form id="login-form">
@@ -23,12 +23,7 @@ function renderLogin() {
         <button type="submit" class="btn btn-primary">Sign in</button>
         <div id="login-error" class="login-error hidden"></div>
       </form>
-      <div class="demo-hint">
-        <b>Shared live sample:</b> <b>admin</b> — PIN <b>1234</b><br/>
-        Sign in as Admin to create a new Owner. The Owner can then create branches,
-        staff, suppliers, and receive stock using the full NAFDAC product catalog.<br/>
-        <span style="font-size:11px;">Sample data only — this environment may be reset. Do not enter real records.</span>
-      </div>
+      <div class="live-sample-label">Live Sample 1</div>
       ${poweredBy ? `<div class="powered-by-footer">${UI.escapeHtml(poweredBy)}</div>` : ''}
     </div>
   `;

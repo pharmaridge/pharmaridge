@@ -60,7 +60,21 @@
   </div>
 
   <div id="app">
-    <div id="login-screen" class="screen"></div>
+    <!-- First paint is a branded, animated SVG loader. App.init() replaces this
+         with the login form after it has fetched the deployment branding. -->
+    <div id="login-screen" class="screen">
+      <div class="login-loading" role="status" aria-live="polite" aria-label="Loading PharmaRidge">
+        <svg class="login-loading-mark" viewBox="0 0 180 180" aria-hidden="true" focusable="false">
+          <circle cx="90" cy="90" r="78" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="42 16" opacity=".42">
+            <animateTransform attributeName="transform" type="rotate" from="0 90 90" to="360 90 90" dur="1.8s" repeatCount="indefinite" />
+          </circle>
+          <image href="/branding/pharmaridge-mark.png" x="25" y="35" width="130" height="96" preserveAspectRatio="xMidYMid meet">
+            <animate attributeName="opacity" values=".55;1;.55" dur="1.35s" repeatCount="indefinite" />
+          </image>
+        </svg>
+        <span>Loading PharmaRidge…</span>
+      </div>
+    </div>
 
     <div id="main-screen" class="screen hidden">
       <header class="topbar">
