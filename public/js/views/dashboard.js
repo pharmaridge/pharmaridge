@@ -27,10 +27,19 @@ async function renderDashboard(view) {
   }
 
   const scopeLabel = summary.scope.all_branches ? 'All branches (organization total)' : 'Single branch view';
+  const storage = summary.storage;
+  const storageNotice = storage && storage.available && storage.status !== 'OK'
+    ? `<div class="card" style="border-left:4px solid ${storage.status === 'CRITICAL' ? 'var(--red-500)' : 'var(--amber-500)'};background:${storage.status === 'CRITICAL' ? 'var(--tint-red)' : 'var(--tint-amber)'};margin-bottom:16px;">
+        <h3 style="margin:0 0 6px;">${storage.status === 'CRITICAL' ? 'Storage almost full' : 'Storage is filling up'}</h3>
+        <p style="margin:0 0 7px;font-size:13px;">${UI.escapeHtml(storage.message || '')}</p>
+        <p style="margin:0;font-size:13px;"><strong>${storage.megabytes} MB</strong> of ${storage.limit_megabytes} MB estimated (${storage.percent_used}%). ${State.isOwner() ? 'Open My Plan to review the Owner-only data-management options.' : 'Tell the Owner so they can review capacity and retention choices.'}</p>
+      </div>`
+    : '';
 
   view.innerHTML = `
     <h2 class="page-title">Dashboard</h2>
     <p class="page-subtitle">${scopeLabel} — ${UI.shortDate(new Date().toISOString())}</p>
+    ${storageNotice}
     ${Exporter.toolbar('dashboard', { label: 'this management summary' })}
 
     <div class="grid grid-4">

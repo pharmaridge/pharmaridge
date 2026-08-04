@@ -95,5 +95,9 @@ run_one test/audit.rolelifecycle.js
 run_one test/audit.single-session.js
 run_one test/tools/probe-crossdomain.js
 
+# Owner-only data-retention/reset controls use an isolated in-memory D1-shaped
+# schema and never point at the local scenario or production sample.
+node test/audit.data-management.js
+
 echo
 echo "Full domain audit suite passed: sales, VAT/WHT, change, suppliers, customers, till/safe, stock, transfers, sessions, roles and cross-domain controls."

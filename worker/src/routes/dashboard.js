@@ -62,6 +62,14 @@ dashboard.get('/summary', async (c) => {
     : await db.prepare(flaggedAttendanceSql).bind(...attendanceService.FLAGGED_STATUSES, ...attendanceService.FLAGGED_STATUSES).first();
 
 
+  // Storage is organisation-wide (not branch data), so expose the warning to
+  // the Owner and an org-wide General Manager only. A Branch Manager can see
+  // their shop’s stock/cash but cannot be asked to solve a whole-database
+  // capacity decision; STAFF should not receive plan/capacity details at all.
+  const dashboardUser = c.get('user');
+  const maySeeStorageWarning = dashboardUser && (dashboardUser.role === 'OWNER'
+    || (dashboardUser.role === 'MANAGER' && !dashboardUser.branch_id));
+
   return c.json({
     scope: branchId ? { branch_id: branchId } : { all_branches: true },
     sales_today: salesToday || { transaction_count: 0, gross_sales: 0, total_discount: 0 },
@@ -72,6 +80,7 @@ dashboard.get('/summary', async (c) => {
     total_owed_to_suppliers: creditors.total,
     license_expiry_alerts: licenseAlerts.n,
     flagged_attendance_pending_review: flaggedAttendance.n,
+    storage: maySeeStorageWarning ? await getStorageHealth(db) : null,
   });
 });
 

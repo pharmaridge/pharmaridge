@@ -63,7 +63,7 @@ const Api = (() => {
     if (window.App && window.App.afterLogout) window.App.afterLogout();
   }
 
-  async function request(method, path, body, { allowOfflineQueue = true, idempotencyKey, offlineReplay = false } = {}) {
+  async function request(method, path, body, { allowOfflineQueue = true, idempotencyKey, offlineReplay = false, queuedAt } = {}) {
     const session = State.getSession();
     const headers = { 'Content-Type': 'application/json' };
     if (session && session.token) headers.Authorization = `Bearer ${session.token}`;
@@ -76,7 +76,15 @@ const Api = (() => {
     // undo the sale — it only erases the record, because offline.js treats
     // every 4xx as permanent and quarantines the item. Reproduced exactly
     // that way while adding the no-open-till guard in routes/sales.js.
-    if (offlineReplay) headers['X-Offline-Replay'] = '1';
+    if (offlineReplay) {
+      headers['X-Offline-Replay'] = '1';
+      // A full Owner reset records its server time. Supplying the original
+      // queue time lets the server quarantine a stale request instead of
+      // silently repopulating a freshly-cleared database when an old phone
+      // reconnects. The server refuses a replay lacking this header after a
+      // reset — a deliberate safe failure for older cached PWA shells.
+      if (queuedAt) headers['X-Offline-Queued-At'] = queuedAt;
+    }
 
     // Assign a stable idempotency key up front for any mutation we might
     // need to queue/retry, so a lost-response retry can never double-run.
@@ -196,7 +204,10 @@ const Api = (() => {
     flushInProgress = true;
     try {
       const result = await Offline.flush(async (item) => {
-        await request(item.method, item.path, item.body, { allowOfflineQueue: false, idempotencyKey: item.idempotencyKey, offlineReplay: true });
+        await request(item.method, item.path, item.body, {
+          allowOfflineQueue: false, idempotencyKey: item.idempotencyKey,
+          offlineReplay: true, queuedAt: item.queuedAt,
+        });
       });
       UI.updateOfflineBanner();
       return result;
@@ -224,13 +235,23 @@ const Api = (() => {
     customerPushInProgress = true;
     try {
       const result = await Offline.processCustomerSyncQueue(async (chunk, remainingAfter) => {
+        // The earliest queued customer in this push is the safe time to send:
+        // if any part of the chunk predates an Owner reset, the server rejects
+        // the whole stale chunk for review rather than allowing one old record
+        // to repopulate the clean database. `_queued_at` is local metadata and
+        // the server's sync allow-list drops it from the customer row itself.
+        const queuedTimes = chunk.map((row) => Date.parse(row._queued_at || '')).filter((v) => Number.isFinite(v));
+        const earliestQueuedAt = queuedTimes.length ? new Date(Math.min.apply(null, queuedTimes)).toISOString() : null;
         await request('POST', '/sync/push', {
           branch_id: branchId,
           device_id: DeviceId.get(),
           app_version: '1.0.0',
           changes: { customers: chunk },
           remaining_after_this_chunk: remainingAfter,
-        }, { allowOfflineQueue: false, idempotencyKey: newIdempotencyKey() });
+        }, {
+          allowOfflineQueue: false, idempotencyKey: newIdempotencyKey(),
+          offlineReplay: true, queuedAt: earliestQueuedAt,
+        });
       });
       UI.updateOfflineBanner();
       return result;

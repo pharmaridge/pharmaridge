@@ -273,7 +273,40 @@ app.use('/api/*', async (c, next) => {
 });
 app.use('/api/*', async (c, next) => {
   if (c.req.method === 'GET') return next();
+  // A subscription state must never trap the actual proprietor with data they
+  // need to retain, export or securely remove. This is deliberately the one
+  // Owner-only destructive endpoint that remains reachable while suspended:
+  // it cannot create new trading activity, and its own route repeats Owner
+  // identity, active-operation, acknowledgement and typed-confirmation gates.
+  // ADMIN already bypasses the gate below, but data-management itself refuses
+  // ADMIN so support cannot use this exception to erase client records.
+  if (c.req.path === '/api/data-management/purge' && c.get('user') && c.get('user').role === 'OWNER') return next();
   return subscriptionGate(c, next);
+});
+
+// DATA-RESET REPLAY FENCE.
+//
+// A full data reset is not safe if an old PWA queue can reconnect tomorrow and
+// silently recreate a sale, expense or customer after the Owner has started
+// clean. The browser now forwards the item’s ORIGINAL queue timestamp with an
+// offline replay. When the reset marker is present, any replay made before it
+// (or an older app replaying without a timestamp) is quarantined with a clear
+// 409 rather than being treated as a new live transaction. Live counter work
+// carries no X-Offline-Replay header and is unaffected.
+app.use('/api/*', async (c, next) => {
+  if (c.req.header('X-Offline-Replay') !== '1') return next();
+  const settings = await getClientSettings(c.env.DB);
+  if (!settings.data_reset_at) return next();
+  const rawQueuedAt = c.req.header('X-Offline-Queued-At');
+  const queuedAt = rawQueuedAt ? Date.parse(rawQueuedAt) : NaN;
+  const resetAt = Date.parse(`${String(settings.data_reset_at).replace(' ', 'T')}Z`);
+  if (!Number.isFinite(queuedAt) || !Number.isFinite(resetAt) || queuedAt <= resetAt) {
+    return c.json({
+      error: 'This offline item was created before the Owner cleared business data. It was not replayed. Review or discard it on the device before recording the transaction again.',
+      code: 'DATA_RESET_REPLAY_BLOCKED',
+    }, 409);
+  }
+  return next();
 });
 
 app.route('/api/branches', require('./routes/branches'));
@@ -305,6 +338,7 @@ app.route('/api/sync', require('./routes/sync'));
 app.route('/api/attendance', require('./routes/attendance'));
 app.route('/api/admin', require('./routes/admin'));
 app.route('/api/settings', require('./routes/settings'));
+app.route('/api/data-management', require('./routes/dataManagement'));
 app.route('/api/wht', require('./routes/wht'));
 
 

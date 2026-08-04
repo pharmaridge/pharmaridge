@@ -78,6 +78,13 @@ async function renderPlan(view) {
     return;
   }
 
+  // Kept separate from the normal plan fetch: a data-management problem must
+  // not hide the owner's VAT, WHT or subscription controls.
+  let dataManagement = null;
+  if (State.isOwner()) {
+    try { dataManagement = await Api.get('/data-management/status'); } catch (e) { /* non-destructive screen stays usable */ }
+  }
+
   const statusKind = { ACTIVE: 'green', TRIAL: 'amber', SUSPENDED: 'red', EXPIRED: 'red' }[plan.subscription_status] || 'gray';
 
   // CAPACITY YOU HAVE ALREADY PAID FOR — not an allowance you are burning.
@@ -127,6 +134,13 @@ async function renderPlan(view) {
       <h2 class="page-title">Cashier Spending Allowance</h2>
       <p class="page-subtitle">How much your cashiers may take from the branch safe for a purchase.
         The rest of the plan and tax settings belong to the Owner.</p>
+      ${!State.isBranchPinned() && plan.storage && plan.storage.available && plan.storage.status !== 'OK' ? `
+        <div class="card" style="border-left:4px solid ${plan.storage.status === 'CRITICAL' ? 'var(--red-500)' : 'var(--amber-500)'};background:${plan.storage.status === 'CRITICAL' ? 'var(--tint-red)' : 'var(--tint-amber)'};">
+          <h3 style="margin:0 0 6px;">${plan.storage.status === 'CRITICAL' ? 'Storage almost full' : 'Storage is filling up'}</h3>
+          <p style="margin:0 0 7px;font-size:13px;">${UI.escapeHtml(plan.storage.message || '')}</p>
+          <p style="margin:0;font-size:13px;"><strong>${plan.storage.megabytes} MB</strong> of ${plan.storage.limit_megabytes} MB estimated (${plan.storage.percent_used}%). Please alert the Owner; only the Owner can choose retention or reset actions.</p>
+        </div>
+      ` : ''}
       <div class="card">
         <h3>Cashier Permissions</h3>
         <div class="form-row">
@@ -289,7 +303,7 @@ async function renderPlan(view) {
 
     <div class="card" style="margin-top:16px;">
       <h3>Storage</h3>
-      <p class="page-subtitle">Your sales, receipts and accounting records are kept <strong>permanently</strong> for FIRS tax and NAFDAC/PCN inspection, so this only ever grows. We warn you well before it becomes a problem.</p>
+      <p class="page-subtitle">Business records are not automatically deleted. We warn you well before capacity becomes a problem so the Owner can retain required records, plan an upgrade, or use the guarded data-management process after exporting what must be kept.</p>
       ${plan.storage && plan.storage.available ? `
         <div class="form-row">
           <label>Database used</label>
@@ -297,6 +311,20 @@ async function renderPlan(view) {
         </div>
       ` : '<p style="font-size:13px;">Storage usage is not available on this deployment.</p>'}
     </div>
+
+    ${State.isOwner() ? `
+      <div class="card" style="margin-top:16px;border-left:4px solid var(--red-500);">
+        <h3 style="margin-top:0;">Owner Data Management</h3>
+        <p class="page-subtitle">Use this only after exporting the reports or backup you must retain. You can preview and permanently delete a selected period, clear business data while retaining accounts and branches, or start over and remove Manager and Staff credentials. General Managers receive capacity warnings but cannot use this control.</p>
+        ${dataManagement && dataManagement.storage && dataManagement.storage.available ? `
+          <div style="font-size:13px;margin:0 0 10px;"><strong>Live data estimate:</strong> ${dataManagement.storage.megabytes} MB of ${dataManagement.storage.limit_megabytes} MB (${dataManagement.storage.percent_used}%). This does not guarantee that Cloudflare immediately reduces physical allocation after a delete.</div>
+        ` : '<div style="font-size:13px;margin:0 0 10px;">Storage status is temporarily unavailable; deletion remains permanently destructive.</div>'}
+        <button class="btn btn-danger" id="owner-data-management">Review data-management options</button>
+        ${dataManagement && dataManagement.recent_cleanups && dataManagement.recent_cleanups.length ? `
+          <p style="font-size:12px;margin:12px 0 0;color:var(--gray-600);">Most recent cleanup: ${UI.escapeHtml(dataManagement.recent_cleanups[0].mode)} on ${UI.shortDate(dataManagement.recent_cleanups[0].created_at)} (${dataManagement.recent_cleanups[0].record_total || 0} records previewed).</p>
+        ` : ''}
+      </div>
+    ` : ''}
 
     <div class="card" style="margin-top:16px;">
       <h3>Manager Permissions</h3>
@@ -365,6 +393,10 @@ async function renderPlan(view) {
       </ul>
     </div>
   `;
+
+  UI.guardedClick(document.getElementById('owner-data-management'), async () => {
+    await openOwnerDataManagement();
+  });
 
   UI.guardedClick(document.getElementById('perm-save'), async () => {
     try {
@@ -445,5 +477,113 @@ async function renderPlan(view) {
         Router.navigate();
       } catch (e) { UI.toast(e.message, 'error'); }
     });
+  });
+}
+
+// Owner-only, deliberately two-stage dialog. A coloured destructive button is
+// not a safety control: the server previews current rows, then repeats the
+// checks at submission time after two acknowledgements and an exact phrase.
+async function openOwnerDataManagement() {
+  let status;
+  try {
+    status = await Api.get('/data-management/status');
+  } catch (e) {
+    UI.toast(e.message || 'Could not load data-management options.', 'error');
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const modal = UI.openModal(`
+    <h2 style="margin-top:0;color:var(--red-600);">Owner Data Management</h2>
+    <p class="page-subtitle">This is a permanent hard-delete process, not an archive. Download/verify required reports or a backup first. Sync every active device before continuing: known offline queues block this action, and older queued items are quarantined for review after any cleanup rather than being allowed to recreate records. Check your accountant, tax adviser and applicable pharmacy/controlled-drug record-retention obligations before you continue.</p>
+    <div class="card" style="border-left:4px solid var(--amber-500);background:var(--tint-amber);margin:12px 0;">
+      <strong>Storage reality:</strong> deleting rows reduces the active-data estimate, but Cloudflare controls physical database allocation. Do not use deletion as the only capacity plan when storage is critical.
+    </div>
+    <div class="form-row">
+      <label for="dm-mode">What do you want to remove?</label>
+      <select id="dm-mode">${(status.modes || []).map((m) => `<option value="${UI.escapeHtml(m.code)}">${UI.escapeHtml(m.label)}</option>`).join('')}</select>
+      <small id="dm-mode-help" class="muted" style="display:block;margin-top:5px;font-size:12px;"></small>
+    </div>
+    <div id="dm-period" class="grid grid-2" style="margin:8px 0;">
+      <div class="form-row"><label for="dm-start">From date (inclusive)</label><input id="dm-start" type="date" max="${today}" /></div>
+      <div class="form-row"><label for="dm-end">To date (inclusive)</label><input id="dm-end" type="date" max="${today}" value="${today}" /></div>
+    </div>
+    <div id="dm-preview" class="card" style="background:var(--gray-50);margin:12px 0;font-size:13px;">Choose an option and select <strong>Preview impact</strong>. Nothing has been deleted.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+      <button class="btn btn-ghost" id="dm-close" type="button">Cancel</button>
+      <button class="btn btn-secondary" id="dm-preview-button" type="button">Preview impact</button>
+    </div>
+  `);
+  const byId = (id) => modal.querySelector(`#${id}`);
+  const select = byId('dm-mode');
+  const help = byId('dm-mode-help');
+  const period = byId('dm-period');
+  const previewEl = byId('dm-preview');
+  function selectedMode() { return (status.modes || []).find((m) => m.code === select.value) || null; }
+  function resetPreview() {
+    const mode = selectedMode();
+    period.style.display = mode && mode.needs_dates ? '' : 'none';
+    help.textContent = mode ? mode.description : '';
+    previewEl.innerHTML = 'Option changed. Select <strong>Preview impact</strong>; nothing has been deleted.';
+  }
+  select.addEventListener('change', resetPreview);
+  resetPreview();
+  byId('dm-close').addEventListener('click', () => UI.closeModal(modal));
+
+  UI.guardedClick(byId('dm-preview-button'), async () => {
+    const mode = selectedMode();
+    if (!mode) return;
+    let url = `/data-management/preview?mode=${encodeURIComponent(mode.code)}`;
+    if (mode.needs_dates) {
+      const start = byId('dm-start').value;
+      const end = byId('dm-end').value;
+      if (!start || !end) { UI.toast('Choose both dates for the period you want to review.', 'error'); return; }
+      url += `&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}`;
+    }
+    try {
+      const preview = await Api.get(url);
+      const counts = Object.entries(preview.records || {}).filter((entry) => Number(entry[1]) > 0);
+      const list = counts.length
+        ? `<ul style="columns:2;column-gap:24px;margin:8px 0 0;padding-left:20px;">${counts.map(([table, count]) => `<li>${UI.escapeHtml(table.replace(/_/g, ' '))}: <strong>${Number(count).toLocaleString()}</strong></li>`).join('')}</ul>`
+        : '<p style="margin:8px 0 0;">No matching rows are currently found. Preview again immediately before confirming if data may still arrive.</p>';
+      const blockers = preview.blockers && preview.blockers.length
+        ? `<div style="margin-top:10px;padding:10px;border-left:4px solid var(--red-500);background:var(--tint-red);"><strong>Cannot run yet:</strong> ${preview.blockers.map((b) => `${b.count} ${UI.escapeHtml(b.label)}`).join(', ')}. Close/resolve these operations, then preview again.</div>`
+        : '';
+      previewEl.innerHTML = `
+        <h3 style="margin:0 0 5px;">Preview: ${UI.escapeHtml(preview.mode_label)}</h3>
+        <p style="margin:0;">${UI.escapeHtml(preview.description || '')}</p>
+        <p style="margin:8px 0 0;"><strong>${Number(preview.record_total || 0).toLocaleString()}</strong> records currently match this cleanup.</p>
+        ${list}${blockers}
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--gray-200);">
+          <label style="display:flex;gap:7px;align-items:flex-start;margin:7px 0;"><input id="dm-exported" type="checkbox" /> <span>I exported or verified the reports/backup I am responsible for retaining.</span></label>
+          <label style="display:flex;gap:7px;align-items:flex-start;margin:7px 0;"><input id="dm-retention" type="checkbox" /> <span>I understand the deletion is permanent in this app and I have considered financial, VAT/WHT, prescription and controlled-drug record-retention obligations.</span></label>
+          <label for="dm-confirm" style="display:block;margin-top:10px;">Type exactly <strong>${UI.escapeHtml(preview.confirmation_phrase)}</strong> to enable removal</label>
+          <input id="dm-confirm" autocomplete="off" spellcheck="false" style="width:100%;margin-top:4px;" />
+          <button class="btn btn-danger" id="dm-run" type="button" style="margin-top:10px;" ${preview.can_run ? '' : 'disabled'}>Permanently remove matching data</button>
+        </div>`;
+      const runButton = byId('dm-run');
+      if (!runButton) return;
+      UI.guardedClick(runButton, async () => {
+        const current = selectedMode();
+        const payload = {
+          mode: current.code,
+          confirmation: byId('dm-confirm').value,
+          export_confirmed: !!byId('dm-exported').checked,
+          retention_acknowledged: !!byId('dm-retention').checked,
+        };
+        if (current.needs_dates) {
+          payload.start_date = byId('dm-start').value;
+          payload.end_date = byId('dm-end').value;
+        }
+        try {
+          const result = await Api.post('/data-management/purge', payload, { allowOfflineQueue: false });
+          UI.closeModal(modal);
+          UI.toast(result.message || 'Data removal completed.', 'success', 9000);
+          Router.navigate();
+        } catch (e) { UI.toast(e.message || 'Data removal was not completed.', 'error', 9000); }
+      });
+    } catch (e) {
+      previewEl.textContent = e.message || 'Could not calculate the cleanup preview.';
+      UI.toast(e.message || 'Could not calculate the cleanup preview.', 'error');
+    }
   });
 }

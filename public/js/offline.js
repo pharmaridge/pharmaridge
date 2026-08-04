@@ -323,7 +323,16 @@ const Offline = (() => {
       // `put` (not `add`): overwrites any earlier pending edit to this
       // same customer id, so the queue always holds at most one — the
       // latest — pending version per record.
-      const req = tx.objectStore(CUSTOMER_STORE).put(Object.assign({}, customer, { updated_at: new Date().toISOString().replace('T', ' ').slice(0, 19) }));
+      const now = new Date().toISOString();
+      // Preserve the FIRST queue time when a device replaces its pending
+      // customer draft. An Owner data reset uses that timestamp to reject a
+      // stale offline push instead of letting it recreate a customer after the
+      // database was intentionally cleared. `_queued_at` is client metadata;
+      // syncService's column allow-list deliberately drops it before storage.
+      const req = tx.objectStore(CUSTOMER_STORE).put(Object.assign({}, customer, {
+        updated_at: now.replace('T', ' ').slice(0, 19),
+        _queued_at: customer._queued_at || now,
+      }));
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
