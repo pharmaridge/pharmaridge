@@ -289,9 +289,34 @@ function artwork(compact = false) {
         width="${compact ? 380 : 448}" height="3" rx="1.5" fill="${C.gold}" opacity="0.9"/>`;
 }
 
-// "any" icon — full bleed, the nameplate runs to the bottom edge.
+// TRANSPARENT LAUNCHER ARTWORK.
+//
+// The icon is used on a laptop desktop and on mobile home screens, where the
+// user—not the app—chooses the wallpaper/background. It therefore has NO
+// painted square, badge, fill or carrier element behind it. The compact mark
+// is fitted inside the Android safe circle even though the PNG canvas itself
+// stays fully transparent; launchers may crop/mask it without slicing the
+// mortar, ridge or wordmark.
+function compactTransform() {
+  const bw = MASK_BOX.x1 - MASK_BOX.x0;
+  const bh = MASK_BOX.y1 - MASK_BOX.y0;
+  const bcx = (MASK_BOX.x0 + MASK_BOX.x1) / 2;
+  const bcy = (MASK_BOX.y0 + MASK_BOX.y1) / 2;
+  const halfDiag = Math.sqrt((bw / 2) ** 2 + (bh / 2) ** 2);
+  const s = (SAFE_R * 0.985) / halfDiag; // 1.5% anti-aliasing margin
+  return `translate(512 512) scale(${s.toFixed(5)}) translate(${-bcx} ${-bcy})`;
+}
+
+function svgTransparentLauncher() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <g transform="${compactTransform()}">${artwork(true)}</g>
+</svg>`;
+}
+
+// "any" icon — transparent by design, so it can sit naturally on any desktop
+// or mobile wallpaper.
 function svgAny() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">${artwork(false)}</svg>`;
+  return svgTransparentLauncher();
 }
 
 // Maskable — Android crops to a circle/squircle and may eat 10% from EVERY
@@ -318,18 +343,11 @@ const MASK_BOX = { x0: COMPACT_L, y0: 118, x1: COMPACT_R, y1: 982 };
 const SAFE_R = 1024 * 0.4;   // strict Android safe radius
 
 function svgMaskable() {
-  const bw = MASK_BOX.x1 - MASK_BOX.x0;
-  const bh = MASK_BOX.y1 - MASK_BOX.y0;
-  const bcx = (MASK_BOX.x0 + MASK_BOX.x1) / 2;
-  const bcy = (MASK_BOX.y0 + MASK_BOX.y1) / 2;
-  // Fit the box's own half-diagonal inside the safe circle, so EVERY corner
-  // of the lockup — not just its edge midpoints — survives the crop.
-  const halfDiag = Math.sqrt((bw / 2) ** 2 + (bh / 2) ** 2);
-  const s = (SAFE_R * 0.985) / halfDiag;   // 1.5% margin for anti-aliasing
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <rect x="0" y="0" width="1024" height="1024" fill="${C.g900}"/>
-  <g transform="translate(512 512) scale(${s.toFixed(5)}) translate(${-bcx} ${-bcy})">${artwork(true)}</g>
-</svg>`;
+  // "maskable" describes how a launcher may crop this asset; it does NOT
+  // require the PNG itself to be an opaque coloured tile. Reuse the same
+  // transparent, safe-circle-fitted composition as the ordinary launcher
+  // icon so every desktop/home-screen background remains visible through it.
+  return svgTransparentLauncher();
 }
 
 // ---------------------------------------------------------------------------
@@ -355,13 +373,7 @@ function svgMaskable() {
 // `fill` (not `stroke`) throughout: a 1.8px stroke at 20px is a sub-pixel hair
 // that the previous line-art mark rendered as pale grey rather than white.
 const TOPBAR_SVG =
-  '<svg class="brand-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true">'
-  + '<path d="M5.9 3.9h12.2v1.8a6.1 6.1 0 01-12.2 0z" fill="currentColor"/>'
-  + '<path d="M11.35 10.2h1.3v1.3h-1.3z" fill="currentColor"/>'
-  + '<path d="M9.4 11.4h5.2v1.3H9.4z" fill="currentColor"/>'
-  + '<path d="M15.1 3.4l2.6-2.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>'
-  + '<path d="M0.9 22.6l6.1-6.5 3.6 3.9 2.5-2.7 3.4 3.7 1.9-2.1 4.7 3.7z" fill="currentColor"/>'
-  + '</svg>';
+  '<svg class="brand-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M1.3 20.8 6.2 13l3.2 3.4L14 6.2l4.2 10.1 2.4-3.8 2.1 8.3H1.3Z" fill="currentColor" opacity=".9"/><path d="M7.1 20.1h9.8l-1.1-4.8H8.2l-1.1 4.8Z" fill="currentColor"/><path d="M13.2 12.1 15.8 8.7l1.2 1-2.5 3.5-1.3-1.1Z" fill="currentColor"/><path d="M11 16.3h2v2h-2zM9.6 18.3h4.8v1.2H9.6z" fill="currentColor"/></svg>';
 
 // ---------------------------------------------------------------------------
 // Render
@@ -378,7 +390,11 @@ async function render(browser, svg, size, file) {
   );
   await page.evaluate(() => document.fonts.ready);
   const target = path.join(OUT, file);
-  await page.screenshot({ path: target, omitBackground: false });
+  // Preserve alpha all the way through the rasterisation. `omitBackground`
+  // makes the browser's own page transparent as well as the SVG canvas; the
+  // wrapper div above deliberately has no fill, so no hidden square can sneak
+  // into desktop/mobile launcher assets.
+  await page.screenshot({ path: target, omitBackground: true });
   await page.close();
   return target;
 }
@@ -397,6 +413,11 @@ async function render(browser, svg, size, file) {
   made.push(await render(browser, any, 180, 'apple-touch-icon.png'));
   made.push(await render(browser, mask, 512, 'icon-512-maskable.png'));
   made.push(await render(browser, mask, 192, 'icon-192-maskable.png'));
+  // Use the final PNGs on the human contact sheet. Rendering the SVG again
+  // through a data URI hides exactly the raster/transparency result this
+  // inspection is meant to show on some Chromium builds.
+  const anyPng = 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, 'icon-512.png')).toString('base64');
+  const maskPng = 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, 'icon-512-maskable.png')).toString('base64');
 
   // Contact sheet at the sizes a HUMAN actually sees, on both a light and a
   // dark page, plus the topbar mark on the real bar colour. Judging a logo at
@@ -406,19 +427,19 @@ async function render(browser, svg, size, file) {
     <div style="background:#ffffff;padding:18px">
       <div style="font-size:11px;color:#555;margin-bottom:8px">"any" on white</div>
       ${sizes.map((s) => `<span style="display:inline-block;text-align:center;margin-right:14px;vertical-align:bottom">
-        <img src="data:image/svg+xml;base64,${Buffer.from(any).toString('base64')}" width="${s}" height="${s}"/>
+        <img src="${anyPng}" width="${s}" height="${s}"/>
         <div style="font-size:9px;color:#888">${s}</div></span>`).join('')}
     </div>
     <div style="background:#1b1f1d;padding:18px">
       <div style="font-size:11px;color:#aaa;margin-bottom:8px">"any" on dark</div>
       ${sizes.map((s) => `<span style="display:inline-block;text-align:center;margin-right:14px;vertical-align:bottom">
-        <img src="data:image/svg+xml;base64,${Buffer.from(any).toString('base64')}" width="${s}" height="${s}"/>
+        <img src="${anyPng}" width="${s}" height="${s}"/>
         <div style="font-size:9px;color:#888">${s}</div></span>`).join('')}
     </div>
     <div style="background:#eef2f0;padding:18px">
       <div style="font-size:11px;color:#555;margin-bottom:8px">maskable, circle-cropped as Android will</div>
       ${[48, 64, 96, 192].map((s) => `<span style="display:inline-block;text-align:center;margin-right:14px;vertical-align:bottom">
-        <img style="border-radius:50%" src="data:image/svg+xml;base64,${Buffer.from(mask).toString('base64')}" width="${s}" height="${s}"/>
+        <img style="border-radius:50%" src="${maskPng}" width="${s}" height="${s}"/>
         <div style="font-size:9px;color:#888">${s}</div></span>`).join('')}
     </div>
     <div style="background:#0a3b2c;color:#fff;padding:18px;display:flex;align-items:center;gap:9px">

@@ -12,7 +12,7 @@ function renderLogin() {
       <button id="login-theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode" aria-pressed="false"></button>
       ${branding.has_logo && branding.logo_url
         ? `<img class="login-logo" src="${branding.logo_url}" alt="${UI.escapeHtml(name)}" />`
-        : `<div class="login-logo-stage"><img class="login-logo login-logo-product" src="/branding/pharmaridge-logo.png" alt="PharmaRidge" /></div>`}
+        : `<div class="login-logo-stage login-logo-stage-transparent"><img class="login-logo login-logo-product" src="/branding/pharmaridge-mark.png" alt="PharmaRidge" /></div>`}
       <h1>${branding.business_name ? UI.escapeHtml(name) : `${Branding.PRODUCT_NAME}`}</h1>
       <p class="subtitle">${branding.business_name ? 'Pharmacy &amp; patent medicine store management' : 'Multi-branch pharmacy &amp; patent medicine store management'}</p>
       <form id="login-form">

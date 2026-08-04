@@ -142,50 +142,48 @@ console.log('\n=== THE CANONICAL PREMIUM MARK IS WIRED INTO THE APPLICATION ==='
   check('top navigation keeps an inline SVG mark', /<svg class="brand-ico"/.test(html));
   check('top navigation SVG inherits its foreground via currentColor', /<svg class="brand-ico"[\s\S]*?fill="currentColor"/.test(html));
   check('topbar branding preserves the SVG mark without a client logo', brandingSrc.includes("navMark.classList.toggle('hidden', hasClientLogo)"));
-  check('login branding uses the full premium lockup', loginSrc.includes('/branding/pharmaridge-logo.png'));
+  check('first-paint splash uses the full transparent PWA lockup', html.includes('/branding/pharmaridge-pwa-logo.png'));
+  check('login uses the transparent application mark without a coloured stage',
+    loginSrc.includes('/branding/pharmaridge-mark.png') && /login-logo-stage-transparent/.test(loginSrc));
+  const css = fs.readFileSync(path.join(PUB, 'css', 'style.css'), 'utf8');
+  check('login theme toggle keeps a transparent mobile surface',
+    /\.login-card \.theme-toggle[\s\S]*?background:\s*transparent/.test(css)
+    && /\.login-card \.theme-toggle:hover[\s\S]*?background:\s*transparent/.test(css));
   check('login has an animated SVG submit-progress state', loginSrc.includes('login-submit-spinner') && loginSrc.includes('Signing in…'));
 }
 
-console.log('\n=== THE MASKABLE ICON SURVIVES ANDROID\'S STRICT SAFE-ZONE CROP ===');
+console.log('\n=== TRANSPARENT LAUNCHER ICONS FIT ANY DESKTOP OR HOME-SCREEN BACKGROUND ===');
 {
-  // Android composites transparent PWA icon pixels against black on some
-  // launchers, producing the visible black square that this app previously
-  // showed on its splash screen. The shipped icon canvas is therefore the
-  // SAME opaque #0a3b2c as manifest.background_color; only pixels that differ
-  // from that background count as artwork for safe-zone measurement.
-  const expectedBg = [10, 59, 44];
-  for (const f of ['icon-512-maskable.png', 'icon-192-maskable.png']) {
+  // Every launcher asset must carry true alpha at its outside edge. The icon
+  // artwork itself remains compact enough for a mask/circle crop, but the
+  // canvas and the browser carrier are transparent so the user wallpaper is
+  // what surrounds it — never a forced green/black/white square.
+  for (const f of ['icon-512-maskable.png', 'icon-192-maskable.png', 'icon-512.png', 'icon-192.png', 'apple-touch-icon.png']) {
     const p = pngPixels(path.join(ICONS, f));
     check(`${f} decodes to pixels`, !!p);
     if (!p) continue;
-    const bg = p.at(0, 0);
-    const isBg = (px) => px[3] > 250 && Math.max(Math.abs(px[0] - expectedBg[0]), Math.abs(px[1] - expectedBg[1]), Math.abs(px[2] - expectedBg[2])) <= 6;
-    check(`${f} uses the seamless dark-green splash background`, isBg(bg), `corner rgba(${bg})`);
+    const corner = p.at(0, 0);
+    check(`${f} has a fully transparent launcher corner`, corner[3] === 0, `corner rgba(${corner})`);
+    let ink = 0;
+    let opaqueCanvas = 0;
     const cx = p.width / 2, cy = p.height / 2, r = p.width * 0.4;
-    let outside = 0, total = 0, worst = 0;
+    let outsideSafe = 0;
     for (let y = 0; y < p.height; y++) {
       for (let x = 0; x < p.width; x++) {
         const px = p.at(x, y);
-        if (isBg(px)) continue;
-        total++;
-        const d = Math.hypot(x - cx, y - cy);
-        if (d > r) { outside++; worst = Math.max(worst, d / (p.width * 0.5)); }
+        if (px[3] <= 15) continue;
+        ink++;
+        if (px[3] > 250) opaqueCanvas++;
+        if ((f.includes('maskable')) && Math.hypot(x - cx, y - cy) > r) outsideSafe++;
       }
     }
-    check(`${f} has visible artwork at all`, total > p.width * p.height * 0.02, `${total} artwork px`);
-    check(`${f} keeps ALL artwork inside the 80% safe circle`, outside === 0,
-      `${outside} px outside; furthest ink at ${(worst * 100).toFixed(1)}% of the radius`);
-  }
-
-  for (const f of ['icon-512.png', 'icon-192.png']) {
-    const p = pngPixels(path.join(ICONS, f));
-    if (!p) { check(`${f} decodes to pixels`, false); continue; }
-    const bg = p.at(0, 0);
-    const isBg = (px) => px[3] > 250 && Math.max(Math.abs(px[0] - expectedBg[0]), Math.abs(px[1] - expectedBg[1]), Math.abs(px[2] - expectedBg[2])) <= 6;
-    let artwork = 0;
-    for (let y = 0; y < p.height; y++) for (let x = 0; x < p.width; x++) if (!isBg(p.at(x, y))) artwork++;
-    check(`${f} blends into the dark-green PWA splash`, isBg(bg), `corner rgba(${bg})`);
-    check(`${f} has legible-sized visible artwork`, artwork > p.width * p.height * 0.06, `${artwork} artwork pixels`);
+    check(`${f} has visible transparent-canvas artwork`, ink > p.width * p.height * 0.01, `${ink} ink pixels`);
+    check(`${f} does not paint an opaque square carrier`, opaqueCanvas < p.width * p.height * 0.45,
+      `${opaqueCanvas} opaque pixels`);
+    if (f.includes('maskable')) {
+      check(`${f} keeps all visible artwork inside the 80% Android safe circle`, outsideSafe === 0,
+        `${outsideSafe} ink pixels outside`);
+    }
   }
 }
 

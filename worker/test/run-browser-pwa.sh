@@ -60,6 +60,13 @@ for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
   set +e
   WORKER_BASE="${BASE}" node test/audit.pwa.js
   status=$?
+  if [ "${status}" -eq 0 ]; then
+    # Delays branding deliberately so the pre-login/PWA splash is observable;
+    # verifies the real transparent carrier and mobile theme glyph rather than
+    # trusting the source assets alone.
+    WORKER_BASE="${BASE}" node test/tools/probe-splash-transparency.js
+    status=$?
+  fi
   set -e
   if [ "${status}" -eq 0 ]; then
     echo "Browser/PWA audit passed on attempt ${attempt}."

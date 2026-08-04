@@ -375,27 +375,50 @@ td, th, .value, .stat-card .value, .cart-total-row, .receipt, input[type="number
      drift over the gradient on a short screen. */
   position: relative;
 }
+/* PWA SPLASH / FIRST PAINT.
+   The launcher/logo artwork is transparent. Keeping the carrier, the loader
+   and this first-paint surface free of cards/tiles means there is no second
+   square behind it: the dark-green system splash flows directly into the app
+   while the transparent PharmaRidge lockup is loading. */
+#login-screen.is-loading {
+  background: #0a3b2c;
+  overflow: hidden;
+}
 #login-screen:not(.is-loading) .login-loading { display: none; }
 .login-loading {
-  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
   color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .02em;
+  background: transparent; box-shadow: none;
 }
-.login-loading-mark { width: 156px; height: 156px; overflow: visible; }
+.login-loading-logo-wrap {
+  width: min(82vw, 330px); line-height: 0;
+  background: transparent; box-shadow: none; border: 0;
+}
+.login-loading-logo {
+  display: block; width: 100%; height: auto;
+  background: transparent;
+  animation: pharmaridge-splash-breathe 1.45s ease-in-out infinite;
+}
+@keyframes pharmaridge-splash-breathe {
+  0%, 100% { opacity: .64; transform: translateY(1px); }
+  50% { opacity: 1; transform: translateY(-1px); }
+}
 .login-card h1 { font-size: 21px; margin: 0 0 4px; color: var(--green-900); letter-spacing: -.2px; }
 .login-card .login-logo { display: block; height: 56px; max-width: 100%; object-fit: contain; margin: 0 auto 16px; }
-/* The generated transparent PHARMARIDGE lockup needs a dark presentation
-   surface; the LOGO itself remains borderless and background-free. */
-.login-logo-stage {
+/* The default in-card mark is transparent too. The word "PharmaRidge" is
+   live text in the heading immediately below, so a compact transparent mark
+   keeps the login card clear without putting a dark/white tile behind it. */
+.login-logo-stage,
+.login-logo-stage-transparent {
   display: flex; align-items: center; justify-content: center;
-  min-height: 132px; margin: -8px -10px 16px;
-  padding: 12px 18px;
-  background: linear-gradient(135deg, #0a3b2c, #08744f 55%, #063326);
-  border-radius: 14px;
-  box-shadow: 0 10px 22px rgba(4, 41, 30, .18);
+  min-height: 96px; margin: -2px 0 14px;
+  padding: 0;
+  background: transparent; border: 0; box-shadow: none;
 }
 .login-card .login-logo.login-logo-product {
-  width: min(100%, 300px); height: auto; max-height: 126px;
-  margin: 0; filter: drop-shadow(0 4px 6px rgba(0,0,0,.2));
+  width: min(100%, 104px); height: auto; max-height: 96px;
+  margin: 0; background: transparent;
+  filter: drop-shadow(0 3px 5px rgba(4, 41, 30, .16));
 }
 .login-card p.subtitle { margin: 0 0 22px; color: var(--gray-600); font-size: 13px; }
 .login-card label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-700); margin: 15px 0 6px; }
@@ -511,13 +534,18 @@ td, th, .value, .stat-card .value, .cart-total-row, .receipt, input[type="number
 }
 .theme-toggle:hover { background: var(--topbar-hover); }
 .theme-toggle svg { display: block; }
-/* The login card is a light panel on a dark ground, so the toggle there needs
-   the page's own ink and border, not the topbar's. */
+/* The login toggle remains a bare glyph on every viewport. In particular a
+   phone must not show a white or black square behind the sun/moon: the icon
+   reflects the login card's own surface and never becomes a competing tile. */
 .login-card .theme-toggle {
   position: absolute; top: 14px; right: 14px;
-  color: var(--gray-600); border-color: var(--gray-200);
+  color: var(--green-700); border-color: transparent; background: transparent;
 }
-.login-card .theme-toggle:hover { background: var(--gray-50); color: var(--green-700); border-color: var(--gray-300); }
+.login-card .theme-toggle:hover,
+.login-card .theme-toggle:active,
+.login-card .theme-toggle:focus-visible {
+  background: transparent; color: var(--green-600); border-color: transparent;
+}
 
 /* ---------- Buttons -------------------------------------------------------
    An action must look pressable and state its consequence. One primary per

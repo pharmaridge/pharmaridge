@@ -21,7 +21,9 @@ Run from `worker/` with **Node.js 22+**:
 npm test                       # structural recovery verifier
 npm run test:restored:syntax   # parse and verify all restored test sources
 npm run assets:icons           # deterministically regenerate every PWA icon
-npm run test:icons             # inspect icon geometry, mask safety and SW wiring
+npm run test:icons             # inspect transparent icon geometry, mask safety and SW wiring
+npm run test:browser:pwa       # Chromium PWA/theme/accessibility + splash transparency audit
+npm run test:browser:splash    # standalone first-paint/PWA splash transparency probe
 npm run test:live:core         # fresh D1 per audit: money, WHT, workflows, sync
 npm run test:data-management   # isolated Owner-only cleanup/reset control audit
 # test:frontend:full also includes the browser/API Owner Data Management modal probe

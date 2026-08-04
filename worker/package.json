@@ -34,6 +34,7 @@
     "screenshots:manual": "node test/tools/shots-manual.js",
     "screenshots:artefacts": "node test/tools/shots-artefacts.js",
     "test:browser:pwa": "bash test/run-browser-pwa.sh",
+    "test:browser:splash": "node test/tools/probe-splash-transparency.js",
     "docs:onboarding": "bash test/build-onboarding-guide.sh",
     "sample:reset:generate": "node generate-live-sample-reset.js",
     "sample:reset:remote": "npm run sample:reset:generate && wrangler d1 execute pharmaridge-db --remote --file=./live-sample-reset.sql",
