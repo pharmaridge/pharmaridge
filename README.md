@@ -13,7 +13,7 @@ Offline-first PWA frontend + Cloudflare Workers & D1 edge backend.
 | **Drug catalog** | **6,801 NAFDAC-approved products** across 1,197 active ingredients, searchable |
 | **Current verification** | 1,026 fresh-D1 full-domain checks; 2,086 frontend/browser checks; 45 icon/PWA checks; 20 three-month simulation checks; structural and migration checks — all passing locally |
 | **UI** | Light **and dark** theme, zero external dependencies — no framework, icon font or webfont |
-| **Audit** | Restored test evidence: [`worker/test/README.md`](worker/test/README.md); historical audit inventory: [`AUDIT-REPORT.md`](AUDIT-REPORT.md) |
+| **Audit** | Current evidence: [`docs/FULL-AUDIT-REPORT.md`](docs/FULL-AUDIT-REPORT.md); runner guide: [`worker/test/README.md`](worker/test/README.md) |
 | **Onboarding guide** | 64-page role-based PDF: [`docs/PharmaRidge-Onboarding-Guide.pdf`](docs/PharmaRidge-Onboarding-Guide.pdf) |
 | **Deployment status** | [`docs/DEPLOYMENT-STATUS.md`](docs/DEPLOYMENT-STATUS.md) |
 | **Deploying?** | Windows walkthrough: [`DEPLOY-FROM-WINDOWS.md`](DEPLOY-FROM-WINDOWS.md) |
