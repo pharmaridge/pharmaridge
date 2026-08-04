@@ -8,12 +8,12 @@
 | Audit surface | Passing checks |
 |---|---:|
 | Fresh-D1 full domain audit | 1,026 |
-| Scenario-driven frontend/browser audit | 1,959 |
+| Scenario-driven frontend control, dropdown and geometry audit | 1,956 |
 | PWA/browser theme, contrast, print and responsive audit | 127 |
 | Login spinner/logout lifecycle audit | 3 |
 | PWA icon, manifest and Android safe-zone audit | 45 |
 | Three-month operating simulation audit | 20 |
-| **Total executed checks** | **3,180** |
+| **Total executed checks** | **3,177** |
 
 ## Two-way audit method
 
