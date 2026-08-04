@@ -194,7 +194,20 @@ const App = (() => {
       readyLogin.setAttribute('aria-busy', 'false');
     }
 
-    document.getElementById('logout-btn').addEventListener('click', () => {
+    document.getElementById('logout-btn').addEventListener('click', async function () {
+      // Best-effort server revocation. A local logout must still complete when
+      // offline, but when connected it removes this exact session immediately
+      // rather than leaving a usable token behind until expiry.
+      const session = State.getSession();
+      if (session && session.token && navigator.onLine) {
+        try {
+          await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+            body: '{}',
+          });
+        } catch (e) { /* local logout still wins if the network drops */ }
+      }
       State.clearSession();
       location.hash = '#/dashboard';
       afterLogout();

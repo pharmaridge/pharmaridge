@@ -199,7 +199,12 @@ async function api(method, path, { token, body, headers } = {}) {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ username: 'manager', pin: '1234' }),
   });
+  const stillLoginBody = await stillLogin.json().catch(() => null);
   check('...and can still sign in (never lock the client out)', stillLogin.status === 200, `status=${stillLogin.status}`);
+  // A successful second login now deliberately replaces the first device's
+  // session. Continue this probe with the NEW token rather than treating the
+  // one-session security boundary as a subscription regression.
+  if (stillLoginBody && stillLoginBody.token) T.mgr = stillLoginBody.token;
 
   const reinstate = await api('PUT', '/api/admin/settings', {
     token: T.admin, body: { subscription_status: before.subscription_status || 'ACTIVE' },

@@ -30,6 +30,7 @@ const expected = [
   'run-role-domain-audits.sh',
   'run-login-lifecycle-audit.sh',
   'tools/probe-login-lifecycle.js',
+  'audit.single-session.js',
 ];
 for (const relative of expected) {
   assert.ok(fs.existsSync(path.join(TEST_ROOT, relative)), `missing restored test asset: ${relative}`);

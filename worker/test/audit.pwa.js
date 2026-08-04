@@ -214,7 +214,7 @@ function checkContrast(name, fg, bg, min) {
       const c = document.querySelector('.login-card');
       const h = c.querySelector('h1');
       const sub = c.querySelector('p.subtitle');
-      const hint = c.querySelector('.demo-hint');
+      const hint = c.querySelector('.live-sample-label');
       const btn = c.querySelector('.btn-primary');
       const g = (e) => getComputedStyle(e);
       return {
@@ -227,7 +227,7 @@ function checkContrast(name, fg, bg, min) {
     });
     checkContrast('login heading on card', loginCol.h1, loginCol.cardBg, 4.5);
     checkContrast('login subtitle on card', loginCol.sub, loginCol.cardBg, 4.5);
-    checkContrast('demo-account hint on card', loginCol.hint, loginCol.cardBg, 4.5);
+    checkContrast('Live Sample 1 label on card', loginCol.hint, loginCol.cardBg, 4.5);
     checkContrast('Sign in button label on its fill', loginCol.btnFg, loginCol.btnBg, 4.5);
 
     // Now authenticate and measure the real application chrome.

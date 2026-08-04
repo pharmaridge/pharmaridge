@@ -24,6 +24,32 @@ async function authRequired(c, next) {
   if (!liveUser) return c.json({ error: 'Account no longer exists' }, 401);
   if (!liveUser.is_active) return c.json({ error: 'Account has been deactivated' }, 401);
 
+  // ONE ACTIVE DEVICE / SESSION PER ACCOUNT.
+  //
+  // A username and PIN identify a PERSON, not a device pool. Allowing two
+  // browsers to stay active under that one identity means one cashier can sell
+  // while another voids or closes a till and every audit row names the same
+  // person. user_sessions carries the one current random session id; a fresh
+  // login replaces it atomically and the displaced device is rejected on its
+  // next request. Tokens from before this migration deliberately have no sid
+  // and are refused, forcing a clean sign-in rather than silently preserving
+  // the old multi-device behaviour.
+  if (!payload.sid || typeof payload.sid !== 'string') {
+    return c.json({
+      error: 'Your session needs to be refreshed. Please sign in again.',
+      code: 'SESSION_REFRESH_REQUIRED',
+    }, 401);
+  }
+  const activeSession = await c.env.DB.prepare(
+    'SELECT session_id FROM user_sessions WHERE user_id = ?'
+  ).bind(liveUser.id).first();
+  if (!activeSession || activeSession.session_id !== payload.sid) {
+    return c.json({
+      error: 'This account was signed in on another device. Please sign in again to continue.',
+      code: 'SESSION_REPLACED',
+    }, 401);
+  }
+
   // BUG 49 — a PIN reset must kill sessions opened with the OLD PIN.
   //
   // Live-reproduced: after a manager reset a cashier's PIN, the old PIN
@@ -70,6 +96,7 @@ async function authRequired(c, next) {
     branch_id: liveUser.branch_id,
     full_name: liveUser.full_name,
   });
+  c.set('sessionId', payload.sid);
 
   // SLIDING SESSION (client decision, after a live audit demonstration).
   //
@@ -108,6 +135,7 @@ async function authRequired(c, next) {
           role: liveUser.role,
           branch_id: liveUser.branch_id,
           full_name: liveUser.full_name,
+          sid: payload.sid,
         }, c.env.JWT_SECRET);
         c.header('X-Renewed-Token', renewed);
         // Browsers cannot read a custom header on a cross-origin response

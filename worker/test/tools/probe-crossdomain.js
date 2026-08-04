@@ -26,7 +26,7 @@ const m2=n=>Math.round(n*100)/100;
  console.log('=== CROSS-DOMAIN SEAM AUDIT ===');
  try{const h=await fetch(BASE+'/api/health');if(!h.ok)throw new Error('health '+h.status);}
  catch(e){console.log('server not reachable: '+e.message);process.exit(3);}
- const owner=await login('owner'), admin=await login('admin'), gm=await login('manager'), lmgr=await login('lagos.mgr');
+ let owner=await login('owner'); const admin=await login('admin'), gm=await login('manager'), lmgr=await login('lagos.mgr');
  const br=L((await req('GET','/api/branches',{token:owner})).body);
  // Earlier suites may rename or relocate branches, so never assume a name is
  // still present — pick two ACTIVE branches and fail loudly if there are not two.
@@ -258,6 +258,10 @@ const m2=n=>Math.round(n*100)/100;
    ok('every branch can be closed',nowActive.length===0,`still active=${nowActive.length}`);
    const stillIn=await login('owner');
    ok('...the OWNER can still sign in (never locked out)',!!stillIn,`token=${stillIn?'issued':'REFUSED'}`);
+   // A successful owner re-login deliberately replaces the old device token.
+   // Continue with the new session, otherwise this test would mistake the
+   // single-session boundary for a branch-closure failure.
+   if (stillIn) owner=stillIn;
    const planNow=(await req('GET','/api/dashboard/plan',{token:owner})).body;
    ok('...no branch slots are consumed',Number(planNow.branches.used)===0,`used=${planNow.branches.used}`);
    const revive=await req('PUT',`/api/branches/${all[0].id}`,{token:owner,body:{is_active:true}});

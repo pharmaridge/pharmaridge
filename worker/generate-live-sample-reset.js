@@ -54,6 +54,7 @@ DELETE FROM branch_devices;
 DELETE FROM pending_user_transfers;
 DELETE FROM user_assignment_history;
 DELETE FROM idempotency_keys;
+DELETE FROM user_sessions;
 DELETE FROM login_attempts;
 DELETE FROM sync_conflicts;
 DELETE FROM sync_change_log;

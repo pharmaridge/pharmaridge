@@ -74,5 +74,9 @@ run_one test/audit.staff.js
 run_one test/audit.rolelifecycle.js
 run_one test/tools/probe-crossdomain.js
 
+# Device/session boundary: one person may not hold two live devices under one
+# accountable username, while distinct people stay independently active.
+run_one test/audit.single-session.js
+
 echo
-echo "Role/domain audit suite passed: admin, owner, manager, staff, lifecycle and cross-domain boundaries."
+echo "Role/domain audit suite passed: admin, owner, manager, staff, lifecycle, cross-domain and single-session boundaries."
