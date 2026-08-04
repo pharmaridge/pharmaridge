@@ -2,7 +2,7 @@
 // Note: API data itself is handled by the app's own IndexedDB-backed
 // offline queue (see js/offline.js), not by this service worker —
 // this SW only makes sure the UI loads with no network at all.
-const CACHE_NAME = 'pharmaridge-v79';
+const CACHE_NAME = 'pharmaridge-v80';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -43,8 +43,6 @@ const APP_SHELL = [
   '/js/views/admin.js',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
-  '/icons/icon-192-maskable.png',
-  '/icons/icon-512-maskable.png',
   '/icons/apple-touch-icon.png',
   '/branding/pharmaridge-logo.png',
   '/branding/pharmaridge-mark.png',

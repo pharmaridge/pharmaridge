@@ -326,28 +326,8 @@ function svgAny() {
   return svgTransparentLauncher();
 }
 
-// Maskable — Android crops to a circle/squircle and may eat 10% from EVERY
-// side.
-//
-// BUG FOUND HERE BY RENDERING THE CROP RATHER THAN TRUSTING THE MATH.
-// The first attempt scaled the FULL-BLEED artwork to 80% inside a green
-// field. Under the inscribed-circle crop most launchers use it looked fine —
-// which is exactly the trap. Under the STRICT documented safe zone (the
-// centre 80% DIAMETER circle, radius 0.4w) the corners of the wordmark were
-// sliced off and the icon read "HARMARIDG". Verified by compositing the real
-// mask over the real PNG, not by inspecting coordinates.
-//
-// The canonical login mark is a finite transparent image, so it can be
-// fitted as one whole object inside the safe circle without changing its
-// silhouette, colours or proportions.
-//
-function svgMaskable() {
-  // "maskable" describes how a launcher may crop this asset; it does NOT
-  // require the PNG itself to be an opaque coloured tile. Reuse the same
-  // transparent, safe-circle-fitted composition as the ordinary launcher
-  // icon so every desktop/home-screen background remains visible through it.
-  return svgTransparentLauncher();
-}
+// No alternate maskable asset is emitted: the manifest advertises one canonical
+// transparent `purpose:any` launcher mark on every platform.
 
 // ---------------------------------------------------------------------------
 // The in-app topbar mark
@@ -403,20 +383,16 @@ async function render(browser, svg, size, file) {
   const browser = await puppeteer.launch({ args: ['--no-sandbox', '--font-render-hinting=none'] });
 
   const any = svgAny();
-  const mask = svgMaskable();
 
   const made = [];
   made.push(await render(browser, any, 1024, 'icon-source-frameless.png'));
   made.push(await render(browser, any, 512, 'icon-512.png'));
   made.push(await render(browser, any, 192, 'icon-192.png'));
   made.push(await render(browser, any, 180, 'apple-touch-icon.png'));
-  made.push(await render(browser, mask, 512, 'icon-512-maskable.png'));
-  made.push(await render(browser, mask, 192, 'icon-192-maskable.png'));
   // Use the final PNGs on the human contact sheet. Rendering the SVG again
   // through a data URI hides exactly the raster/transparency result this
   // inspection is meant to show on some Chromium builds.
   const anyPng = 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, 'icon-512.png')).toString('base64');
-  const maskPng = 'data:image/png;base64,' + fs.readFileSync(path.join(OUT, 'icon-512-maskable.png')).toString('base64');
 
   // Contact sheet at the sizes a HUMAN actually sees, on both a light and a
   // dark page, plus the topbar mark on the real bar colour. Judging a logo at
@@ -433,12 +409,6 @@ async function render(browser, svg, size, file) {
       <div style="font-size:11px;color:#aaa;margin-bottom:8px">"any" on dark</div>
       ${sizes.map((s) => `<span style="display:inline-block;text-align:center;margin-right:14px;vertical-align:bottom">
         <img src="${anyPng}" width="${s}" height="${s}"/>
-        <div style="font-size:9px;color:#888">${s}</div></span>`).join('')}
-    </div>
-    <div style="background:#eef2f0;padding:18px">
-      <div style="font-size:11px;color:#555;margin-bottom:8px">maskable, circle-cropped as Android will</div>
-      ${[48, 64, 96, 192].map((s) => `<span style="display:inline-block;text-align:center;margin-right:14px;vertical-align:bottom">
-        <img style="border-radius:50%" src="${maskPng}" width="${s}" height="${s}"/>
         <div style="font-size:9px;color:#888">${s}</div></span>`).join('')}
     </div>
     <div style="background:#0a3b2c;color:#fff;padding:18px;display:flex;align-items:center;gap:9px">

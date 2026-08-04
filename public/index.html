@@ -1,5 +1,8 @@
 <!doctype html>
-<html lang="en">
+<!-- The system PWA splash has an opaque manifest background by platform
+     design; this immediate brand-colour fallback prevents an unstyled browser
+     paint from flashing black before the external stylesheet loads. -->
+<html lang="en" style="background:#0a3b2c">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
@@ -14,8 +17,8 @@
        — see DEPLOYMENT-CLOUDFLARE.md Part 5 for why a bare /manifest.json
        would NOT work on the Cloudflare deployment (Pages would serve the
        static fallback file instead of routing to the Worker). -->
-  <link rel="manifest" href="/api/manifest.json" />
-  <link rel="icon" id="favicon-link" href="/icons/icon-192.png" />
+  <link rel="manifest" href="/api/manifest.json?v=80" />
+  <link rel="icon" id="favicon-link" href="/icons/icon-192.png?v=80" />
   <!-- iOS Safari has never fully implemented the Web App Manifest spec —
        "Add to Home Screen" on iOS reads its own dedicated Apple meta tags
        instead of (or in addition to) manifest.json, so a PWA that relies
@@ -25,7 +28,7 @@
        tags are additive — every other browser (which DOES support the
        manifest) simply ignores tags it doesn't recognize, so this is a
        pure compatibility improvement with zero downside on any platform. -->
-  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=80" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="PharmaRidge" />
@@ -53,7 +56,7 @@
          It is ~4 KB, same-origin, and precached by the service worker. -->
   <script src="/js/theme.js"></script>
 </head>
-<body>
+<body style="margin:0;background:#0a3b2c">
   <div id="offline-banner" class="offline-banner hidden">
     ⚠ You are OFFLINE — sales will be queued locally and synced automatically when connection returns.
     <span id="queue-count"></span>

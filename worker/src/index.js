@@ -206,23 +206,24 @@ app.get('/api/manifest.json', async (c) => {
   const shortName = toHomeScreenLabel(settings.business_name) || 'PharmaRidge';
   const logoMimeMatch = settings.logo_data_url ? /^data:(image\/[a-zA-Z0-9.+-]+);/.exec(settings.logo_data_url) : null;
   const logoMime = logoMimeMatch?.[1] || 'image/png';
+  // HOME-SCREEN CONSISTENCY / TRANSPARENCY.
+  //
+  // The launcher must use the SAME transparent mark a person just saw on the
+  // login page. Advertising a separate `maskable` asset invites Android to
+  // choose that alternate rendering and place it on a launcher-generated
+  // white/black plate — exactly the inconsistent home-screen icon this app
+  // must avoid. Offer only `purpose:any`: every platform receives the one
+  // transparent, centred asset, while manifest.background_color remains the
+  // deliberate opaque colour for the operating system's *system splash*
+  // surface (a system splash cannot itself be transparent).
   const icons = settings.logo_data_url
     ? [
         { src: '/api/branding/logo', sizes: '192x192', type: logoMime, purpose: 'any' },
         { src: '/api/branding/logo', sizes: '512x512', type: logoMime, purpose: 'any' },
-        // See the original design for the full rationale on always using the
-        // generic PharmaRidge maskable icons here (mirrored) even for a branded
-        // client — a client's uploaded logo isn't guaranteed to have the safe-zone
-        // padding a maskable icon needs, so using it unmodified risks a badly
-        // cropped install icon under Android's adaptive-icon masking.
-        { src: '/icons/icon-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-        { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ]
     : [
         { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
         { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-        { src: '/icons/icon-192-maskable.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-        { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ];
   return c.json({
     id: '/',

@@ -296,7 +296,11 @@
 
 html, body {
   margin: 0; padding: 0; min-height: 100%;
-  background: var(--gray-50);
+  /* index.html supplies a deep-green inline fallback before this stylesheet is
+     available, preventing a native/PWA black flash. Override that fallback as
+     soon as the real theme tokens load so the signed-in application keeps its
+     normal high-contrast page surface. */
+  background: var(--gray-50) !important;
   color: var(--gray-800);
   /* BUG 58 backstop. The topbar's min-width:0 fix removes the CAUSE of the
      69px sideways scroll; this makes sure no future wide child can silently

@@ -96,6 +96,12 @@ console.log('\n=== EVERY DECLARED ICON IS A REAL PNG AT ITS DECLARED SIZE ===');
 // The manifest is the contract. Read the sizes FROM it rather than hardcoding
 // them here, so adding an icon to the manifest cannot silently go untested.
 const manifest = JSON.parse(fs.readFileSync(path.join(PUB, 'manifest.json'), 'utf8'));
+check('static manifest offers only the canonical transparent any-purpose icons',
+  manifest.icons.length === 2 && manifest.icons.every((icon) => icon.purpose === 'any' && !/maskable/.test(icon.src)),
+  JSON.stringify(manifest.icons));
+const workerEntry = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.js'), 'utf8');
+check('dynamic manifest does not advertise a separate maskable home-screen icon',
+  !/purpose:\s*'maskable'/.test(workerEntry));
 for (const icon of manifest.icons) {
   const f = path.join(PUB, icon.src.replace(/^\//, ''));
   const s = fs.existsSync(f) ? pngSize(f) : null;
@@ -156,13 +162,13 @@ console.log('\n=== THE CANONICAL PREMIUM MARK IS WIRED INTO THE APPLICATION ==='
   check('login has an animated SVG submit-progress state', loginSrc.includes('login-submit-spinner') && loginSrc.includes('Signing in…'));
 }
 
-console.log('\n=== TRANSPARENT LAUNCHER ICONS FIT ANY DESKTOP OR HOME-SCREEN BACKGROUND ===');
+console.log('\n=== ONE TRANSPARENT LAUNCHER ICON FITS ANY DESKTOP OR HOME-SCREEN BACKGROUND ===');
 {
   // Every launcher asset must carry true alpha at its outside edge. The icon
   // artwork itself remains compact enough for a mask/circle crop, but the
   // canvas and the browser carrier are transparent so the user wallpaper is
   // what surrounds it — never a forced green/black/white square.
-  for (const f of ['icon-512-maskable.png', 'icon-192-maskable.png', 'icon-512.png', 'icon-192.png', 'apple-touch-icon.png']) {
+  for (const f of ['icon-512.png', 'icon-192.png', 'apple-touch-icon.png']) {
     const p = pngPixels(path.join(ICONS, f));
     check(`${f} decodes to pixels`, !!p);
     if (!p) continue;
@@ -170,24 +176,17 @@ console.log('\n=== TRANSPARENT LAUNCHER ICONS FIT ANY DESKTOP OR HOME-SCREEN BAC
     check(`${f} has a fully transparent launcher corner`, corner[3] === 0, `corner rgba(${corner})`);
     let ink = 0;
     let opaqueCanvas = 0;
-    const cx = p.width / 2, cy = p.height / 2, r = p.width * 0.4;
-    let outsideSafe = 0;
     for (let y = 0; y < p.height; y++) {
       for (let x = 0; x < p.width; x++) {
         const px = p.at(x, y);
         if (px[3] <= 15) continue;
         ink++;
         if (px[3] > 250) opaqueCanvas++;
-        if ((f.includes('maskable')) && Math.hypot(x - cx, y - cy) > r) outsideSafe++;
       }
     }
     check(`${f} has visible transparent-canvas artwork`, ink > p.width * p.height * 0.01, `${ink} ink pixels`);
     check(`${f} does not paint an opaque square carrier`, opaqueCanvas < p.width * p.height * 0.45,
       `${opaqueCanvas} opaque pixels`);
-    if (f.includes('maskable')) {
-      check(`${f} keeps all visible artwork inside the 80% Android safe circle`, outsideSafe === 0,
-        `${outsideSafe} ink pixels outside`);
-    }
   }
 }
 
