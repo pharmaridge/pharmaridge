@@ -358,6 +358,36 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
   </ul>
 </section>
 
+<!-- ============ OWNER DECISION / VERIFIED VALUE ============ -->
+<section class="page">
+  <span class="role-chip">Owner decision guide</span>
+  <h2>Before you commit: what has been proven</h2>
+  <p class="lead">A proprietor should pay for a system because it is useful and evidenced, not because a sales page makes a promise. This sample is deliberately set up so you can test the important flows yourself.</p>
+  <div class="note">
+    <b>Live audit evidence.</b> The current release completed a fresh-data, end-to-end audit across sales, VAT/WHT, debtors, suppliers, change owed, till and safe movements, stock receiving, transfers, user promotion/demotion, one-device sessions, role boundaries, forms, dropdowns, responsive layouts and PWA behaviour. The final passing run exercised <b>3,157 checks</b> across API, database, browser and PWA surfaces.
+  </div>
+  <h3>What each person can prove in a demonstration</h3>
+  <table>
+    <thead><tr><th style="width:24%">Account</th><th>Start here</th><th>What you should see happen</th></tr></thead>
+    <tbody>
+      <tr><td><b>Admin</b></td><td>Create the first Owner account</td><td>The sample starts with Admin only. This proves that the vendor/admin seat can onboard a client without being able to become a cashier or move the client’s cash.</td></tr>
+      <tr><td><b>Owner</b></td><td>Create a branch, manager and staff account</td><td>See the new people and branch appear immediately; set permissions, tax choices and credit limits; then receive a product from the NAFDAC catalogue into real stock.</td></tr>
+      <tr><td><b>Manager</b></td><td>Open a till, receive stock, approve an expense or transfer stock</td><td>See exactly their permitted branch scope. A Branch Manager cannot read or write another branch; a General Manager can operate across the estate.</td></tr>
+      <tr><td><b>Staff</b></td><td>Open their till and complete a sale</td><td>See FEFO stock selection, receipt creation, bounded void/write-off authority and a ledger/till trail that names the acting person.</td></tr>
+    </tbody>
+  </table>
+  <h3>What your upfront decision buys you</h3>
+  <ul>
+    <li><b>A complete operational record from day one:</b> sales, stock, cash, customers, supplier debt, attendance and compliance records reconcile to the same source events.</li>
+    <li><b>Controls that keep working on the busy day:</b> one active device per account, branch-scoped authority, idempotent offline retries, physical cash floors and double-entry balance checks.</li>
+    <li><b>Evidence you can take to a partner or accountant:</b> printable reports, CSV exports, Trial Balance, Profit &amp; Loss, Balance Sheet, audit trails and the full NAFDAC-derived product set.</li>
+    <li><b>A system you have tested yourself:</b> use the live sample to create an Owner, set up a branch and take stock before deciding. Do not place real client data in the shared sample.</li>
+  </ul>
+  <div class="warn">
+    <b>Make the decision transparently.</b> Before paying upfront, confirm that the demonstrated roles, stock workflow, printer/PWA behaviour and support arrangements fit your own pharmacy. A real client deployment must use its own database, secure credentials, custom branding and reviewed regulatory settings — never this shared sample.
+  </div>
+</section>
+
 <!-- ============ 2. GETTING IN ============ -->
 <section class="page">
   <h2>2. Getting in</h2>

@@ -64,11 +64,14 @@ async function login(page, role) {
   }, u, p);
   await page.evaluate(() => document.getElementById('login-form')
     .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
-  await page.waitForFunction(() => !!localStorage.getItem('gl_pms_session'), { timeout: 25000 });
+  // A fresh scenario has a large catalog and browser contexts intentionally
+  // start isolated. Give startup enough room on a loaded CI/worker machine;
+  // a 25s harness timeout is not an overlap finding.
+  await page.waitForFunction(() => !!localStorage.getItem('gl_pms_session'), { timeout: 45000 });
   await page.waitForFunction(() => {
     const el = document.getElementById('login-screen');
     return el && el.classList.contains('hidden');
-  }, { timeout: 25000 });
+  }, { timeout: 45000 });
 }
 
 // Runs INSIDE the page. Returns every genuine collision.
@@ -229,60 +232,68 @@ const MEASURE = () => {
   let worst = [];
   try {
     for (const width of WIDTHS) {
-      for (const [screen, role] of SCREENS) {
-        // Isolated context per case: a shared service worker serves a stale
-        // shell and every case after the first silently tests old code.
+      // One isolated context per ROLE/WIDTH rather than per screen. The old
+      // 95-context sweep repeatedly signed the same user in and out, which is
+      // both slower and, with one-active-session enforcement, needlessly
+      // revokes contexts that are still booting. Navigation within one role's
+      // context still exercises every screen and every control geometry.
+      for (const role of Object.keys(LOGINS)) {
+        const roleScreens = SCREENS.filter((entry) => entry[1] === role);
+        if (!roleScreens.length) continue;
         const ctx = await browser.createBrowserContext();
         const page = await ctx.newPage();
         await page.setCacheEnabled(false);
         await page.setViewport({ width, height: 780 });
         try {
           await login(page, role);
-          await page.evaluate((s) => { location.hash = '#/' + s; }, screen);
-          await sleep(1100);
-          const m = await page.evaluate(MEASURE);
-          const tag = `${width}px ${screen}`;
+          for (const [screen] of roleScreens) {
+            try {
+              await page.evaluate((s) => { location.hash = '#/' + s; }, screen);
+              await sleep(1100);
+              const m = await page.evaluate(MEASURE);
+              const tag = `${width}px ${screen}`;
 
-          // THE DRAWER OPEN. Below 900px the nav is off-canvas; with it open,
-          // every link must be on-screen and must not collide with the page
-          // behind it or with the scrim. This is the state the closed-drawer
-          // exclusion above would otherwise have hidden from the audit.
-          if (width <= 900) {
-            const opened = await page.evaluate(() => {
-              const btn = document.getElementById('nav-toggle')
-                || document.querySelector('[data-nav-toggle], .nav-toggle, .hamburger');
-              if (btn) { btn.click(); return true; }
-              return false;
-            });
-            if (opened) {
-              await sleep(500);
-              const isOpen = await page.evaluate(() => !!document.querySelector('.sidebar.open'));
-              ok(`${tag}: the nav drawer actually opens`, isOpen);
-              if (isOpen) {
-                const mo = await page.evaluate(MEASURE);
-                ok(`${tag}: [drawer open] no controls overlap`, mo.collisions.length === 0,
-                  mo.collisions.slice(0, 2).map((c) => `${c.a} ∩ ${c.b} (${c.overlapX}×${c.overlapY}px, ${c.pct}%)`).join(' ; '));
-                ok(`${tag}: [drawer open] every nav link is on-screen`, mo.escapes.length === 0,
-                  mo.escapes.slice(0, 2).map((e) => `${e.el} [${e.left}..${e.right}] vw=${e.vw}`).join(' ; '));
-                if (mo.collisions.length) worst.push(`${tag} [drawer open]: ${mo.collisions.length} collision(s)`);
-                if (mo.escapes.length) worst.push(`${tag} [drawer open]: ${mo.escapes.length} escape(s)`);
+              // THE DRAWER OPEN. Below 900px the nav is off-canvas; with it
+              // open, every link must be on-screen and must not collide with
+              // the page behind it or the scrim.
+              if (width <= 900) {
+                const opened = await page.evaluate(() => {
+                  const btn = document.getElementById('nav-toggle')
+                    || document.querySelector('[data-nav-toggle], .nav-toggle, .hamburger');
+                  if (btn) { btn.click(); return true; }
+                  return false;
+                });
+                if (opened) {
+                  await sleep(500);
+                  const isOpen = await page.evaluate(() => !!document.querySelector('.sidebar.open'));
+                  ok(`${tag}: the nav drawer actually opens`, isOpen);
+                  if (isOpen) {
+                    const mo = await page.evaluate(MEASURE);
+                    ok(`${tag}: [drawer open] no controls overlap`, mo.collisions.length === 0,
+                      mo.collisions.slice(0, 2).map((c) => `${c.a} ∩ ${c.b} (${c.overlapX}×${c.overlapY}px, ${c.pct}%)`).join(' ; '));
+                    ok(`${tag}: [drawer open] every nav link is on-screen`, mo.escapes.length === 0,
+                      mo.escapes.slice(0, 2).map((e) => `${e.el} [${e.left}..${e.right}] vw=${e.vw}`).join(' ; '));
+                    if (mo.collisions.length) worst.push(`${tag} [drawer open]: ${mo.collisions.length} collision(s)`);
+                    if (mo.escapes.length) worst.push(`${tag} [drawer open]: ${mo.escapes.length} escape(s)`);
+                  }
+                  await page.evaluate(() => {
+                    const b = document.getElementById('nav-toggle')
+                      || document.querySelector('[data-nav-toggle], .nav-toggle, .hamburger');
+                    if (b) b.click();
+                  });
+                  await sleep(300);
+                }
               }
-              await page.evaluate(() => {
-                const b = document.getElementById('nav-toggle')
-                  || document.querySelector('[data-nav-toggle], .nav-toggle, .hamburger');
-                if (b) b.click();
-              });
-              await sleep(300);
+              ok(`${tag}: no controls overlap each other`, m.collisions.length === 0,
+                m.collisions.slice(0, 2).map((c) => `${c.a} ∩ ${c.b} (${c.overlapX}×${c.overlapY}px, ${c.pct}%)`).join(' ; '));
+              ok(`${tag}: no control escapes the viewport`, m.escapes.length === 0,
+                m.escapes.slice(0, 2).map((e) => `${e.el} [${e.left}..${e.right}] vw=${e.vw}`).join(' ; '));
+              if (m.collisions.length) worst.push(`${tag}: ${m.collisions.length} collision(s)`);
+              if (m.escapes.length) worst.push(`${tag}: ${m.escapes.length} escape(s)`);
+            } catch (e) {
+              ok(`${width}px ${screen}: screen renders`, false, String(e.message).slice(0, 90));
             }
           }
-          ok(`${tag}: no controls overlap each other`, m.collisions.length === 0,
-            m.collisions.slice(0, 2).map((c) => `${c.a} ∩ ${c.b} (${c.overlapX}×${c.overlapY}px, ${c.pct}%)`).join(' ; '));
-          ok(`${tag}: no control escapes the viewport`, m.escapes.length === 0,
-            m.escapes.slice(0, 2).map((e) => `${e.el} [${e.left}..${e.right}] vw=${e.vw}`).join(' ; '));
-          if (m.collisions.length) worst.push(`${tag}: ${m.collisions.length} collision(s)`);
-          if (m.escapes.length) worst.push(`${tag}: ${m.escapes.length} escape(s)`);
-        } catch (e) {
-          ok(`${width}px ${screen}: screen renders`, false, String(e.message).slice(0, 90));
         } finally {
           await ctx.close();
         }

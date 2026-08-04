@@ -32,7 +32,7 @@ const L = b => (Array.isArray(b) ? b : []);
   const ownerRes = await login('owner');
   if (ownerRes.status !== 200) { console.log('cannot log in — seed first'); process.exit(3); }
   const owner = ownerRes.body.token;
-  const staffRes = await login('a.cash1');
+  const staffRes = await login('lagos.staff');
   const staff = staffRes.body.token;
   const bid = staffRes.body.user.branch_id;
 
@@ -58,6 +58,19 @@ const L = b => (Array.isArray(b) ? b : []);
   const line = await pickLine();
   if (!line) { bad('no sellable OTC batch to test with'); console.log(`\nRESULT: ${pass} passed, ${fail} failed`); process.exit(1); }
   ok(`fixture: ${line.batch_no} at N${line.selling_price_per_unit}`);
+
+  // Cash sales need the real drawer session that will later be reconciled.
+  // A freshly-seeded branch has stock but no open till, so create one rather
+  // than confusing the no-open-till safety guard with a reversal failure.
+  const existingTills = L((await req('GET', `/api/till?branch_id=${bid}`, { token: owner })).body).filter(t => t.status === 'OPEN');
+  for (const till of existingTills) {
+    const expected = (await req('GET', `/api/till/${till.id}/expected`, { token: owner })).body;
+    await req('POST', `/api/till/${till.id}/close`, { token: owner, body: {
+      counted_closing_cash: expected.expected_closing_cash, force_reason: 'reversal probe fixture reset' } });
+  }
+  const opened = await req('POST', '/api/till/open', { token: staff, body: { branch_id: bid, opening_cash: 1000 } });
+  if (opened.status === 201 || opened.status === 409) ok('fixture: a till is open for the cashier sales');
+  else bad(`fixture till could not open: ${opened.status}`);
 
   const owedTotal = async () => Number((await req('GET', `/api/change-owed/summary?branch_id=${bid}`, { token: owner })).body.total_owed || 0);
   const qtyOf = async (id) => {

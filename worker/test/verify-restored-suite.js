@@ -29,6 +29,8 @@ const expected = [
   'build-onboarding-guide.sh',
   'run-role-domain-audits.sh',
   'run-login-lifecycle-audit.sh',
+  'run-full-domain-audit.sh',
+  'run-full-frontend-audit.sh',
   'tools/probe-login-lifecycle.js',
   'audit.single-session.js',
 ];
@@ -58,5 +60,7 @@ assert.equal(packageJson.scripts['test:browser:pwa'], 'bash test/run-browser-pwa
 assert.equal(packageJson.scripts['docs:onboarding'], 'bash test/build-onboarding-guide.sh');
 assert.equal(packageJson.scripts['test:live:roles'], 'bash test/run-role-domain-audits.sh');
 assert.equal(packageJson.scripts['test:browser:login'], 'bash test/run-login-lifecycle-audit.sh');
+assert.equal(packageJson.scripts['test:live:full-domain'], 'bash test/run-full-domain-audit.sh');
+assert.equal(packageJson.scripts['test:frontend:full'], 'bash test/run-full-frontend-audit.sh');
 
 console.log(`Restored test suite verified: ${sourceFiles.length} JavaScript files parse; core live audits and browser/icon tooling are wired.`);

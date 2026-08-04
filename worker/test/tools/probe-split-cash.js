@@ -33,10 +33,13 @@ const L = b => (Array.isArray(b) ? b : []);
   const ownerRes = await login('owner');
   if (ownerRes.status !== 200) { console.log('cannot log in — seed first'); process.exit(3); }
   const owner = ownerRes.body.token;
-  const staffRes = await login('a.cash1');
+  // Keep this probe independently runnable against the ordinary fresh seed.
+  // Scenario-only a.* users made the financial split audit silently depend on
+  // a separate browser/screenshot setup phase.
+  const staffRes = await login('lagos.staff');
   const staff = staffRes.body.token;
   const branchId = staffRes.body.user.branch_id;
-  const mgr = (await login('a.mgr.lagos')).body.token;
+  const mgr = (await login('lagos.mgr')).body.token;
 
   const drawer = async () => {
     const t = L((await req('GET', '/api/till?branch_id=' + branchId, { token: owner })).body).find(x => x.status === 'OPEN');
@@ -239,9 +242,34 @@ const L = b => (Array.isArray(b) ? b : []);
   // ---- H. SUPPLIER PAYMENTS SPLIT THE SAME WAY --------------------------
   console.log('\n=== H. PAYING A DELIVERY FROM BOTH POTS ===');
   {
-    const bals = L((await req('GET', '/api/creditors/balances', { token: owner })).body)
+    let bals = L((await req('GET', '/api/creditors/balances', { token: owner })).body)
       .filter(x => x.branch_id === branchId && Number(x.balance_owed) > 3000);
-    if (!bals.length) { bad('no supplier debt at this branch to settle'); }
+    // Make the supplier-credit half independently runnable on a fresh seed.
+    if (!bals.length) {
+      const suppliers = L((await req('GET', '/api/suppliers', { token: owner })).body);
+      let supplier = suppliers[0];
+      if (!supplier) {
+        const made = await req('POST', '/api/suppliers', { token: owner, body: {
+          name: `Split Payment Supplier ${Date.now()}`, phone: '08030000001', address: 'Audit depot' } });
+        supplier = made.body;
+      }
+      const products = L((await req('GET', '/api/products', { token: owner })).body);
+      const product = products.find(p => p.dispensing_type !== 'POM' && !p.is_controlled) || products[0];
+      if (supplier && product) {
+        const po = await req('POST', '/api/purchase-orders', { token: owner, body: {
+          branch_id: branchId, supplier_id: supplier.id,
+          items: [{ product_id: product.id, quantity_ordered: 40, expected_unit_cost: 100 }] } });
+        if (po.status === 201) {
+          await req('POST', `/api/purchase-orders/${po.body.id}/receive`, { token: owner, body: {
+            on_credit: true,
+            batches: [{ product_id: product.id, quantity_received: 40, cost_price_per_unit: 100,
+              selling_price_per_unit: 150, batch_no: `SPLIT-${Date.now()}`, expiry_date: '2030-12-31' }] } });
+        }
+      }
+      bals = L((await req('GET', '/api/creditors/balances', { token: owner })).body)
+        .filter(x => x.branch_id === branchId && Number(x.balance_owed) > 3000);
+    }
+    if (!bals.length) { bad('could not create supplier debt fixture to settle'); }
     else {
       const debt = bals[0];
       const total = 3000;

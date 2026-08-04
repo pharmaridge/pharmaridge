@@ -110,15 +110,19 @@ const check = (name, ok, detail = '') => {
   {
     const before = await expected();
     // POSITIVE moves cash drawer -> safe: taking the takings out of an open
-    // till, which is the other half of why the safe exists.
+    // till, which is the other half of why the safe exists. Use a real fraction
+    // of the LIVE drawer instead of a hard-coded N10,000: the preceding
+    // legitimate purchase may leave a smaller drawer, and a rejected sweep
+    // would only test the cash-floor guard again rather than this direction.
+    const sweepAmount = Math.max(1, Math.floor(before / 2));
     const away = await post('/api/safe/movements', {
-      branch_id: br.id, entry_type: 'TILL_TRANSFER', amount: 10000, reason: 'probe: bank the takings',
+      branch_id: br.id, entry_type: 'TILL_TRANSFER', amount: sweepAmount, reason: 'probe: bank the takings',
     });
     check('cash can be moved from the till into the safe',
       away.status === 200 || away.status === 201, `${away.status} ${away.text.slice(0, 90)}`);
     const after = await expected();
     check('...and the drawer\'s expected cash FALLS by exactly that amount',
-      Math.abs((before - after) - 10000) < 0.005,
+      Math.abs((before - after) - sweepAmount) < 0.005,
       `before ${before}, after ${after}, difference ${before - after}`);
   }
 

@@ -85,9 +85,36 @@ const L = b => (Array.isArray(b) ? b : []);
         .find(x => x.supplier_id === sid && x.branch_id === bid);
       return row ? Number(row.balance_owed) : 0;
     };
-    const debt = L((await req('GET', '/api/creditors/balances', { token: owner })).body)
+    let debt = L((await req('GET', '/api/creditors/balances', { token: owner })).body)
       .find(x => x.branch_id === bid && Number(x.balance_owed) > 1000);
-    if (!debt) bad('no supplier debt at this branch to test with');
+    // Fresh seeds have no supplier credit by design. Create a real credit PO
+    // receipt so this idempotency probe exercises a payment, not an absent
+    // fixture.
+    if (!debt) {
+      const suppliers = L((await req('GET', '/api/suppliers', { token: owner })).body);
+      let supplier = suppliers[0];
+      if (!supplier) {
+        const made = await req('POST', '/api/suppliers', { token: owner, body: {
+          name: `Retry Supplier ${Date.now()}`, phone: '08030000002', address: 'Audit depot' } });
+        supplier = made.body;
+      }
+      const products = L((await req('GET', '/api/products', { token: owner })).body);
+      const product = products.find(p => p.dispensing_type !== 'POM' && !p.is_controlled) || products[0];
+      if (supplier && product) {
+        const po = await req('POST', '/api/purchase-orders', { token: owner, body: {
+          branch_id: bid, supplier_id: supplier.id,
+          items: [{ product_id: product.id, quantity_ordered: 30, expected_unit_cost: 100 }] } });
+        if (po.status === 201) {
+          await req('POST', `/api/purchase-orders/${po.body.id}/receive`, { token: owner, body: {
+            on_credit: true,
+            batches: [{ product_id: product.id, quantity_received: 30, cost_price_per_unit: 100,
+              selling_price_per_unit: 150, batch_no: `RETRY-${Date.now()}`, expiry_date: '2030-12-31' }] } });
+        }
+      }
+      debt = L((await req('GET', '/api/creditors/balances', { token: owner })).body)
+        .find(x => x.branch_id === bid && Number(x.balance_owed) > 1000);
+    }
+    if (!debt) bad('could not create supplier debt fixture to test with');
     else {
       // FUND THE DRAWER FIRST, AND CHECK THE FIRST PAYMENT SUCCEEDED.
       //
@@ -128,7 +155,25 @@ const L = b => (Array.isArray(b) ? b : []);
       const b = Number((await req('GET', `/api/customers/${c.id}/balance`, { token: owner })).body.balance_owed || 0);
       if (b > 300) { withDebt.push({ c, b }); break; }
     }
-    if (!withDebt.length) bad('no customer with a debt large enough to test with');
+    if (!withDebt.length) {
+      // Build a genuine customer debt from a credit sale on the current branch.
+      const made = await req('POST', '/api/customers', { token: owner, body: {
+        branch_id: bid, name: `Retry Debtor ${Date.now()}`, phone: '08030000003' } });
+      if (made.status === 201) {
+        await req('PUT', `/api/customers/${made.body.id}`, { token: owner, body: { credit_limit: 5000 } });
+        const stock = L((await req('GET', `/api/stock?branch_id=${bid}`, { token: owner })).body)
+          .find(s => Number(s.quantity_remaining) > 5 && Number(s.selling_price_per_unit) > 0);
+        if (stock) {
+          const amount = Number(stock.selling_price_per_unit) * 10;
+          const sale = await req('POST', '/api/sales', { token: owner, body: {
+            branch_id: bid, customer_id: made.body.id,
+            items: [{ product_id: stock.product_id, quantity: 10, unit_type: 'BASE_UNIT' }],
+            payments: [{ method: 'CREDIT', amount }] } });
+          if (sale.status === 201) withDebt.push({ c: made.body, b: amount });
+        }
+      }
+    }
+    if (!withDebt.length) bad('could not create customer debt fixture to test with');
     else {
       const { c, b } = withDebt[0];
       const bal = async () => Number((await req('GET', `/api/customers/${c.id}/balance`, { token: owner })).body.balance_owed || 0);

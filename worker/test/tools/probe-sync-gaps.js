@@ -112,7 +112,33 @@ const login = async (u, p = '1234') => (await (await fetch(`${BASE}/api/auth/log
   {
     const plist = listOf(await get('/api/products'));
     const sellable = new Map(plist.filter((p) => !p.is_controlled && p.dispensing_type !== 'POM').map((p) => [p.id, p]));
-    const rows = listOf(await get('/api/stock')).filter((r) => r.quantity_remaining >= 2 && r.quantity_remaining <= 40 && sellable.has(r.product_id));
+    let rows = listOf(await get('/api/stock')).filter((r) => r.quantity_remaining >= 2 && r.quantity_remaining <= 40 && sellable.has(r.product_id));
+    // Fresh seeds carry large batches. Create one deliberately small real
+    // receipt so the exhaustion path is always exercised rather than skipped.
+    if (!rows.length) {
+      const branches = listOf(await get('/api/branches')).filter((b) => b.is_active);
+      const source = branches[0];
+      const suppliers = listOf(await get('/api/suppliers'));
+      let supplier = suppliers[0];
+      if (!supplier) {
+        const made = await post('/api/suppliers', { name: `Exhaustion Supplier ${Date.now()}`, phone: '08030000004', address: 'Audit depot' });
+        supplier = made.status === 201 ? JSON.parse(made.text) : null;
+      }
+      const product = [...sellable.values()][0];
+      if (source && supplier && product) {
+        const po = await post('/api/purchase-orders', {
+          branch_id: source.id, supplier_id: supplier.id,
+          items: [{ product_id: product.id, quantity_ordered: 10, expected_unit_cost: 100 }],
+        });
+        if (po.status === 201) {
+          const poId = JSON.parse(po.text).id;
+          await post(`/api/purchase-orders/${poId}/receive`, { on_credit: false,
+            batches: [{ product_id: product.id, quantity_received: 10, cost_price_per_unit: 100,
+              selling_price_per_unit: 150, batch_no: `EXHAUST-${Date.now()}`, expiry_date: '2030-12-31' }] });
+        }
+      }
+      rows = listOf(await get('/api/stock')).filter((r) => r.quantity_remaining >= 2 && r.quantity_remaining <= 40 && sellable.has(r.product_id));
+    }
     if (!rows.length) { check('a small batch exists for the exhaustion case', false); }
     else {
       const b = rows[0];

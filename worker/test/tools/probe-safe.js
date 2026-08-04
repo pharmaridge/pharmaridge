@@ -41,12 +41,19 @@ const safeOf = async (tok, b) => Number((await req('GET', `/api/safe?branch_id=$
 
   const branches = L((await req('GET', '/api/branches', { token: owner })).body).filter(b => b.is_active);
   const users = L((await req('GET', '/api/users', { token: owner })).body);
-  const mgr1row = users.find(u => u.username === 'c.mgr1');
+  // Use the ordinary fresh-seed roles rather than scenario-only c.* accounts,
+  // so this financial probe can run in isolation like every other full-domain
+  // audit. Each login happens exactly once: a second login now correctly
+  // displaces the first device session.
+  const mgr1row = users.find(u => u.username === 'lagos.mgr');
   const home = branches.find(b => b.id === (mgr1row && mgr1row.branch_id)) || branches[0];
   const other = branches.find(b => b.id !== home.id);
-  const gm = (await login('c.gm')).body && (await login('c.gm')).body.token;
-  const bmgr = (await login('c.mgr1')).body && (await login('c.mgr1')).body.token;
-  const staff = (await login('c.b1s1')).body && (await login('c.b1s1')).body.token;
+  const gmLogin = await login('manager');
+  const branchManagerLogin = await login('lagos.mgr');
+  const staffLogin = await login('lagos.staff');
+  const gm = gmLogin.body && gmLogin.body.token;
+  const bmgr = branchManagerLogin.body && branchManagerLogin.body.token;
+  const staff = staffLogin.body && staffLogin.body.token;
   if (!home || !other) { bad('need two active branches'); console.log(`\nRESULT: ${pass} passed, ${fail} failed`); process.exit(1); }
   ok(`fixture: branch manager pinned to ${home.name}; second branch ${other.name}`);
 
@@ -155,10 +162,36 @@ const safeOf = async (tok, b) => Number((await req('GET', `/api/safe?branch_id=$
 
   // ---- E. PAYING A SUPPLIER FROM THE SAFE --------------------------------
   console.log('\n=== E. PAYING A DELIVERY FROM THE SAFE ===');
-  const bals = L((await req('GET', '/api/creditors/balances', { token: owner })).body)
+  let bals = L((await req('GET', '/api/creditors/balances', { token: owner })).body)
     .filter(x => Number(x.balance_owed) > 0);
+  // A fresh seed legitimately has no supplier debt. Create a real credit
+  // receipt instead of treating an absent fixture as a product failure.
+  if (!bals.length) {
+    const suppliers = L((await req('GET', '/api/suppliers', { token: owner })).body);
+    let supplier = suppliers[0];
+    if (!supplier) {
+      const made = await req('POST', '/api/suppliers', { token: owner, body: {
+        name: `Safe Settlement Supplier ${Date.now()}`, phone: '08030000000', address: 'Audit depot' } });
+      supplier = made.body;
+    }
+    const products = L((await req('GET', '/api/products', { token: owner })).body);
+    const product = products.find(p => p.dispensing_type !== 'POM' && !p.is_controlled) || products[0];
+    if (supplier && product) {
+      const po = await req('POST', '/api/purchase-orders', { token: owner, body: {
+        branch_id: home.id, supplier_id: supplier.id,
+        items: [{ product_id: product.id, quantity_ordered: 20, expected_unit_cost: 100 }] } });
+      if (po.status === 201) {
+        await req('POST', `/api/purchase-orders/${po.body.id}/receive`, { token: owner, body: {
+          on_credit: true,
+          batches: [{ product_id: product.id, quantity_received: 20, cost_price_per_unit: 100,
+            selling_price_per_unit: 150, batch_no: `SAFE-${Date.now()}`, expiry_date: '2030-12-31' }] } });
+      }
+    }
+    bals = L((await req('GET', '/api/creditors/balances', { token: owner })).body)
+      .filter(x => Number(x.balance_owed) > 0);
+  }
   const debt = bals.find(x => x.branch_id === home.id) || bals[0];
-  if (!debt) { bad('no supplier debt in the fixture to settle'); }
+  if (!debt) { bad('could not create supplier debt fixture to settle'); }
   else {
     const payBranch = debt.branch_id;
     // Make sure that branch's safe can fund it.

@@ -6,6 +6,7 @@
 
 - A4 PDF, **64 pages**
 - Covers Owner / Co-owner, General Manager, Branch Manager, and Counter Staff roles
+- Includes an owner decision guide with the audit-backed capability summary, role-by-role demonstration flow, transparent upfront-payment checklist, and shared-sample warning
 - Explains onboarding, login, daily operations, POS, till, stock, procurement, transfers, safe, expenses, debtors, change owed, attendance, tax/accounting, offline work, roles, permissions, exports, pricing, and go-live steps
 - Includes current screenshots from the running application, with paired desktop and phone views for role-specific screens where applicable
 - Includes actual receipt, claim-slip, printable report, and CSV-export plates
