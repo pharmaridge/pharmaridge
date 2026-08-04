@@ -235,7 +235,7 @@ app.get('/api/manifest.json', async (c) => {
     // transparent and emerald-forward, so this deliberately matches the app's
     // deepest green instead of the former slate badge colour. Keep in sync
     // with public/manifest.json (the static fallback manifest).
-    background_color: '#0a3b2c', theme_color: '#0b3d2e', orientation: 'portrait-primary',
+    background_color: '#0a3b2c', theme_color: '#0a3b2c', orientation: 'portrait-primary',
     categories: ['business', 'medical', 'productivity', 'finance'],
     prefer_related_applications: false,
     icons,

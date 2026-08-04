@@ -10,7 +10,7 @@
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],
   "background_color": "#0a3b2c",
-  "theme_color": "#0b3d2e",
+  "theme_color": "#0a3b2c",
   "orientation": "portrait-primary",
   "categories": ["business", "medical", "productivity", "finance"],
   "prefer_related_applications": false,

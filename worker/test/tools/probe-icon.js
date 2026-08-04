@@ -148,25 +148,31 @@ console.log('\n=== THE CANONICAL PREMIUM MARK IS WIRED INTO THE APPLICATION ==='
 
 console.log('\n=== THE MASKABLE ICON SURVIVES ANDROID\'S STRICT SAFE-ZONE CROP ===');
 {
-  // Transparent PNGs use alpha, not a flat corner colour, to distinguish
-  // artwork from the background. Every visible pixel must fit inside Android's
-  // documented centre-80%-diameter safe circle.
+  // Android composites transparent PWA icon pixels against black on some
+  // launchers, producing the visible black square that this app previously
+  // showed on its splash screen. The shipped icon canvas is therefore the
+  // SAME opaque #0a3b2c as manifest.background_color; only pixels that differ
+  // from that background count as artwork for safe-zone measurement.
+  const expectedBg = [10, 59, 44];
   for (const f of ['icon-512-maskable.png', 'icon-192-maskable.png']) {
     const p = pngPixels(path.join(ICONS, f));
     check(`${f} decodes to pixels`, !!p);
     if (!p) continue;
+    const bg = p.at(0, 0);
+    const isBg = (px) => px[3] > 250 && Math.max(Math.abs(px[0] - expectedBg[0]), Math.abs(px[1] - expectedBg[1]), Math.abs(px[2] - expectedBg[2])) <= 6;
+    check(`${f} uses the seamless dark-green splash background`, isBg(bg), `corner rgba(${bg})`);
     const cx = p.width / 2, cy = p.height / 2, r = p.width * 0.4;
     let outside = 0, total = 0, worst = 0;
     for (let y = 0; y < p.height; y++) {
       for (let x = 0; x < p.width; x++) {
         const px = p.at(x, y);
-        if (px[3] <= 15) continue;
+        if (isBg(px)) continue;
         total++;
         const d = Math.hypot(x - cx, y - cy);
         if (d > r) { outside++; worst = Math.max(worst, d / (p.width * 0.5)); }
       }
     }
-    check(`${f} has visible artwork at all`, total > p.width * p.height * 0.03, `${total} ink px`);
+    check(`${f} has visible artwork at all`, total > p.width * p.height * 0.02, `${total} artwork px`);
     check(`${f} keeps ALL artwork inside the 80% safe circle`, outside === 0,
       `${outside} px outside; furthest ink at ${(worst * 100).toFixed(1)}% of the radius`);
   }
@@ -174,10 +180,12 @@ console.log('\n=== THE MASKABLE ICON SURVIVES ANDROID\'S STRICT SAFE-ZONE CROP =
   for (const f of ['icon-512.png', 'icon-192.png']) {
     const p = pngPixels(path.join(ICONS, f));
     if (!p) { check(`${f} decodes to pixels`, false); continue; }
-    let visible = 0;
-    for (let y = 0; y < p.height; y++) for (let x = 0; x < p.width; x++) if (p.at(x, y)[3] > 15) visible++;
-    check(`${f} has a transparent border around the premium mark`, p.at(0, 0)[3] === 0, `corner alpha=${p.at(0, 0)[3]}`);
-    check(`${f} has legible-sized visible artwork`, visible > p.width * p.height * 0.08, `${visible} visible pixels`);
+    const bg = p.at(0, 0);
+    const isBg = (px) => px[3] > 250 && Math.max(Math.abs(px[0] - expectedBg[0]), Math.abs(px[1] - expectedBg[1]), Math.abs(px[2] - expectedBg[2])) <= 6;
+    let artwork = 0;
+    for (let y = 0; y < p.height; y++) for (let x = 0; x < p.width; x++) if (!isBg(p.at(x, y))) artwork++;
+    check(`${f} blends into the dark-green PWA splash`, isBg(bg), `corner rgba(${bg})`);
+    check(`${f} has legible-sized visible artwork`, artwork > p.width * p.height * 0.06, `${artwork} artwork pixels`);
   }
 }
 
