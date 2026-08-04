@@ -197,7 +197,7 @@ const App = (() => {
     document.getElementById('logout-btn').addEventListener('click', () => {
       State.clearSession();
       location.hash = '#/dashboard';
-      Router.navigate();
+      afterLogout();
     });
 
     // MOBILE NAVIGATION.
@@ -526,6 +526,18 @@ const App = (() => {
   // by this point; this just resets the visible chrome back to a clean
   // logged-out shell and drops the user on the login screen.
   function afterLogout() {
+    // Router.navigate() only reveals the existing login DOM. If the most
+    // recent sign-in replaced its button label with the animated "Signing
+    // in…" SVG, revealing that stale DOM after logout made it look as though
+    // authentication was still in progress forever. Re-rendering is the
+    // authoritative reset: it creates the ordinary enabled Sign in button and
+    // removes the spinner on every deliberate logout, expiry or 401.
+    renderLogin();
+    const loginScreen = document.getElementById('login-screen');
+    if (loginScreen) {
+      loginScreen.classList.remove('is-loading');
+      loginScreen.setAttribute('aria-busy', 'false');
+    }
     // A DELIBERATE sign-out discards any in-progress POS cart. This is
     // the opposite intent from a crash/expiry (where the cart is
     // deliberately preserved — see the persistence note in

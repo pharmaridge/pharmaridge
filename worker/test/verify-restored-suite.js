@@ -28,6 +28,8 @@ const expected = [
   'run-browser-pwa.sh',
   'build-onboarding-guide.sh',
   'run-role-domain-audits.sh',
+  'run-login-lifecycle-audit.sh',
+  'tools/probe-login-lifecycle.js',
 ];
 for (const relative of expected) {
   assert.ok(fs.existsSync(path.join(TEST_ROOT, relative)), `missing restored test asset: ${relative}`);
@@ -54,5 +56,6 @@ assert.equal(packageJson.scripts['test:live:core'], 'bash test/run-core-live.sh'
 assert.equal(packageJson.scripts['test:browser:pwa'], 'bash test/run-browser-pwa.sh');
 assert.equal(packageJson.scripts['docs:onboarding'], 'bash test/build-onboarding-guide.sh');
 assert.equal(packageJson.scripts['test:live:roles'], 'bash test/run-role-domain-audits.sh');
+assert.equal(packageJson.scripts['test:browser:login'], 'bash test/run-login-lifecycle-audit.sh');
 
 console.log(`Restored test suite verified: ${sourceFiles.length} JavaScript files parse; core live audits and browser/icon tooling are wired.`);

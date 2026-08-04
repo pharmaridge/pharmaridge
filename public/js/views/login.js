@@ -20,7 +20,7 @@ function renderLogin() {
         <input type="text" id="login-username" autocomplete="username" required />
         <label>PIN / Password</label>
         <input type="password" id="login-pin" autocomplete="current-password" required />
-        <button type="submit" class="btn btn-primary" id="login-submit">Sign in</button>
+        <button type="submit" class="btn btn-primary" id="login-submit" aria-busy="false">Sign in</button>
         <div id="login-error" class="login-error hidden"></div>
       </form>
       <div class="live-sample-label">Live Sample 1</div>

@@ -71,6 +71,7 @@ assert.match(appSource, /openInstallModal/, 'sidebar must open a PWA install/rei
 assert.match(appSource, /PWA Download Not Compatible/, 'unsupported devices must receive a clear browser-use message');
 assert.match(appSource, /startupLogin\.classList\.add\('is-loading'\)/, 'first-paint loader must activate while branding starts');
 assert.match(appSource, /readyLogin\.classList\.remove\('is-loading'\)/, 'first-paint loader must turn off once the login is ready');
+assert.match(appSource, /function afterLogout\(\)[\s\S]*?renderLogin\(\)/, 'logout must rebuild the login form and clear any stale sign-in spinner');
 assert.match(html, /<svg class="brand-ico"[\s\S]*?fill="currentColor"/, 'default top navigation mark must be an SVG that inherits currentColor');
 
 const indexSource = read('worker/src/index.js');
