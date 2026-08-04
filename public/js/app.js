@@ -48,58 +48,110 @@ const App = (() => {
       });
     }
 
-    // "Install App" button — a real, previously-missing PWA capability
-    // (found during this audit's PWA-completeness pass). Without this,
-    // a client could only install the app via each browser's own
-    // buried, easy-to-miss menu item (Chrome's "Install app" under the
-    // ⋮ menu, Edge's similar entry) — most users never discover that
-    // path exists at all. `beforeinstallprompt` fires on Chromium
-    // browsers (Chrome/Edge/Samsung Internet/most Android WebViews)
-    // once the browser's own installability heuristics are satisfied
-    // (valid manifest + service worker + served over HTTPS, all of
-    // which this app already has); we intercept it, stash the event,
-    // and reveal a visible button instead of leaving the browser's own
-    // (often auto-suppressed) mini-infobar as the only prompt. Safari
-    // (iOS/macOS) and Firefox do not fire this event at all — there is
-    // no programmatic install API on those browsers, only the
-    // "Add to Home Screen" flow driven by the apple-touch-icon/
-    // apple-mobile-web-app-* meta tags in index.html — so the button
-    // simply never appears there, which is the correct, honest
-    // behavior rather than showing a button that would do nothing.
+    // PWA INSTALL / RE-INSTALL ACCESS.
+    //
+    // Browsers are allowed to suppress beforeinstallprompt after a person has
+    // installed then removed an app, or after they dismissed the prompt. A
+    // topbar button that only appears while that event is held therefore
+    // disappears precisely when someone needs help reinstalling. The sidebar
+    // entry is permanent: it opens an honest compatibility/help panel on every
+    // device, and triggers the native install prompt whenever the browser has
+    // made one available.
     let deferredInstallPrompt = null;
     const installBtn = document.getElementById('install-app-btn');
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredInstallPrompt = e;
-      if (installBtn) installBtn.classList.remove('hidden');
-    });
-    if (installBtn) {
-      installBtn.addEventListener('click', async () => {
-        if (!deferredInstallPrompt) return;
-        installBtn.classList.add('hidden');
-        deferredInstallPrompt.prompt();
-        try {
-          const choice = await deferredInstallPrompt.userChoice;
-          if (choice.outcome === 'accepted') {
-            UI.toast('App installed — you can now launch it from your home screen/app list, even offline.', 'success', 6000);
-          }
-        } catch (e) { /* user dismissed or browser quirk — no error worth surfacing */ }
-        deferredInstallPrompt = null;
-      });
+    const sidebarInstallBtn = document.getElementById('sidebar-install-btn');
+
+    function isStandalonePwa() {
+      return !!((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || window.navigator.standalone === true);
     }
-    // Once actually installed (whether via our button, the browser's
-    // own UI, or already-installed-from-a-previous-visit), hide the
-    // button permanently for this session — installing twice makes no
-    // sense and Chromium correctly stops firing beforeinstallprompt
-    // again anyway, but this also covers the "already installed before
-    // this page load" case where the event never fires at all.
-    window.addEventListener('appinstalled', () => {
+
+    function canUsePwaInstall() {
+      return !!(window.isSecureContext && 'serviceWorker' in navigator);
+    }
+
+    function browserInstallHelp() {
+      const ua = navigator.userAgent || '';
+      if (/iPad|iPhone|iPod/i.test(ua)) {
+        return 'Open this sample in Safari, tap Share, then choose Add to Home Screen.';
+      }
+      if (/Android/i.test(ua)) {
+        return 'Open your browser menu (⋮) and choose Install app or Add to Home screen.';
+      }
+      return 'Open your browser menu and choose Install app, Apps, or Create shortcut.';
+    }
+
+    async function requestNativeInstall() {
+      if (!deferredInstallPrompt) return false;
+      const prompt = deferredInstallPrompt;
       deferredInstallPrompt = null;
       if (installBtn) installBtn.classList.add('hidden');
-    });
-    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
-      if (installBtn) installBtn.classList.add('hidden');
+      prompt.prompt();
+      try {
+        const choice = await prompt.userChoice;
+        if (choice.outcome === 'accepted') {
+          UI.toast('App installed — launch it from your home screen or app list, even offline.', 'success', 6500);
+          return true;
+        }
+      } catch (e) { /* user dismissed or browser quirk */ }
+      return false;
     }
+
+    function openInstallModal() {
+      const installed = isStandalonePwa();
+      const compatible = canUsePwaInstall();
+      const promptReady = !!deferredInstallPrompt;
+      let body;
+      if (installed) {
+        body = `
+          <h3>App Already Installed</h3>
+          <p class="page-subtitle">This device is already running PharmaRidge as an installed app. Open it again from your home screen or app list.</p>
+          <div class="modal-actions"><button class="btn btn-primary" id="pwa-help-close">Close</button></div>`;
+      } else if (!compatible) {
+        body = `
+          <h3>PWA Download Not Compatible</h3>
+          <p class="page-subtitle">This device or browser is not compatible for downloading the PWA. Kindly keep using PharmaRidge in your browser.</p>
+          <div class="modal-actions"><button class="btn btn-primary" id="pwa-help-close">Continue in browser</button></div>`;
+      } else if (promptReady) {
+        body = `
+          <h3>Download PharmaRidge</h3>
+          <p class="page-subtitle">Install the app for full-screen use, faster launch, and offline access.</p>
+          <div class="modal-actions"><button class="btn btn-ghost" id="pwa-help-close">Not now</button><button class="btn btn-primary" id="pwa-install-now">Download / Install App</button></div>`;
+      } else {
+        body = `
+          <h3>Reinstall PharmaRidge</h3>
+          <p class="page-subtitle">This device supports the PWA, but the browser has not supplied its install prompt. This can happen after an app was installed then deleted, or after a prompt was dismissed.</p>
+          <div class="note" style="margin:12px 0;">${UI.escapeHtml(browserInstallHelp())}</div>
+          <div class="modal-actions"><button class="btn btn-primary" id="pwa-help-close">Continue in browser</button></div>`;
+      }
+      const modal = UI.openModal(body);
+      const close = modal.querySelector('#pwa-help-close');
+      if (close) close.addEventListener('click', function () { UI.closeModal(modal); });
+      const installNow = modal.querySelector('#pwa-install-now');
+      if (installNow) UI.guardedClick(installNow, async function () {
+        const installedNow = await requestNativeInstall();
+        if (installedNow) UI.closeModal(modal);
+        else {
+          UI.closeModal(modal);
+          UI.toast('The browser did not complete installation. ' + browserInstallHelp(), 'info', 7000);
+        }
+      });
+    }
+
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      if (installBtn && !isStandalonePwa()) installBtn.classList.remove('hidden');
+    });
+    if (installBtn) UI.guardedClick(installBtn, requestNativeInstall);
+    if (sidebarInstallBtn) sidebarInstallBtn.addEventListener('click', openInstallModal);
+
+    window.addEventListener('appinstalled', function () {
+      deferredInstallPrompt = null;
+      if (installBtn) installBtn.classList.add('hidden');
+      UI.toast('App installed — you can now launch it from your home screen or app list.', 'success', 6500);
+    });
+    if (isStandalonePwa() && installBtn) installBtn.classList.add('hidden');
 
     // The topbar toggle. theme.js has already APPLIED the theme (it ran in
     // <head>); this only binds the control and syncs its icon/label, which

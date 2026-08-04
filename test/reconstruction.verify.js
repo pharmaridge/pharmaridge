@@ -36,6 +36,7 @@ const favicon = (html.match(/<link\s+rel="icon"[^>]*href="([^"]+)"/) || [])[1];
 assert.ok(favicon && exists(`public/${favicon.replace(/^\//, '')}`), 'index.html favicon must exist');
 assert.match(html, /class="login-loading"/, 'first paint must show the animated logo loader while branding loads');
 assert.match(html, /<animateTransform[^>]+type="rotate"/, 'the first-paint loader must contain an animated SVG ring');
+assert.match(html, /id="sidebar-install-btn"/, 'authenticated sidebar must provide permanent PWA install/reinstall help');
 
 const browserSource = walk(path.join(ROOT, 'public/js')).filter((file) => file.endsWith('.js'))
   .map((file) => fs.readFileSync(file, 'utf8')).join('\n');
@@ -64,6 +65,8 @@ assert.match(loginSource, /\/branding\/pharmaridge-logo\.png/, 'unbranded login 
 assert.match(loginSource, /live-sample-label">Live Sample 1/, 'login must show the concise Live Sample 1 label');
 assert.match(loginSource, /login-submit-spinner/, 'login must provide an animated in-progress submit state');
 assert.doesNotMatch(loginSource, /Shared live sample|PIN <b>1234<\/b>/, 'login must not expose shared admin credentials beneath the sign-in button');
+assert.match(read('public/js/app.js'), /openInstallModal/, 'sidebar must open a PWA install/reinstall compatibility modal');
+assert.match(read('public/js/app.js'), /PWA Download Not Compatible/, 'unsupported devices must receive a clear browser-use message');
 assert.match(html, /<svg class="brand-ico"[\s\S]*?fill="currentColor"/, 'default top navigation mark must be an SVG that inherits currentColor');
 
 const indexSource = read('worker/src/index.js');
