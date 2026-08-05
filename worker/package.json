@@ -12,7 +12,7 @@
     "db:generate-seed": "node generate-seed.js",
     "db:seed:local": "npm run db:generate-seed && wrangler d1 execute pharmaridge-db --local --file=./seed.sql",
     "db:seed:remote": "npm run db:generate-seed && wrangler d1 execute pharmaridge-db --remote --file=./seed.sql",
-    "db:bootstrap:owner": "node tools/create-first-owner-sql.js",
+    "db:bootstrap:admin": "node tools/create-first-admin-sql.js",
     "test": "npm run test:recovered",
     "tail": "wrangler tail",
     "test:audit": "npm run test:offline",

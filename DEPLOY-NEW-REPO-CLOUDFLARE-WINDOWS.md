@@ -1,6 +1,6 @@
 # Deploy PharmaRidge from a Downloaded Folder to a New GitHub Repository and Cloudflare
 
-This is the **Windows Terminal / PowerShell** procedure for a folder you downloaded and opened in VS Code. It creates a **new private GitHub repository**, a **new Cloudflare D1 database**, a **new Worker Assets deployment** (frontend and API together), and a secure first Owner account.
+This is the **Windows Terminal / PowerShell** procedure for a folder you downloaded and opened in VS Code. It creates a **new private GitHub repository**, a **new Cloudflare D1 database**, a **new Worker Assets deployment** (frontend and API together), and a secure first PharmaRidge Admin account.
 
 > **Do not deploy the downloaded sample configuration unchanged.** It may name a sample Worker and sample D1 database. This guide changes both before any remote command is run.
 >
@@ -20,7 +20,7 @@ Your new private GitHub repository
         └── New Cloudflare D1 database
               ├── migrations 0001–0004
               ├── 6,801 NAFDAC catalog rows
-              └── your first secure Owner account
+              └── your first secure PharmaRidge Admin account
 ```
 
 This guide uses **Worker Assets**, not Cloudflare Pages. One `wrangler deploy` publishes both the PWA files in `public/` and the API in `worker/src/`. This is the simplest and safest first production topology because the browser and API stay on one hostname.
@@ -242,7 +242,7 @@ git push
 Set-Location .\worker
 ```
 
-> A D1 database ID is not a password, but keeping a real client deployment repository private is still recommended. Never commit API tokens, `.dev.vars`, `.env`, `first-user.sql`, a database export, or a real client backup.
+> A D1 database ID is not a password, but keeping a real client deployment repository private is still recommended. Never commit API tokens, `.dev.vars`, `.env`, `first-admin.sql`, a database export, or a real client backup.
 
 ---
 
@@ -309,41 +309,41 @@ screenshots
 
 ---
 
-## 9. Create the first real Owner account securely
+## 9. Create the first PharmaRidge Admin account securely
 
-A new D1 database has the schema and catalog, but no people. Create the first Owner locally as a generated, gitignored SQL file.
+A new D1 database has the schema and catalog, but no people. Create the first **PharmaRidge Admin** locally as a generated, gitignored SQL file. This Admin is the deployment/bootstrap seat; it creates the client Owner only after the Worker is live.
 
 From `worker`:
 
 ```powershell
-$env:PHARMARIDGE_OWNER_NAME = Read-Host "Owner full name"
-$env:PHARMARIDGE_OWNER_USERNAME = Read-Host "Owner username"
-$env:PHARMARIDGE_OWNER_PHONE = Read-Host "Owner phone (optional)"
+$env:PHARMARIDGE_ADMIN_NAME = Read-Host "PharmaRidge Admin full name"
+$env:PHARMARIDGE_ADMIN_USERNAME = Read-Host "PharmaRidge Admin username"
+$env:PHARMARIDGE_ADMIN_PHONE = Read-Host "PharmaRidge Admin phone (optional)"
 
-$SecurePin = Read-Host "Choose an 8+ character Owner PIN/password" -AsSecureString
+$SecurePin = Read-Host "Choose a 12+ character Admin PIN/password" -AsSecureString
 $Bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecurePin)
 try {
-    $env:PHARMARIDGE_OWNER_PIN = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($Bstr)
-    npm run db:bootstrap:owner
+    $env:PHARMARIDGE_ADMIN_PIN = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($Bstr)
+    npm run db:bootstrap:admin
 }
 finally {
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($Bstr)
     Remove-Variable SecurePin -ErrorAction SilentlyContinue
 }
 
-npx wrangler d1 execute $DatabaseName --remote --file .\first-user.sql
+npx wrangler d1 execute $DatabaseName --remote --file .\first-admin.sql
 
-Remove-Item Env:\PHARMARIDGE_OWNER_NAME, Env:\PHARMARIDGE_OWNER_USERNAME, Env:\PHARMARIDGE_OWNER_PHONE, Env:\PHARMARIDGE_OWNER_PIN -ErrorAction SilentlyContinue
-Remove-Item .\first-user.sql
+Remove-Item Env:\PHARMARIDGE_ADMIN_NAME, Env:\PHARMARIDGE_ADMIN_USERNAME, Env:\PHARMARIDGE_ADMIN_PHONE, Env:\PHARMARIDGE_ADMIN_PIN -ErrorAction SilentlyContinue
+Remove-Item .\first-admin.sql
 ```
 
-Verify that exactly one active Owner exists. This query returns no PIN or hash:
+Verify that exactly one active Admin exists. This query returns no PIN or hash:
 
 ```powershell
-npx wrangler d1 execute $DatabaseName --remote --command "SELECT username, role, is_active FROM users WHERE role = 'OWNER';"
+npx wrangler d1 execute $DatabaseName --remote --command "SELECT username, role, is_active FROM users WHERE role = 'ADMIN';"
 ```
 
-The Owner signs in after the Worker is deployed, creates branches, General/Branch Managers, Staff, suppliers and customers, then receives the first real stock delivery.
+Do not create a client Owner in SQL. The Admin signs in after the Worker is deployed and creates the client Owner through Users & Branches, so the normal onboarding audit trail starts at the first real client account.
 
 ---
 
@@ -376,11 +376,20 @@ Open the app in the browser:
 Start-Process $WorkerUrl
 ```
 
-Sign in with the Owner account you created in step 9. Do not create, publish, or reuse a sample/default credential.
+---
+
+## 11. Create the client Owner after deployment
+
+1. Sign in with the secure PharmaRidge Admin account created in step 9.
+2. Open **Users & Branches**.
+3. Create the named client Owner with a unique PIN/password issued privately to that person.
+4. Ask the Owner to sign in and complete the normal first-run setup: branches, managers, staff, suppliers, customers and first stock receipt.
+
+Do not create, publish, or reuse a sample/default credential.
 
 ---
 
-## 11. Optional: attach a client-owned custom domain through Cloudflare
+## 12. Optional: attach a client-owned custom domain through Cloudflare
 
 First make sure the domain is already added to the same Cloudflare account. For a dedicated app hostname, use a Worker custom domain, for example:
 
@@ -424,7 +433,7 @@ This Worker Assets deployment serves the whole app and `/api/*` from the same ho
 
 ---
 
-## 12. First production smoke test
+## 13. First production smoke test
 
 Complete these in the browser before handing the app to a pharmacy team:
 
@@ -439,7 +448,7 @@ Complete these in the browser before handing the app to a pharmacy team:
 
 ---
 
-## 13. Day-two deploy/update routine
+## 14. Day-two deploy/update routine
 
 From the VS Code terminal at the repository root:
 
@@ -463,7 +472,7 @@ Do not run a destructive reset script against a real pharmacy database. Take/exp
 
 ---
 
-## 14. Useful PowerShell checks
+## 15. Useful PowerShell checks
 
 ```powershell
 # Current Cloudflare account identity
@@ -491,7 +500,7 @@ git check-ignore worker\.dev.vars
 ```text
 Worker name is still sample
 Database name/ID is from the downloaded project
-Git status shows .dev.vars, .env, first-user.sql, backup SQL, or a database file
+Git status shows .dev.vars, .env, first-admin.sql, backup SQL, or a database file
 /api/health returns HTML instead of JSON
 You are about to run a remote seed/reset command against a real database
 ```

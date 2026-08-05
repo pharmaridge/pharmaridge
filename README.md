@@ -221,14 +221,18 @@ Expect **6801**.
 > and SQLite adds `sqlite_sequence`. Filtering those out gives a number you can
 > actually compare against.
 
-Two migrations run here: `0001_initial_schema.sql` (the core schema) and
-`0002_nafdac_catalog.sql` (6,801 NAFDAC-approved products). The first also seeds
-the 14-account chart of accounts and the default `client_settings` row — the GL
-cannot post without them, so never skip it.
+Four migrations currently run: `0001_initial_schema.sql` (core schema and
+system accounts), `0002_nafdac_catalog.sql` (6,801 NAFDAC-approved products),
+`0003_single_active_sessions.sql` (one active device session per person), and
+`0004_owner_data_management.sql` (Owner data-retention controls). Never skip a
+migration.
 
-> **Full step-by-step walkthrough for Windows**, including installing the
-> tools from scratch: [`DEPLOY-FROM-WINDOWS.md`](DEPLOY-FROM-WINDOWS.md). The
-> steps below are the same procedure in condensed form.
+> **Current Windows deployment walkthrough:**
+> [`DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md`](DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md).
+> It uses a new D1 database, boots a secure PharmaRidge **Admin** first, then
+> has that Admin create the client Owner through the live Users & Branches
+> workflow. The older Pages/path-routing notes below are retained only as a
+> legacy topology reference.
 
 ### Step 3 — Set the JWT secret
 
@@ -244,28 +248,25 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 > **Never reuse the `.dev.vars` value.** Anyone holding this secret can mint valid tokens for any role, including `ADMIN`. Rotating it later logs everyone out — that's expected.
 
-### Step 4 — Seed production data (choose one)
+### Step 4 — Bootstrap the deployment Admin, then create the client Owner
 
-**Option A — demo/pilot data** (the two GreenLife branches and demo logins):
+For a real client deployment, **do not** run the demo seed. The recommended
+sequence is deliberately Admin-first:
 
-```bash
-npm run db:seed:remote
-```
+1. Create one secure PharmaRidge deployment Admin with the gitignored helper:
+   `npm run db:bootstrap:admin`.
+2. Execute the resulting `first-admin.sql` against the **new** remote D1
+   database once, then delete it.
+3. Deploy the Worker.
+4. Sign in as that Admin and create the named client Owner through
+   **Users & Branches**. The Owner then creates branches, managers, staff,
+   suppliers, customers and first stock through normal audited workflows.
 
-**Option B — real client, clean start.** Skip the seed. Create the first `OWNER` manually so someone can log in, hashing the PIN with the app's own PBKDF2 parameters:
+The full PowerShell sequence, including secure PIN entry without printing it,
+is in [`DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md`](DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md).
 
-```bash
-node -e "
-const {hashPin,uuid}=require('./src/lib/crypto');
-hashPin('1234').then(h=>console.log(\`INSERT INTO users (id,branch_id,full_name,phone,username,pin_hash,role,job_title) VALUES ('\${uuid()}',NULL,'Owner Name','08000000000','owner','\${h}','OWNER','Proprietor');\`));
-" > first-user.sql
-
-npx wrangler d1 execute pharmaridge-db --remote --file=./first-user.sql
-```
-
-Change that PIN at first login.
-
-> ⚠️ Run the seed **once**. Re-running duplicates branches and products.
+> ⚠️ `npm run db:seed:remote` is demonstration data only. Never run it against
+> a real pharmacy database.
 
 ### Step 5 — Deploy the Worker
 
