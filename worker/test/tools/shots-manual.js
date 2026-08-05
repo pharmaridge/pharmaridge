@@ -12,6 +12,7 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const BASE = process.env.WORKER_BASE || 'http://127.0.0.1:9001';
 const OUT = process.env.SHOT_DIR || '/tmp/pharmaridge-manual-shots';
 fs.mkdirSync(OUT, { recursive: true });
@@ -19,6 +20,17 @@ const sl = ms => new Promise(r => setTimeout(r, ms));
 
 const DESKTOP = 1440, TABLET = 768, PHONE = 390;
 const manifest = [];
+// A guide caption can be correct while an inherited modal makes the screenshot
+// wrong. Record image hashes too: if two different labelled captures render
+// the same pixels, fail the capture rather than letting a repeated screen into
+// the owner-facing PDF.
+const screenshotHashes = new Map();
+function assertUniqueScreenshot(file) {
+  const digest = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  const earlier = screenshotHashes.get(digest);
+  if (earlier) throw new Error(`duplicate screenshot pixels: ${path.basename(file)} repeats ${path.basename(earlier)}`);
+  screenshotHashes.set(digest, file);
+}
 
 async function session(browser, username, { width = DESKTOP, theme = 'light' } = {}) {
   const ctx = await browser.createBrowserContext();
@@ -59,12 +71,30 @@ async function session(browser, username, { width = DESKTOP, theme = 'light' } =
 const PHONE_COMPANION = 390;
 
 async function shot(page, file, caption, { hash, wait = 2600, action, focus, mobile = true } = {}) {
-  if (hash) { await page.evaluate(h => { location.hash = h; }, hash); await sl(wait); }
+  // A modal lives directly under <body>, outside Router's #view. Leaving an
+  // Owner Data Management or Transfer dialog open therefore used to paint that
+  // same dialog over every later route capture — Accounting, Users, Debtors
+  // and Expenses all looked like the preceding modal even though their labels
+  // were correct. Close inherited overlays BEFORE choosing the next route.
+  await page.evaluate(() => document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove()));
+  if (hash) {
+    await page.evaluate(h => { location.hash = h; }, hash);
+    // A fixed sleep can capture the previous view while an initial dashboard
+    // render races a hash change. Wait for the intended nav state and nonempty
+    // view before giving the page its normal data/render settling time.
+    await page.waitForFunction((h) => {
+      const view = document.getElementById('view');
+      const nav = document.querySelector(`#sidebar a[href="${h}"]`);
+      return !!(view && view.innerText.trim().length > 40 && (!nav || nav.classList.contains('active')));
+    }, { timeout: 25000 }, hash);
+    await sl(wait);
+  }
   if (action) { try { await action(page); } catch (e) { console.log(`    (action skipped: ${e.message.slice(0, 70)})`); } }
   if (focus) { try { await page.evaluate(sel => { const el = document.querySelector(sel); if (el) el.scrollIntoView({ block: 'center' }); }, focus); await sl(500); } catch (e) {} }
   await sl(350);
   const p = path.join(OUT, file);
   await page.screenshot({ path: p, fullPage: false });
+  assertUniqueScreenshot(p);
   const kb = Math.round(fs.statSync(p).size / 1024);
   console.log(`  ${file.padEnd(46)} ${String(kb).padStart(4)}KB  ${caption}`);
 
@@ -84,8 +114,10 @@ async function shot(page, file, caption, { hash, wait = 2600, action, focus, mob
       if (focus) { try { await page.evaluate(sel => { const el = document.querySelector(sel); if (el) el.scrollIntoView({ block: 'center' }); }, focus); await sl(400); } catch (e) {} }
       await sl(500);
       mobileFile = file.replace(/\.png$/, '.m.png');
-      await page.screenshot({ path: path.join(OUT, mobileFile), fullPage: false });
-      const mkb = Math.round(fs.statSync(path.join(OUT, mobileFile)).size / 1024);
+      const mobilePath = path.join(OUT, mobileFile);
+      await page.screenshot({ path: mobilePath, fullPage: false });
+      assertUniqueScreenshot(mobilePath);
+      const mkb = Math.round(fs.statSync(mobilePath).size / 1024);
       console.log(`  ${('  \u21b3 ' + mobileFile).padEnd(46)} ${String(mkb).padStart(4)}KB  (phone companion)`);
     } catch (e) {
       console.log(`    (phone companion skipped: ${e.message.slice(0, 60)})`);
@@ -115,10 +147,10 @@ async function shot(page, file, caption, { hash, wait = 2600, action, focus, mob
       await page.setViewport({ width: DESKTOP, height: 1000 });
       await page.goto(BASE, { waitUntil: 'networkidle0' });
       await sl(1200);
+      // shot() writes the paired phone view beside this desktop screen. Do not
+      // capture a second standalone login-phone image: it is the same view and
+      // belongs only once in the guide.
       await shot(page, '00-login-desktop.png', 'The sign-in screen — username and PIN, nothing else');
-      await page.setViewport({ width: PHONE, height: 844 });
-      await sl(900);
-      await shot(page, '00-login-phone.png', 'The same screen on a phone');
       await ctx.close();
     }
 
@@ -159,7 +191,8 @@ async function shot(page, file, caption, { hash, wait = 2600, action, focus, mob
     }
     {
       const { ctx, page } = await session(browser, 'owner', { width: PHONE });
-      await shot(page, '18-owner-dashboard-phone.png', 'The Owner dashboard on a phone', { hash: '#/dashboard', wait: 3600 });
+      // The Owner dashboard already has a phone companion next to its desktop
+      // plate. Keep this phone-only capture for the distinct menu interaction.
       await shot(page, '19-owner-menu-phone.png', 'The menu on a phone', { hash: '#/dashboard', wait: 2400,
         action: async (pg) => { await pg.evaluate(() => { const b = document.getElementById('nav-toggle'); if (b) b.click(); }); await sl(800); } });
       await ctx.close();
@@ -255,12 +288,8 @@ async function shot(page, file, caption, { hash, wait = 2600, action, focus, mob
       await shot(page, '45-cashier-attendance.png', 'Clocking in and out', { hash: '#/attendance', wait: 3000 });
       await ctx.close();
     }
-    {
-      const { ctx, page } = await session(browser, 'a.cash1', { width: PHONE });
-      await shot(page, '46-cashier-pos-phone.png', 'Selling from a phone behind the counter', { hash: '#/pos', wait: 3200 });
-      await shot(page, '47-cashier-till-phone.png', 'The till on a phone', { hash: '#/till', wait: 3000 });
-      await ctx.close();
-    }
+    // POS and Till already carry phone companions next to their desktop plates;
+    // do not repeat those same screens as standalone phone pages.
 
     // ================= 50 — CHANGE OWED, END TO END ======================
     console.log('\n[50] CHANGE OWED (the N400/N500 case)');

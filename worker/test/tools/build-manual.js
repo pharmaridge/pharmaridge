@@ -65,6 +65,7 @@ const img = (file, { quiet = false } = {}) => {
 // the explanation page's body; when a call site does not supply one the title
 // is restated as the explanation, so no plate is ever left with a blank page.
 let plateNo = 0;
+const usedFigureFiles = new Set();
 
 // ONE PAGE PER SCREEN — image AND explanation together.
 //
@@ -85,8 +86,16 @@ let plateNo = 0;
 // optional third block (a table, a note, a list) that belongs with the screen
 // and would otherwise have to be exiled to a page of its own.
 const fig = (file, caption, detail, extra) => {
+  // A client guide must not show the same screen under several titles. This
+  // guard turns an accidental duplicate call site into a visible build-time
+  // omission rather than silently producing a second, misleading plate.
+  if (usedFigureFiles.has(file)) {
+    console.log(`  DUPLICATE SCREENSHOT OMITTED ${file}`);
+    return '';
+  }
   const src = img(file);
   if (!src) return '';
+  usedFigureFiles.add(file);
   plateNo += 1;
   const body = detail || caption;
   // CLIENT INSTRUCTION: every full screenshot is shown WITH its mobile view
@@ -318,7 +327,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
   <p class="lead">Most pharmacy software is a cash register with reports bolted on. PharmaRidge is
   built around the things that actually cost a Nigerian pharmacy money.</p>
 
-  <h3>The five leaks</h3>
+  <h3>The six leaks</h3>
   <table>
     <thead><tr><th style="width:30%">The leak</th><th>What PharmaRidge does about it</th></tr></thead>
     <tbody>
@@ -425,6 +434,52 @@ phone, possibly with no data connection.</p>
   allowed to open — you will not find a screen that refuses you when you tap it.</p>
 </section>
 
+<!-- ============ SIDE NAVIGATION OPERATING MAP ============ -->
+<section class="page">
+  <span class="role-chip">Direct operating map</span>
+  <h2>Your side navigation — what to do in each module</h2>
+  <p class="lead">The menu is grouped by work, not by technical database names. Use this as the short, practical route map for the modules you will see; your role hides any module you are not allowed to use.</p>
+  <table>
+    <thead><tr><th style="width:23%">Module</th><th style="width:48%">Direct steps</th><th>Who uses it</th></tr></thead>
+    <tbody>
+      <tr><td><b>Point of Sale</b></td><td>Search → add the right unit → take payment → complete → hand over or print the receipt.</td><td>Staff and above</td></tr>
+      <tr><td><b>Dashboard</b></td><td>Check sales, stock value, expiry, debt, cash exceptions and licence alerts; use the branch selector only where your role allows it.</td><td>All, with role-scoped figures</td></tr>
+      <tr><td><b>Sales History</b></td><td>Find the receipt → inspect payment, server and items → reprint; request a permitted void only when the reason is genuine.</td><td>Staff and above</td></tr>
+      <tr><td><b>Till / Cash</b></td><td>Open with the real float → record cash activity during the shift → count physical notes → compare expected versus counted → close.</td><td>Staff and above</td></tr>
+      <tr><td><b>Staff Attendance</b></td><td>Clock in/out; managers review flags or force-close an exceptional shift with a reason.</td><td>Staff; managers review</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th style="width:23%">Stock module</th><th style="width:48%">Direct steps</th><th>Who uses it</th></tr></thead>
+    <tbody>
+      <tr><td><b>Stock &amp; Expiry</b></td><td>Check quantity, batch, expiry and reorder alerts → investigate exceptions before ordering or adjusting.</td><td>All, role-scoped</td></tr>
+      <tr><td><b>Stocktake</b></td><td>Start count → count each batch physically → review variances → close only after explaining exceptions.</td><td>Staff count; managers close</td></tr>
+      <tr><td><b>Products</b></td><td>Search the NAFDAC-backed catalogue → add/maintain a product → set units and reorder level before receiving stock.</td><td>Managers and Owner</td></tr>
+      <tr><td><b>Purchase Orders</b></td><td>Choose supplier → add expected lines → save order → receive actual quantities, batch, expiry and cost when goods arrive.</td><td>Staff can assist; managers control</td></tr>
+      <tr><td><b>Branch Transfers</b></td><td>Choose source batch and destination → send → destination verifies received quantity or records a shortfall.</td><td>Role/branch scoped</td></tr>
+      <tr><td><b>Controlled Drug Register</b></td><td>Complete required prescriber/buyer details at sale → review the traceable register → never bypass a required field.</td><td>Staff enter; managers review</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="page">
+  <h2>Money, people, controls and support modules</h2>
+  <table>
+    <thead><tr><th style="width:23%">Module</th><th style="width:48%">Direct steps</th><th>Who uses it</th></tr></thead>
+    <tbody>
+      <tr><td><b>Customers / Debtors</b></td><td>Create/confirm customer → set authorised credit limit → record repayment → review aging before extending more credit.</td><td>Staff record; managers/Owner govern</td></tr>
+      <tr><td><b>Suppliers / Creditors</b></td><td>Maintain supplier → receive on cash or credit → review what is owed → pay by the real source of funds.</td><td>Managers and Owner</td></tr>
+      <tr><td><b>Expenses</b></td><td>Record category, description, amount and real payment source → obtain approval where required → check it reaches the correct cash pot.</td><td>Staff record; managers/Owner review</td></tr>
+      <tr><td><b>Accounting</b></td><td>Read Trial Balance → Profit &amp; Loss → Balance Sheet → WHT register; print or export the exact filtered view for review.</td><td>Managers and Owner</td></tr>
+      <tr><td><b>Users &amp; Branches</b></td><td>Create one account per person → assign correct role/branch → reset a forgotten PIN → transfer/promote through the recorded workflow.</td><td>Managers and Owner</td></tr>
+      <tr><td><b>Sync Status</b></td><td>Read pending/failed device work → resolve a rejected item → do not clear or reset business data while a reported queue is outstanding.</td><td>All see own work; managers oversee</td></tr>
+      <tr><td><b>My Plan</b></td><td>Review capacity and feature use → Owner sets tax/permissions and, only after export/preview, data-management retention actions.</td><td>Owner; limited manager view</td></tr>
+      <tr><td><b>Admin Portal</b></td><td>Vendor support configures the client deployment, limits and branding; it is not a pharmacy till, cash or staff account.</td><td>PharmaRidge support only</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>One simple discipline:</b> if a module changes cash, stock, tax, credit or access, record the real-world event at the moment it happens. The reports then agree without a second book, a WhatsApp explanation or a night of reconstruction.</div>
+</section>
+
 <!-- ============ 3. OWNER ============ -->
 <section class="page">
   <span class="role-chip">Chapter for the OWNER</span>
@@ -499,7 +554,7 @@ reclaim.</p>`)}
   <b>Transfer &amp; Promote</b> rather than creating a second account — one person keeps one account,
   and their history stays attached to the branch where it happened.</p>
   ${fig('13-owner-users.png', 'Users &amp; Branches: everyone who can sign in, their role, their branch and their status', `<p>Everyone who can sign in, what they are allowed to do, and which branch they belong to.</p>
-<p>The red banner at the top lists any account still using the demonstration PIN. It will not go away until
+<p>The red banner at the top highlights any account still using a provisional PIN. It will not go away until
 every one has been changed, because an account on a default PIN is an account anybody can use.</p>
 <p><b>Roles in one line:</b> an <b>Owner</b> sees everything and controls tax and permissions. A <b>General
 Manager</b> runs every branch. A <b>Branch Manager</b> runs exactly one. <b>Staff</b> serve customers at one
@@ -1538,7 +1593,7 @@ product name typed as <code>=cmd</code> cannot execute on the machine that opens
 <section class="page">
   <h2>Getting started</h2>
   <ol>
-    <li><b>Change every PIN.</b> The Users screen lists any account still on the demonstration PIN.</li>
+    <li><b>Change every PIN.</b> The Users screen highlights any account still using a provisional PIN.</li>
     <li><b>Enter your branches</b> with their PCN or PPMV licence numbers and expiry dates.</li>
     <li><b>Add your people</b>, each with the right role. One person, one account.</li>
     <li><b>Put your opening stock in</b> through a purchase order, so every batch has a cost, a price
