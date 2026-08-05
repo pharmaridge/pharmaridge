@@ -14,9 +14,9 @@ Offline-first PWA frontend + Cloudflare Workers & D1 edge backend.
 | **Current verification** | 1,026 fresh-D1 full-domain checks; 2,086 frontend/browser checks; 45 icon/PWA checks; 20 three-month simulation checks; structural and migration checks — all passing locally |
 | **UI** | Light **and dark** theme, zero external dependencies — no framework, icon font or webfont |
 | **Audit** | Current evidence: [`docs/FULL-AUDIT-REPORT.md`](docs/FULL-AUDIT-REPORT.md); runner guide: [`worker/test/README.md`](worker/test/README.md) |
-| **Onboarding guide** | 64-page role-based PDF: [`docs/PharmaRidge-Onboarding-Guide.pdf`](docs/PharmaRidge-Onboarding-Guide.pdf) |
+| **Onboarding guide** | 68-page role-based PDF: [`docs/PharmaRidge-Onboarding-Guide.pdf`](docs/PharmaRidge-Onboarding-Guide.pdf) |
 | **Deployment status** | [`docs/DEPLOYMENT-STATUS.md`](docs/DEPLOYMENT-STATUS.md) |
-| **Deploying?** | Windows walkthrough: [`DEPLOY-FROM-WINDOWS.md`](DEPLOY-FROM-WINDOWS.md) |
+| **Deploying?** | New private GitHub repo + Cloudflare Worker Assets walkthrough: [`DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md`](DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md) · legacy Windows notes: [`DEPLOY-FROM-WINDOWS.md`](DEPLOY-FROM-WINDOWS.md) |
 | **Node** | **22+ required** (Wrangler 4 refuses Node 20) |
 
 ---
