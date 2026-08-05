@@ -383,6 +383,14 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
     <li><b>Evidence you can take to a partner or accountant:</b> printable reports, CSV exports, Trial Balance, Profit &amp; Loss, Balance Sheet, audit trails and the full NAFDAC-derived product set.</li>
     <li><b>A system you have tested yourself:</b> use the live sample to create an Owner, set up a branch and take stock before deciding. Do not place real client data in the shared sample.</li>
   </ul>
+  <h3>A practical acceptance sequence before payment</h3>
+  <ol>
+    <li><b>Owner:</b> create a test branch, set your VAT/WHT and permission choices, receive a product, and read the dashboard and books.</li>
+    <li><b>Managers:</b> test a delivery, safe/till movement, supplier payment, stock transfer, attendance review and staff reassignment.</li>
+    <li><b>Counter staff:</b> complete a cash sale, credit sale, receipt, change-owed claim, till close and phone POS flow.</li>
+    <li><b>Your actual equipment:</b> check the PWA, printer and network behaviour on the device you will use at the counter.</li>
+    <li><b>Your agreement:</b> confirm deployment scope, data ownership/export, onboarding, support contacts and commercial terms in writing before payment.</li>
+  </ol>
   <div class="warn">
     <b>Make the decision transparently.</b> Before paying upfront, confirm that the demonstrated roles, stock workflow, printer/PWA behaviour and support arrangements fit your own pharmacy. A real client deployment must use its own database, secure credentials, custom branding and reviewed regulatory settings — never this shared sample.
   </div>
@@ -399,24 +407,17 @@ proprietor to the newest cashier: a <b>username</b> and a <b>PIN</b>.</p>
 <p>There is no email address, no password-reset link and nothing to remember beyond four digits. That is
 deliberate — the person signing in is often standing at a counter with a queue in front of them, on a
 phone, possibly with no data connection.</p>
-<p>The demonstration accounts are listed underneath the form. <b>Change every one of those PINs before
-the pharmacy opens for real trade</b>; PharmaRidge will keep warning you on the Users screen until you do.</p>`)}
-  ${fig('00-login-phone.png', 'The same screen on a phone — nothing is hidden or shrunk away', `<p>The same screen on a phone. Nothing has been removed or hidden behind a menu — the
-form is simply narrower.</p>
-<p>Every screen in PharmaRidge works down to a 320-pixel-wide phone, which is the narrowest device still
-in daily use in Nigerian shops. If a control exists on the laptop, it exists here too.</p>`)}
+<p>Credentials are issued per person and are deliberately <b>not printed in this guide</b>. Before live trade, the Owner should issue every person a unique PIN and confirm the correct role and branch on the Users screen.</p>`)}
   <div class="note">
-    <b>Shared live-sample access.</b> Open <code>https://sample.pharmaridge.workers.dev</code>
-    and start with <code>admin</code> / <code>1234</code>. The sample begins empty except for that
-    Admin account and the full NAFDAC product catalog. Use Admin to create an Owner; the new Owner
-    then creates branches, staff, suppliers and receives stock — the same first-run workflow a real
-    client follows. This is a public demonstration environment: do not enter real patient, customer,
-    staff, or financial data; it may be reset after a demo.
+    <b>Shared live-sample access.</b> Demonstration access is issued separately by PharmaRidge; access
+    details are deliberately not printed in this guide. The sample is resettable and
+    exists only to demonstrate the Admin → Owner → branch → staff → receiving-stock sequence. Never
+    enter real patient, customer, staff, supplier, or financial data into a shared sample.
   </div>
   <div class="warn">
-    <b>Change the PINs before you open.</b> A new installation ships with demonstration accounts on
-    PIN <code>1234</code>. PharmaRidge shows a red warning on the Users screen listing every account
-    still using it. Use <b>Edit → Reset PIN</b> on each person before the pharmacy goes live.
+    <b>Before you open for live trade.</b> The Owner should issue a unique PIN to every real person,
+    verify their role and branch assignment, and remove or deactivate any provisional demonstration
+    account. Use <b>Users → Edit → Reset PIN</b>; never share one credential across a counter team.
   </div>
   <h3>What happens after you sign in</h3>
   <p>PharmaRidge shows you the screen that matches your job. A cashier lands on the Point of Sale. A
@@ -558,10 +559,6 @@ that is a wasted roll per sale before anybody notices.</p>`)}
 <section class="page">
   <h3>The pharmacy in your pocket</h3>
   <p>Everything above works on a phone. Nothing is removed; wide tables scroll sideways with a swipe.</p>
-  ${fig('18-owner-dashboard-phone.png', 'The Owner dashboard on a phone', `<p>The full owner dashboard on a phone — every figure, nothing removed.</p>
-<p>Wide tables scroll sideways with a swipe rather than being cut down, so you are never shown a partial
-number. In practice this is how most proprietors will check on the business: from the phone in their pocket,
-not from a desk.</p>`)}
   ${fig('19-owner-menu-phone.png', 'The menu slides in over the page', `<p>On a phone the menu slides in over the page when you tap the button at the top left, and slides
 away again as soon as you choose something or tap outside it.</p>
 <p>It lists only the screens your role can actually open, so you will never tap something that then
@@ -903,27 +900,7 @@ pay to a bad signal.</p>`)}
   <h3>Working from a phone</h3>
   <p>The full Point of Sale runs on a phone. If the network drops, keep selling — sales are stored on
   the device and sent automatically when the signal returns.</p>
-  ${fig('46-cashier-pos-phone.png', 'Selling from a phone', `<p>The full Point of Sale on a phone. Every function is here: search, cart, unit selection,
-discount, split payment and change owed &mdash; nothing is withheld from the small screen.</p>
-<p>This matters for a shop with one counter and two people serving, or a cashier covering the front
-while the laptop is in the office. It is also the answer for a branch that cannot justify a
-computer: the phone in the assistant's pocket is the terminal.</p>
-<p>The cart is laid out for thumbs: large tap targets, quantity steppers rather than a keyboard, and
-the total pinned where it stays visible while you scroll the basket. Prescription and controlled
-medicines interrupt in exactly the same way they do on a laptop, so nothing about the licence
-protection is weakened by working on a phone.</p>
-<p>It works down to a 320-pixel screen &mdash; the narrowest phone still in everyday use in Nigeria
-&mdash; and every screen in this guide has been tested at that width.</p>`)}
-  ${fig('47-cashier-till-phone.png', 'The till on a phone', `<p>Opening and closing the drawer from a phone works exactly as it does on a laptop,
-including the expected-cash figure shown before you commit your count.</p>
-<p>This is what makes PharmaRidge usable in a shop that has no computer at the counter at all. A
-N25,000 Android phone is enough to run a whole branch: open the till in the morning, sell all
-day, record what you spend, and close the drawer at night.</p>
-<p>One till is open per branch at a time, not per person. If two of you serve from the same drawer
-you share the same session, and whoever closes it counts the whole drawer &mdash; which is correct,
-because there is only one drawer to count.</p>
-<p>If your phone loses signal mid-shift the sales keep working and queue on the device; the till
-figures catch up when the connection returns. You do not have to stop serving.</p>`)}
+  <div class="note"><b>The phone views beside the POS and till plates above are the actual same screens at mobile width.</b> They are shown once, next to their laptop counterparts, so a buyer can compare the working layout without paging through repeated screenshots. A phone can run the counter when the laptop is elsewhere; the authority, stock controls and receipt trail remain the same.</div>
 </section>
 
 <!-- ============ 8. SAFE ============ -->
