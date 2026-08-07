@@ -429,7 +429,150 @@ Start-Process $AppUrl
 
 ---
 
-## 11. Switch between clients safely
+## 11. Back up a client D1 database from Windows Terminal
+
+> A D1 export can contain customer names, phones, debts, supplier terms, attendance, prescriptions, controlled-drug records and financial history. Keep backups outside the repository and never attach them to a Git commit, ticket or public cloud folder.
+
+Create a client-specific backup folder outside the source tree:
+
+```powershell
+$Client = "AcmePharmacy"
+$BackupStamp = Get-Date -Format "yyyy-MM-dd_HHmmss"
+$BackupRoot = "C:\PharmaRidgeBackups\$Client\$BackupStamp"
+New-Item -ItemType Directory -Force $BackupRoot
+```
+
+Create three exports while the correct client Cloudflare account/token is loaded:
+
+```powershell
+# Complete rebuild export: schema plus data. Use this to rebuild into a new D1 database.
+npx wrangler d1 export $DatabaseName --remote --output "$BackupRoot\full-schema-and-data.sql"
+
+# Schema-only evidence.
+npx wrangler d1 export $DatabaseName --remote --no-data --output "$BackupRoot\schema-only.sql"
+
+# Data-only export for inspection/migration work.
+npx wrangler d1 export $DatabaseName --remote --no-schema --output "$BackupRoot\data-only.sql"
+
+Get-FileHash "$BackupRoot\*.sql" -Algorithm SHA256
+```
+
+Record the generated hashes in the secure client deployment register. Do not rename the backup to a file name that makes it look safe to commit; keep it outside `C:\PharmaRidgeClients`.
+
+Before any reset or migration, also check Cloudflare's D1 backup/Time Travel options in the intended client account. A platform restore is often the fastest way to recover the same database; terminal exports provide a portable independent copy.
+
+---
+
+## 12. Format/reset a client database from the terminal while preserving Admin account(s)
+
+**Do not use the public-sample reset script for a client.** It is designed for the shared demonstration environment. For a real client, first decide whether retention law, tax, controlled-drug, prescription, payroll or contractual records must be retained. Back up first.
+
+The normal in-app route is Owner Data Management. Use this terminal route only when you deliberately need an Admin-preserving full reset and you have a reviewed backup.
+
+From the correct client `worker` folder, confirm the target before generating anything:
+
+```powershell
+Get-Location
+npx wrangler whoami
+Select-String -Path .\wrangler.jsonc -Pattern '"name"|"database_name"|"database_id"'
+npx wrangler d1 execute $DatabaseName --remote --command "SELECT username, full_name, role, is_active FROM users WHERE role = 'ADMIN' AND is_deleted = 0;"
+```
+
+Stop if the final query does not show the Admin account(s) you intend to preserve.
+
+Generate the destructive SQL file only after a backup exists:
+
+```powershell
+$env:PHARMARIDGE_CONFIRM_RESET = "RESET_CLIENT_DATA"
+npm run db:generate:preserve-admin-reset
+Get-Content .\client-admin-reset.sql
+```
+
+Execute it once against the intended database:
+
+```powershell
+npx wrangler d1 execute $DatabaseName --remote --file .\client-admin-reset.sql
+
+npx wrangler d1 execute $DatabaseName --remote --command "SELECT username, role, is_active FROM users WHERE role = 'ADMIN' AND is_deleted = 0;"
+npx wrangler d1 execute $DatabaseName --remote --command "SELECT (SELECT COUNT(*) FROM branches) AS branches, (SELECT COUNT(*) FROM sales) AS sales, (SELECT COUNT(*) FROM stock_batches) AS stock_batches, (SELECT COUNT(*) FROM users WHERE role != 'ADMIN') AS non_admin_users;"
+
+Remove-Item Env:\PHARMARIDGE_CONFIRM_RESET -ErrorAction SilentlyContinue
+Remove-Item .\client-admin-reset.sql -ErrorAction SilentlyContinue
+```
+
+This reset removes client Owners, Managers, Staff, branches, products, stock, sales, financial/operational data, sessions, sync/audit activity and data-management logs. It preserves:
+
+```text
+Active ADMIN account(s)
+Cloudflare D1 database identity and migrations
+client_settings / plan configuration
+system chart of accounts and WHT rates
+NAFDAC reference catalog
+```
+
+After reset, sign in as the preserved Admin and create a new client Owner through **Users & Branches**. Do not create a new Owner by editing the database unless you are executing the documented bootstrap process for a genuinely empty deployment.
+
+---
+
+## 13. Re-inject a backup safely
+
+Never import a backup into the active production database as a first test. Restore into a **new replacement D1 database**, verify it, then deliberately point the Worker at that replacement database.
+
+```powershell
+$RestoreDb = "acme-pharmacy-restore"
+npx wrangler d1 create $RestoreDb
+$RestoreDbId = Read-Host "Paste the new restore D1 database_id"
+
+# Import the complete schema-and-data export into the empty replacement D1.
+npx wrangler d1 execute $RestoreDb --remote --file "$BackupRoot\full-schema-and-data.sql"
+
+# Verify meaningful facts before changing a Worker binding.
+npx wrangler d1 execute $RestoreDb --remote --command "SELECT COUNT(*) AS catalog_rows FROM nafdac_catalog;"
+npx wrangler d1 execute $RestoreDb --remote --command "SELECT COUNT(*) AS users FROM users;"
+```
+
+Only after the replacement database is verified:
+
+1. Copy the client folder to a temporary restore branch/folder.
+2. Change only that copy's `worker\wrangler.jsonc` `database_id` to `$RestoreDbId` and `database_name` to `$RestoreDb`.
+3. Commit the recovery change in the client repository with a clear message.
+4. Run `npm run deploy` from that reviewed restore copy.
+5. Smoke-test login, `/api/health`, branches, sales and a report before declaring recovery complete.
+
+If the full import reports a platform/internal-table conflict, stop and use the Cloudflare D1 backup/Time Travel restore path or import into a disposable test D1 first. Do not delete production tables until the restore process is proven.
+
+---
+
+## 14. Upgrade for more Cloudflare database space
+
+There are two separate capacity systems:
+
+| Capacity | Who changes it | Where |
+|---|---|---|
+| PharmaRidge branches, staff and features | PharmaRidge Admin/support | Admin Portal / client plan configuration |
+| Cloudflare D1 storage and Workers billing tier | Client Cloudflare account owner/billing administrator | Cloudflare dashboard billing plan |
+
+The terminal cannot accept a Cloudflare billing payment or upgrade a billing subscription. Use the dashboard while signed in to the **correct client Cloudflare account**:
+
+1. Open Cloudflare Dashboard → **Billing** → **Subscriptions**.
+2. Select the intended client account, not another client account.
+3. Review the current Workers plan and D1 limits/pricing shown by Cloudflare.
+4. Add/confirm the client payment method and upgrade Workers/D1 capacity as appropriate.
+5. Wait for Cloudflare to confirm the plan change.
+
+Then return to the intended client terminal and verify context and application health:
+
+```powershell
+npx wrangler whoami
+Invoke-RestMethod "$WorkerUrl/api/health"
+npx wrangler d1 execute $DatabaseName --remote --command "SELECT COUNT(*) AS catalog_rows FROM nafdac_catalog;"
+```
+
+Inside PharmaRidge, the Owner and General Manager see the active-data storage estimate and warning state. Treat a warning as an early planning signal: export/retain required records, verify backups, and upgrade capacity before writes are affected. Do not delete financial or regulatory evidence merely to avoid a plan discussion.
+
+---
+
+## 15. Switch between clients safely
 
 Before every client switch:
 
@@ -465,7 +608,7 @@ If any line belongs to another client, stop. Do not deploy.
 
 ---
 
-## 12. Never share these between clients
+## 16. Never share these between clients
 
 ```text
 GitHub SSH aliases/keys: separate by GitHub account
@@ -482,7 +625,7 @@ Backups/exports: stay outside Git and never cross clients
 
 ---
 
-## 13. Recovery checks
+## 17. Recovery checks
 
 ```powershell
 # Git remote for this folder
