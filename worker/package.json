@@ -31,6 +31,7 @@
     "test:restored:syntax": "node test/verify-restored-suite.js",
     "test:live:core": "bash test/run-core-live.sh",
     "docs:manual": "node test/tools/build-manual.js",
+    "docs:multi-client-deploy": "node tools/build-multi-client-deployment-pdf.js",
     "test:scenarios": "node test/tools/seed-scenarios.js",
     "screenshots:manual": "node test/tools/shots-manual.js",
     "screenshots:artefacts": "node test/tools/shots-artefacts.js",

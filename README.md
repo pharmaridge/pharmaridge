@@ -16,7 +16,7 @@ Offline-first PWA frontend + Cloudflare Workers & D1 edge backend.
 | **Audit** | Current evidence: [`docs/FULL-AUDIT-REPORT.md`](docs/FULL-AUDIT-REPORT.md); runner guide: [`worker/test/README.md`](worker/test/README.md) |
 | **Onboarding guide** | 68-page role-based PDF: [`docs/PharmaRidge-Onboarding-Guide.pdf`](docs/PharmaRidge-Onboarding-Guide.pdf) |
 | **Deployment status** | [`docs/DEPLOYMENT-STATUS.md`](docs/DEPLOYMENT-STATUS.md) |
-| **Deploying?** | New private GitHub repo + Cloudflare Worker Assets walkthrough: [`DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md`](DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md) · legacy Windows notes: [`DEPLOY-FROM-WINDOWS.md`](DEPLOY-FROM-WINDOWS.md) |
+| **Deploying?** | New private GitHub repo + Cloudflare Worker Assets walkthrough: [`DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md`](DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md) · multi-client SSH/Cloudflare PDF: [`docs/PharmaRidge-Multi-Client-Windows-Deployment.pdf`](docs/PharmaRidge-Multi-Client-Windows-Deployment.pdf) · legacy Windows notes: [`DEPLOY-FROM-WINDOWS.md`](DEPLOY-FROM-WINDOWS.md) |
 | **Node** | **22+ required** (Wrangler 4 refuses Node 20) |
 
 ---
