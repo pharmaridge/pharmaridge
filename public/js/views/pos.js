@@ -447,6 +447,18 @@ function promptControlledKyc(product) {
 }
 
 async function checkout(branchId, till, rerenderCart) {
+  // `checkout()` lives outside renderPos() so it can be reused by the button
+  // handler, but that also means it cannot see renderPos's local `session`.
+  // The sale was correctly committed by the API, then the old code threw
+  // "session is not defined" while clearing the saved cart — a cashier saw an
+  // error even though the dashboard later showed the sale. Read the live
+  // session at the action boundary instead, then clear only this cashier's
+  // cart after a definitive sale/queue outcome.
+  const session = State.getSession();
+  if (!session || !session.user) {
+    UI.toast('Your session has ended. Please sign in again before completing this sale.', 'error');
+    return;
+  }
   if (posCart.length === 0) { UI.toast('Cart is empty', 'error'); return; }
   const discount = Number(document.getElementById('pos-discount').value || 0);
   const total = Math.max(0, posCart.reduce((s, l) => s + l.unitPrice * l.quantity, 0) - discount);

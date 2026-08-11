@@ -8,11 +8,11 @@
 | Audit surface | Passing checks |
 |---|---:|
 | Fresh-D1 full domain audit (including Data Management and promotion authority) | 1,055 |
-| Scenario-driven frontend control, dropdown and geometry audit (including Data Management, password reveals and promotion dropdowns) | 1,986 |
+| Scenario-driven frontend control, dropdown and geometry audit (including Data Management, password reveals, promotion dropdowns and POS checkout lifecycle) | 1,992 |
 | PWA/browser theme, contrast, print, responsive and splash audit | 137 |
 | PWA icon and transparent canonical-launcher audit | 42 |
 | Three-month operating simulation audit | 20 |
-| **Total executed checks** | **3,240** |
+| **Total executed checks** | **3,246** |
 
 ## Two-way audit method
 
@@ -28,7 +28,7 @@ The latest re-run adds a role-and-device boundary sweep:
 - Branch Manager is limited to Staff/Branch Manager choices inside their own branch and is refused an organisation-wide promotion.
 - Owner may appoint an Owner; Staff cannot alter another person; no role can create or assign the vendor Admin seat through the transfer workflow.
 - Login, Add User and Reset PIN all begin masked, expose the same deliberate view/hide control, and keep a 44px phone target with a separated input/action gap.
-- Browser probes verify role dropdowns, real API authority, password reveal behaviour, mobile card/action spacing, no overflow and no clipped text.
+- Browser probes verify role dropdowns, real API authority, password reveal behaviour, mobile card/action spacing, no overflow, no clipped text, and POS completion through receipt/cart-clear/server-record correlation.
 
 ## Owner Data Management coverage
 
