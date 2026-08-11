@@ -270,8 +270,15 @@ const css = `
                  object-fit: contain; margin-right: 4mm; }
 
   .cover .sub { font-size: 13pt; color: #3c554b; margin-top: 8pt; }
-  .cover .meta { margin-top: 40mm; font-size: 9.5pt; color: #6b7d75; }
+  .cover .promise { margin: 16pt auto 0; max-width: 126mm; padding: 10pt 13pt; text-align: left;
+                    background: #edf7f1; border-left: 4pt solid #1a7a52; border-radius: 4pt;
+                    color: #244638; font-size: 10.5pt; line-height: 1.55; }
+  .cover .meta { margin-top: 28mm; font-size: 9.5pt; color: #6b7d75; }
   .lead { font-size: 11.5pt; color: #3c554b; margin-bottom: 14pt; }
+  .path-card { background: #f7fbf8; border: 1pt solid #cfe2d7; border-radius: 5pt; padding: 10pt 12pt; margin: 10pt 0; page-break-inside: avoid; }
+  .path-card h3 { margin-top: 0; }
+  .path-card ol { margin-bottom: 0; }
+  .path-card li { margin-bottom: 5pt; }
   .kpi { display: flex; gap: 8pt; margin: 10pt 0; }
   .kpi div { flex: 1; border: 1pt solid #cfdad4; border-radius: 3pt; padding: 7pt 9pt; }
   .kpi .k { font-size: 8pt; color: #5b6b64; text-transform: uppercase; letter-spacing: .4pt; }
@@ -301,8 +308,10 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
   <h1>PharmaRidge</h1>
   <div class="sub">Pharmacy &amp; PPMV Management — Onboarding Guide</div>
   <div class="sub" style="font-size:11pt;margin-top:22pt;">
-    For proprietors, general managers, branch managers and counter staff
+    For single-branch and multi-branch pharmacies, PPMVs, proprietors, managers and counter staff
   </div>
+  <div class="promise"><strong>Start with one owner and one cashier. Grow to many branches without changing the way you work.</strong><br/>
+    PharmaRidge joins stock, cash, receipts, people, tax and reporting into one operating record — so a small shop can begin simply and a growing pharmacy can keep control as it expands.</div>
   <div class="meta">
     Every screen in this guide is a photograph of the working system,<br/>
     not a drawing. Figures shown are from a demonstration pharmacy.
@@ -315,6 +324,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
   <ol class="toc">
     <li><b>Why PharmaRidge exists</b> — the problems it removes from your day</li>
     <li><b>Getting in</b> — signing in, and what you see first</li>
+    <li><b>Start at your size</b> — Owner-led single shop or multi-branch estate</li>
     <li><b>Chapter for the Owner</b> — the proprietor's view and powers</li>
     <li><b>Chapter for the Co-Owner</b> — a second proprietor, and what changes</li>
     <li><b>Chapter for the General Manager</b> — running every shop</li>
@@ -426,6 +436,19 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
     <li><b>Owner → Accounting / GL:</b> open Trial Balance, Profit &amp; Loss, Balance Sheet and WHT register. Print/PDF or CSV export the filtered report you are reviewing.</li>
   </ol>
   <div class="note"><b>This is the full circle:</b> people and permissions → supplier and stock → till and sale → receipt → cash accountability → attendance → management report. Nothing needs to be copied into a second book for the reports to agree.</div>
+  <div class="path-card">
+    <h3>Owner-led single-shop flow — one Owner and one cashier</h3>
+    <p>This is the same system in a simpler operating shape. The Owner is also the manager: they buy stock, set prices, approve exceptions and read the reports. The cashier serves at the counter.</p>
+    <ol>
+      <li><b>Owner → Users &amp; Branches:</b> create the one cashier account and assign it to the shop. Give that person a unique PIN; keep the Owner account for management work.</li>
+      <li><b>Owner → Products, Suppliers and Purchase Orders:</b> add/select products, add the wholesaler, make an order and receive the real batch, expiry, cost and selling price.</li>
+      <li><b>Owner → My Plan:</b> set VAT/WHT and decide the cashier’s small void, stock-adjustment and safe-spending allowances before trade begins.</li>
+      <li><b>Cashier → Till / Cash and Point of Sale:</b> open the real float, sell from received stock, take payment and give the receipt. Record Change Owed when a note is unavailable.</li>
+      <li><b>Owner → Sales History, Till / Cash and Expenses:</b> review the day, approve any genuine purchase, count the drawer and resolve real differences while the shift is fresh.</li>
+      <li><b>Owner → Attendance and Accounting / GL:</b> confirm the cashier’s hours, then read the Profit &amp; Loss, Trial Balance and WHT position. The sale and expense entries have already posted themselves.</li>
+    </ol>
+    <p><strong>When the second shop opens, nothing is rebuilt.</strong> Add the branch, move or add staff, receive stock there and use the branch selector. The same receipt, cash and report discipline simply becomes branch-aware.</p>
+  </div>
   <div class="warn">
     <b>Make the decision transparently.</b> Before paying upfront, confirm that the demonstrated roles, stock workflow, printer/PWA behaviour and support arrangements fit your own pharmacy. A real client deployment must use its own database, secure credentials, custom branding and reviewed regulatory settings — never this shared sample.
   </div>
