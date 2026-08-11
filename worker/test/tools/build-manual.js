@@ -279,6 +279,14 @@ const css = `
   .path-card h3 { margin-top: 0; }
   .path-card ol { margin-bottom: 0; }
   .path-card li { margin-bottom: 5pt; }
+  .screen-anatomy { display:grid; grid-template-columns: 1fr 2fr; gap:7pt; margin:10pt 0 12pt; page-break-inside:avoid; }
+  .screen-anatomy .block { border:1pt solid #cfe2d7; border-radius:4pt; padding:8pt; background:#f7fbf8; }
+  .screen-anatomy .identity { background:#e9f6ee; border-color:#7cc4a3; }
+  .screen-anatomy .nav { background:#edf4ef; }
+  .screen-anatomy .input { background:#fffaf0; border-color:#f0c469; }
+  .screen-anatomy .action { background:#eaf7f0; border-color:#1a7a52; }
+  .screen-anatomy .wide { grid-column:span 2; }
+  .screen-anatomy strong { color:#0a3b2c; }
   .kpi { display: flex; gap: 8pt; margin: 10pt 0; }
   .kpi div { flex: 1; border: 1pt solid #cfdad4; border-radius: 3pt; padding: 7pt 9pt; }
   .kpi .k { font-size: 8pt; color: #5b6b64; text-transform: uppercase; letter-spacing: .4pt; }
@@ -396,7 +404,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
   <h2>Before you commit: what has been proven</h2>
   <p class="lead">A proprietor should pay for a system because it is useful and evidenced, not because a sales page makes a promise. This sample is deliberately set up so you can test the important flows yourself.</p>
   <div class="note">
-    <b>Live audit evidence.</b> The current release completed a fresh-data, end-to-end audit across sales, VAT/WHT, debtors, suppliers, change owed, till and safe movements, stock receiving, transfers, user promotion/demotion, one-device sessions, role boundaries, forms, dropdowns, responsive layouts and PWA behaviour. A separate 90-day operating simulation verified dated sales, VAT/WHT, creditor/debtor, attendance, stock and transfer history. The final passing run exercised <b>3,246 checks</b> across API, database, browser and PWA surfaces.
+    <b>Live audit evidence.</b> The current release completed a fresh-data, end-to-end audit across sales, VAT/WHT, debtors, suppliers, change owed, till and safe movements, stock receiving, transfers, user promotion/demotion, one-device sessions, role boundaries, forms, dropdowns, responsive layouts and PWA behaviour. A separate 90-day operating simulation verified dated sales, VAT/WHT, creditor/debtor, attendance, stock and transfer history. The final passing run exercised <b>3,253 checks</b> across API, database, browser and PWA surfaces.
   </div>
   <h3>What each person can prove in a demonstration</h3>
   <table>
@@ -527,6 +535,29 @@ phone, possibly with no data connection.</p>
     </tbody>
   </table>
   <div class="note"><b>One simple discipline:</b> if a module changes cash, stock, tax, credit or access, record the real-world event at the moment it happens. The reports then agree without a second book, a WhatsApp explanation or a night of reconstruction.</div>
+</section>
+
+<section class="page">
+  <h2>How to read every screen — people, navigation, inputs and actions</h2>
+  <p class="lead">A screen is deliberately divided into four jobs. This makes the app quick to learn: first confirm <em>who</em> is acting, then choose <em>where</em> to work, complete only the fields that describe the real event, and finally choose the one action that records it.</p>
+  <div class="screen-anatomy">
+    <div class="block identity"><strong>1. User and branch strip</strong><br/>Top right identifies the signed-in person and, where authorised, the branch or all-branches view. It answers: <em>whose authority is being used?</em></div>
+    <div class="block nav"><strong>2. Side navigation</strong><br/>The left menu is the place to go: Daily Work, Stock, Money &amp; People, Setup. It is role-aware; a cashier does not see an Owner-only control.</div>
+    <div class="block input wide"><strong>3. Input fields</strong><br/>The label tells you what is being recorded. The placeholder tells you the expected unit, source or example. Enter what happened in the real world — invoice total, batch printed on the pack, physical count, reason, or verified name — not an estimate chosen to make a report look right.</div>
+    <div class="block action wide"><strong>4. Action buttons</strong><br/><b>Save, Receive, Record, Complete Sale, Close Till, Approve</b> are commitments. Read the preview/totals first, then use the action once. Print/PDF and CSV buttons export what is already on screen; they do not change the record.</div>
+  </div>
+  <table>
+    <thead><tr><th style="width:27%">Field family</th><th>What to type</th><th>What PharmaRidge does with it</th></tr></thead>
+    <tbody>
+      <tr><td><b>Quantity (base units)</b></td><td>The smallest sellable units requested or received. Example: 12 packs × 10 tablets = 120 base units.</td><td>Calculates order expectation, stock on hand and FEFO selling availability.</td></tr>
+      <tr><td><b>Expected unit cost</b></td><td>Expected cost of one base unit before delivery. Example: N85.50 per tablet.</td><td>Quantity × unit cost estimates the purchase-order line; it does not set customer price.</td></tr>
+      <tr><td><b>Total paid for a receipt line</b></td><td>The full invoice amount actually paid for that batch line.</td><td>Divides by received base units to calculate cost per piece and post the correct inventory value.</td></tr>
+      <tr><td><b>Selling price per piece</b></td><td>What the customer pays for one base unit. Pack/carton prices are optional separate customer prices.</td><td>Feeds POS pricing; it never changes the supplier invoice cost.</td></tr>
+      <tr><td><b>Reason / note</b></td><td>A short factual explanation: what happened, why, and who verified it where relevant.</td><td>Creates the audit trail for a void, adjustment, transfer, override or cash movement.</td></tr>
+      <tr><td><b>Dates, batch and licence IDs</b></td><td>Copy the date/number exactly from the pack, supplier document or licence.</td><td>Supports expiry alerts, traceability, compliance and report accuracy.</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>Input discipline protects the report.</b> A correct sale cannot repair a wrong batch cost; a correct Profit &amp; Loss cannot repair an unrecorded expense. The field guidance is there so the first record is useful without guessing.</div>
 </section>
 
 <!-- ============ 3. OWNER ============ -->

@@ -40,7 +40,10 @@ const UI = (() => {
     // BUG 114: modals render outside the router, so they need the same
     // label association applied to them or every dialog field is announced
     // as a bare "edit text". Guarded: Router may not have loaded yet.
-    try { if (window.Router && Router.associateFormLabels) Router.associateFormLabels(backdrop); } catch (e) {}
+    try {
+      applyFieldGuidance(backdrop);
+      if (window.Router && Router.associateFormLabels) Router.associateFormLabels(backdrop);
+    } catch (e) {}
     return backdrop;
   }
 
@@ -104,6 +107,104 @@ const UI = (() => {
         button.setAttribute('aria-pressed', showing ? 'false' : 'true');
         button.classList.toggle('is-revealed', !showing);
       });
+    });
+  }
+
+  // INPUT GUIDANCE ----------------------------------------------------------
+  // A label says WHAT a field is. A good placeholder says WHAT THE OPERATOR
+  // SHOULD TYPE, its unit, and (for money) how the number is used. Views are
+  // created dynamically, so applying this after every routed render gives
+  // consistent guidance to ordinary forms, modal forms and repeatable PO/
+  // receiving lines without relying on each author remembering it.
+  const FIELD_GUIDANCE = [
+    ['#u-name', 'e.g. Ngozi Okafor — the person\'s full name'],
+    ['#u-username', 'e.g. ngozi.okafor — unique sign-in name'],
+    ['#u-title', 'e.g. Sales Attendant or Pharmacist-in-Charge'],
+    ['#eu-name', 'Correct the person\'s full name'],
+    ['#eu-phone', 'e.g. 0803 123 4567'],
+    ['#eu-title', 'Their current job at the pharmacy'],
+    ['#cust-name, #ec-name', 'e.g. Mrs Adaeze Umeh or clinic name'],
+    ['#cust-phone, #ec-phone', 'e.g. 0803 123 4567 — used to find the account'],
+    ['#cust-idnum, #ec-idnum', 'Enter the ID number exactly as presented'],
+    ['#pay-amount', 'e.g. 5,000 — amount the customer pays today'],
+    ['#pay-notes', 'e.g. Transfer reference or payment note'],
+    ['#sup-name, #es-name', 'e.g. Emzor Distributors'],
+    ['#sup-phone, #es-phone', 'e.g. supplier sales line / contact number'],
+    ['#sup-address, #es-address', 'e.g. depot, street and city'],
+    ['#cpay-amount', 'e.g. 25,000 — gross supplier debt being settled'],
+    ['#cpay-wht-tin', 'e.g. supplier tax ID for the WHT credit note'],
+    ['#exp-amount', 'e.g. 12,500 — total amount paid for this expense'],
+    ['#exp-from-cash', 'e.g. 8,000 — drawer share; safe pays the remainder'],
+    ['#exp-desc', 'What was bought or paid for, and why'],
+    ['#pos-discount', '0 unless a real discount is approved'],
+    ['#pos-change-name', 'Customer name for the change claim'],
+    ['#pos-change-phone', 'Phone number if no customer name is available'],
+    ['#till-opening', 'e.g. 5,000 — physical float counted at opening'],
+    ['#till-counted', 'Enter the physical cash counted in the drawer now'],
+    ['#safe-amount', 'e.g. 50,000 — amount moving in or out of the safe'],
+    ['#tr-qty', 'e.g. 24 — base units being sent to the other branch'],
+    ['#adj-qty', 'Use a negative number for a write-off; positive only for a verified correction'],
+    ['#adj-reason', 'What happened, how many units, and who verified it'],
+    ['#b-name', 'e.g. Main Branch — area or town'],
+    ['#b-address', 'Full premises address used for licence and geofence records'],
+    ['#b-phone', 'Branch contact number'],
+    ['#b-pcn', 'Enter the PCN or PPMV licence number exactly'],
+    ['#b-super', 'Registered superintendent pharmacist\'s full name'],
+    ['#rl-name', 'New branch name after relocation'],
+    ['#rl-phone', 'New premises contact number'],
+    ['#edit-lat', 'e.g. 6.6018 — premises latitude'],
+    ['#edit-lng', 'e.g. 3.3515 — premises longitude'],
+    ['#edit-radius', 'e.g. 100 — permitted distance in metres'],
+    ['#po-notes', 'e.g. supplier quotation, order reference or delivery instruction'],
+    ['[data-item-qty]', 'e.g. 120 — total base units to order, not cartons'],
+    ['[data-item-cost]', 'e.g. 85.50 — expected cost of ONE base unit; line total = quantity × cost'],
+    ['[data-b-batch]', 'e.g. PDX-24A — supplier batch/lot printed on the pack'],
+    ['[data-b-count]', 'e.g. 12 — count in the selected received unit'],
+    ['[data-b-ppc]', 'e.g. 10 — packs in ONE carton on this delivery'],
+    ['[data-b-upp]', 'e.g. 10 — base units in ONE pack on this delivery'],
+    ['[data-b-total]', 'Invoice total for this batch line; unit cost is calculated from it'],
+    ['[data-b-sell]', 'e.g. 120 — selling price for ONE base piece/unit'],
+    ['[data-b-pack]', 'Optional selling price for one complete pack'],
+    ['[data-b-carton]', 'Optional selling price for one complete carton'],
+    ['#p-nafdac, #ep-nafdac', 'e.g. 04-1234 — registration number on the pack'],
+    ['#p-units-per-pack, #ep-units-per-pack', 'e.g. 10 — base units inside ONE pack'],
+    ['#p-packs-per-carton, #ep-packs-per-carton', 'e.g. 10 — packs inside ONE carton'],
+    ['#p-reorder, #ep-reorder', 'e.g. 50 — alert when stock falls below this many base units'],
+    ['#po-price', 'e.g. 120 — default selling price for ONE base unit'],
+    ['#po-pack-price', 'Optional price for one complete pack'],
+    ['#po-carton-price', 'Optional price for one complete carton'],
+    ['#force-close-reason', 'Why the count could not be completed and who confirmed it'],
+  ];
+
+  function genericGuidance(input, root) {
+    const id = input.id ? `#${input.id}` : '';
+    for (const [selector, text] of FIELD_GUIDANCE) {
+      try { if ((input.matches && input.matches(selector)) || (id && selector.split(',').map((s) => s.trim()).includes(id))) return text; } catch (e) { /* ignore invalid/missing selector */ }
+    }
+    const row = input.closest ? input.closest('.form-row') : null;
+    const label = row && row.querySelector ? row.querySelector('label') : null;
+    const words = String(label && label.textContent || '').trim().toLowerCase();
+    if (/full name|^name$/.test(words)) return 'Enter the full name used in pharmacy records';
+    if (/phone/.test(words)) return 'Enter a reachable phone number';
+    if (/address/.test(words)) return 'Enter the full address';
+    if (/base unit/.test(words)) return 'e.g. tablet, capsule, bottle or sachet — the smallest sellable unit';
+    if (/amount|cost|price|float|quantity|qty/.test(words)) return 'Enter the amount or quantity shown on the real document/count';
+    if (/reason|notes|description/.test(words)) return 'Explain the real-world reason clearly';
+    return '';
+  }
+
+  function applyFieldGuidance(root) {
+    const scope = root || document;
+    if (!scope || !scope.querySelectorAll) return;
+    scope.querySelectorAll('input, textarea').forEach((input) => {
+      const type = String(input.type || '').toLowerCase();
+      if (['hidden', 'checkbox', 'radio', 'file', 'button', 'submit'].includes(type)) return;
+      const guidance = genericGuidance(input, scope);
+      if (!guidance) return;
+      // Date controls cannot consistently render placeholder text across
+      // browsers, but their title still exposes the input expectation.
+      if (!input.placeholder && type !== 'date') input.placeholder = guidance;
+      if (!input.title) input.title = guidance;
     });
   }
 
@@ -192,7 +293,7 @@ const UI = (() => {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  return { toast, money, shortDate, badge, openModal, closeModal, on, passwordField, bindPasswordReveals, guardedClick, updateOfflineBanner, escapeHtml };
+  return { toast, money, shortDate, badge, openModal, closeModal, on, passwordField, bindPasswordReveals, applyFieldGuidance, guardedClick, updateOfflineBanner, escapeHtml };
 })();
 
 // BUG 111 — `window.UI` IS UNDEFINED, AND CALLERS FEATURE-DETECT ON IT.

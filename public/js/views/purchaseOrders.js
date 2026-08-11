@@ -24,7 +24,8 @@ async function renderPurchaseOrders(view, path) {
         </div>
         <div class="form-row">
           <label>Notes</label>
-          <input id="po-notes" />
+          <input id="po-notes" placeholder="e.g. supplier quotation, expected delivery date or order reference" />
+          <small class="muted">Internal instruction for this order; it does not change stock or price.</small>
         </div>
       </div>
       <div id="po-items"></div>
@@ -60,8 +61,8 @@ async function renderPurchaseOrders(view, path) {
           <label>Product</label>
           <select data-item-product="${idx}"><option value="">Select…</option>${products.map(p => `<option value="${p.id}" ${row.product_id === p.id ? 'selected' : ''}>${UI.escapeHtml(p.name)}</option>`).join('')}</select>
         </div>
-        <div class="form-row"><label>Qty (base units)</label><input type="number" min="1" step="1" data-item-qty="${idx}" value="${row.quantity_ordered}" /></div>
-        <div class="form-row"><label>Expected unit cost</label><input type="number" min="0" data-item-cost="${idx}" value="${row.expected_unit_cost}" /></div>
+        <div class="form-row"><label>Qty (base units)</label><input type="number" min="1" step="1" data-item-qty="${idx}" value="${row.quantity_ordered}" placeholder="e.g. 120 base units (12 packs × 10)" title="Total base units requested for this line — not cartons or packs." /><small class="muted">Total base units to order. Example: 12 packs × 10 tablets = 120.</small></div>
+        <div class="form-row"><label>Expected unit cost</label><input type="number" min="0" data-item-cost="${idx}" value="${row.expected_unit_cost}" placeholder="e.g. 85.50 per tablet" title="Expected cost of one base unit. Estimated line total = quantity × unit cost." /><small class="muted">Expected cost of one base unit only. Quantity × this figure estimates the line total; it does not set the selling price.</small></div>
         ${itemRows.length > 1 ? `<button class="remove-line" data-item-remove="${idx}">✕</button>` : ''}
       </div>
     `).join('');
@@ -278,17 +279,18 @@ async function renderPoDetail(view, poId) {
                 <option value="PIECE"  ${r.receive_unit === 'PIECE' ? 'selected' : ''}>Pieces</option>
               </select></div>
             <div class="form-row"><label>How many ${r.receive_unit === 'CARTON' ? 'cartons' : r.receive_unit === 'PACK' ? 'packs' : 'pieces'}?</label>
-              <input type="number" data-b-count="${idx}" value="${r.receive_quantity}" min="1" step="1" /></div>
+              <input type="number" data-b-count="${idx}" value="${r.receive_quantity}" min="1" step="1" placeholder="e.g. ${r.receive_unit === 'CARTON' ? '12 cartons' : r.receive_unit === 'PACK' ? '120 packs' : '1,200 pieces'}" /></div>
             ${r.receive_unit === 'CARTON' ? `
             <div class="form-row"><label>Packs in a carton</label>
-              <input type="number" data-b-ppc="${idx}" value="${r.packs_per_carton || ''}" min="1" step="1" /></div>` : ''}
+              <input type="number" data-b-ppc="${idx}" value="${r.packs_per_carton || ''}" min="1" step="1" placeholder="e.g. 10 packs in one carton" /></div>` : ''}
             ${r.receive_unit === 'CARTON' || r.receive_unit === 'PACK' ? `
             <div class="form-row"><label>Pieces in a pack</label>
-              <input type="number" data-b-upp="${idx}" value="${r.units_per_pack || ''}" min="1" step="1" /></div>` : ''}
+              <input type="number" data-b-upp="${idx}" value="${r.units_per_pack || ''}" min="1" step="1" placeholder="e.g. 10 tablets in one pack" /></div>` : ''}
           </div>
           <div class="form-inline">
             <div class="form-row"><label>Total paid for this line</label>
-              <input type="number" data-b-total="${idx}" value="${r.total_cost}" placeholder="the figure on the invoice" /></div>
+              <input type="number" data-b-total="${idx}" value="${r.total_cost}" placeholder="e.g. 102,600 — invoice total for this batch" title="The full amount paid for this batch line, not a per-piece amount." />
+              <small class="muted">Copy the full invoice figure for this batch line. PharmaRidge divides it by the received base units to calculate cost per piece.</small></div>
             <div class="form-row"><label>Sold over the counter as</label>
               <select data-b-pattern="${idx}">
                 <option value="PIECE"  ${r.selling_pattern === 'PIECE' ? 'selected' : ''}>Pieces</option>
@@ -304,9 +306,9 @@ async function renderPoDetail(view, poId) {
             </label>
           </div>
           <div class="form-inline">
-            <div class="form-row"><label>Selling price per piece</label><input type="number" data-b-sell="${idx}" value="${r.selling_price_per_unit}" placeholder="can be set later" /></div>
-            <div class="form-row"><label>Pack price (optional)</label><input type="number" data-b-pack="${idx}" value="${r.pack_price}" placeholder="derived if left blank" /></div>
-            <div class="form-row"><label>Carton price (optional)</label><input type="number" data-b-carton="${idx}" value="${r.carton_price}" placeholder="derived if left blank" /></div>
+            <div class="form-row"><label>Selling price per piece</label><input type="number" data-b-sell="${idx}" value="${r.selling_price_per_unit}" placeholder="e.g. 120 — customer price for ONE piece" /><small class="muted">What the customer pays for one tablet, capsule, bottle or other base unit.</small></div>
+            <div class="form-row"><label>Pack price (optional)</label><input type="number" data-b-pack="${idx}" value="${r.pack_price}" placeholder="e.g. 1,100 — price for ONE complete pack" /><small class="muted">Optional counter price for one sealed pack; leave blank to derive from pieces.</small></div>
+            <div class="form-row"><label>Carton price (optional)</label><input type="number" data-b-carton="${idx}" value="${r.carton_price}" placeholder="e.g. 10,500 — price for ONE carton" /><small class="muted">Optional counter price for one full carton; leave blank to derive from pieces/packs.</small></div>
           </div>
         </div>
       `).join('');

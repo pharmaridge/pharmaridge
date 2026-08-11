@@ -261,7 +261,10 @@ const Router = (() => {
     try {
       if (labelObserver) labelObserver.disconnect();
       if (typeof MutationObserver === 'undefined') return;
-      labelObserver = new MutationObserver(() => associateFormLabels(view));
+      labelObserver = new MutationObserver(() => {
+        if (window.UI && UI.applyFieldGuidance) UI.applyFieldGuidance(view);
+        associateFormLabels(view);
+      });
       labelObserver.observe(view, { childList: true, subtree: true });
       // NOT registered with onCleanup(): navigate() calls runCleanup() at its
       // START, so a cleanup registered during this navigation is executed by
@@ -308,6 +311,7 @@ const Router = (() => {
     view.innerHTML = '<div class="empty-state">Loading…</div>';
     try {
       await handler(view, path);
+      if (window.UI && UI.applyFieldGuidance) UI.applyFieldGuidance(view);
       associateFormLabels(view);   // Bug 114 — see the helper above.
       // Some screens reveal fields AFTER the first render — a panel that
       // opens when a checkbox is ticked, a form that appears once data
@@ -319,7 +323,10 @@ const Router = (() => {
       // safe-movement form does exactly this) can finish AFTER the observer
       // is attached but produce no further mutations for it to see. One
       // settle pass catches those without polling.
-      setTimeout(() => associateFormLabels(view), 700);
+      setTimeout(() => {
+        if (window.UI && UI.applyFieldGuidance) UI.applyFieldGuidance(view);
+        associateFormLabels(view);
+      }, 700);
       if (myToken !== navToken) console.debug('[router] discarded stale render for', path);
     } catch (e) {
       // Only the CURRENT navigation may report an error. A failure belonging

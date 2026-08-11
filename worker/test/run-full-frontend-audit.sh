@@ -67,6 +67,7 @@ run_one test/tools/probe-data-management-ui.js
 run_one test/tools/probe-password-reveal.js
 run_one test/tools/probe-promotion-dropdown.js
 run_one test/tools/probe-pos-checkout-lifecycle.js
+run_one test/tools/probe-input-guidance.js
 run_one test/audit.responsive.js
 run_one test/tools/probe-topbar.js
 run_one test/tools/probe-formbaseline.js
