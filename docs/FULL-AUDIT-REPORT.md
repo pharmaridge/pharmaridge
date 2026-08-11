@@ -7,19 +7,28 @@
 
 | Audit surface | Passing checks |
 |---|---:|
-| Fresh-D1 full domain audit (including Owner Data Management) | 1,043 |
-| Scenario-driven frontend control, dropdown and geometry audit (including Owner Data Management UI/API correlation) | 1,972 |
-| PWA/browser theme, contrast, print and responsive audit | 127 |
-| Login spinner/logout lifecycle audit | 3 |
-| PWA icon, manifest and Android safe-zone audit | 45 |
+| Fresh-D1 full domain audit (including Data Management and promotion authority) | 1,055 |
+| Scenario-driven frontend control, dropdown and geometry audit (including Data Management, password reveals and promotion dropdowns) | 1,986 |
+| PWA/browser theme, contrast, print, responsive and splash audit | 137 |
+| PWA icon and transparent canonical-launcher audit | 42 |
 | Three-month operating simulation audit | 20 |
-| **Total executed checks** | **3,207** |
+| **Total executed checks** | **3,240** |
 
 ## Two-way audit method
 
 The API/domain tests write through real REST routes, then re-read operational records, ledgers, journal entries, balances, and database constraints. The frontend tests drive controls, forms, triggers, navigation, dropdowns, role-gated views, responsive widths, and modal actions in Chromium, then correlate the visible outcome with the API/database result.
 
 Every major test script starts from a fresh migrated and seeded local D1 state. That prevents a prior sale, session, open till, branch setting, or service worker cache from falsely affecting another result.
+
+## Password visibility and promotion authority coverage
+
+The latest re-run adds a role-and-device boundary sweep:
+
+- General Manager can appoint another employee as a General Manager; the role change is staged, reasoned and recorded.
+- Branch Manager is limited to Staff/Branch Manager choices inside their own branch and is refused an organisation-wide promotion.
+- Owner may appoint an Owner; Staff cannot alter another person; no role can create or assign the vendor Admin seat through the transfer workflow.
+- Login, Add User and Reset PIN all begin masked, expose the same deliberate view/hide control, and keep a 44px phone target with a separated input/action gap.
+- Browser probes verify role dropdowns, real API authority, password reveal behaviour, mobile card/action spacing, no overflow and no clipped text.
 
 ## Owner Data Management coverage
 

@@ -92,6 +92,7 @@ run_one test/audit.owner.js
 run_one test/audit.manager.js
 run_one test/audit.staff.js
 run_one test/audit.rolelifecycle.js
+run_one test/audit.promotionauthority.js
 run_one test/audit.single-session.js
 run_one test/tools/probe-crossdomain.js
 

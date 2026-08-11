@@ -18,8 +18,8 @@ function renderLogin() {
       <form id="login-form">
         <label>Username</label>
         <input type="text" id="login-username" autocomplete="username" required />
-        <label>PIN / Password</label>
-        <input type="password" id="login-pin" autocomplete="current-password" required />
+        <label for="login-pin">PIN / Password</label>
+        ${UI.passwordField('login-pin', { label: 'PIN or password', autocomplete: 'current-password', required: true })}
         <button type="submit" class="btn btn-primary" id="login-submit" aria-busy="false">Sign in</button>
         <div id="login-error" class="login-error hidden"></div>
       </form>
@@ -32,6 +32,7 @@ function renderLogin() {
   // idempotent per element (it marks what it has bound) so this cannot stack
   // duplicate listeners.
   Theme.mount('login-theme-toggle');
+  UI.bindPasswordReveals(el);
 
   document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();

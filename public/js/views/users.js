@@ -27,6 +27,12 @@ async function renderUsers(view) {
   // ADMIN can) — enforced authoritatively server-side; the dropdown
   // simply doesn't offer an option the server would reject anyway.
   const canAssignOwner = State.isOwner() || State.isAdmin();
+  // A General Manager is an organisation-wide MANAGER (stored role MANAGER,
+  // branch_id null). A Branch Manager is deliberately not offered that
+  // promotion because the server must refuse the cross-estate scope change.
+  // Owner, Admin and an existing General Manager may make that promotion for
+  // another person; nobody may promote themselves.
+  const canAssignGeneralManager = State.isOwner() || State.isAdmin() || !State.isBranchPinned();
 
   // Forcing a transfer through needs ORG-WIDE authority — an Owner, or a
   // General Manager (a MANAGER with no branch pinned). Mirrors the server's
@@ -123,13 +129,13 @@ async function renderUsers(view) {
         <div class="form-inline">
           <div class="form-row"><label>Full Name</label><input id="u-name" /></div>
           <div class="form-row"><label>Username</label><input id="u-username" /></div>
-          <div class="form-row"><label>PIN</label><input id="u-pin" type="password" /></div>
+          <div class="form-row"><label for="u-pin">PIN</label>${UI.passwordField('u-pin', { label: 'PIN', autocomplete: 'new-password', required: true })}</div>
           <div class="form-row">
             <label>Role</label>
             <select id="u-role">
               <option value="STAFF">Staff</option>
               <option value="BRANCH_MANAGER">Branch Manager — one branch only</option>
-              <option value="GENERAL_MANAGER">General Manager — every branch</option>
+              ${canAssignGeneralManager ? '<option value="GENERAL_MANAGER">General Manager — every branch</option>' : ''}
               ${canAssignOwner ? '<option value="OWNER">Owner</option>' : ''}
             </select>
           </div>
@@ -173,6 +179,8 @@ async function renderUsers(view) {
         ${Exporter.toolbar('users', { label: 'the staff register' })}
       </div>
     `;
+    UI.bindPasswordReveals(document.getElementById('users-tab-content'));
+
     Exporter.wireTableReport('users', {
       title: 'Staff Register', subtitle: 'User accounts and access', filename: 'staff-register',
       columns: [
@@ -300,7 +308,7 @@ async function renderUsers(view) {
           <option value="0" ${!u.is_active ? 'selected' : ''}>Inactive (blocks login immediately, even for an already-open session)</option>
         </select>
       </div>
-      <div class="form-row"><label>Reset PIN (leave blank to keep current)</label><input type="password" id="eu-pin" placeholder="At least 4 digits" /></div>
+      <div class="form-row"><label for="eu-pin">Reset PIN (leave blank to keep current)</label>${UI.passwordField('eu-pin', { label: 'reset PIN', placeholder: 'At least 4 characters', autocomplete: 'new-password' })}</div>
       <!-- BUG 75 (frontend half). This card used to tell the operator that a
            branch or role change was impossible and that they should deactivate
            and recreate the account — advice that cannot be followed (the
@@ -321,6 +329,7 @@ async function renderUsers(view) {
         <button class="btn btn-primary" id="eu-save">Save</button>
       </div>
     `);
+    UI.bindPasswordReveals(modal);
     modal.querySelector('#eu-cancel').addEventListener('click', () => UI.closeModal(modal));
     modal.querySelector('#eu-transfer').addEventListener('click', () => {
       UI.closeModal(modal);
@@ -365,6 +374,8 @@ async function renderUsers(view) {
     // server. Offering it and then failing with a 403 would be a worse
     // experience than not offering it, and the server still enforces it.
     const canGrantOwner = me.role === 'OWNER' || me.role === 'ADMIN';
+    const canGrantGeneralManager = me.role === 'OWNER' || me.role === 'ADMIN'
+      || (me.role === 'MANAGER' && !me.branch_id);
     const activeBranches = (branches || []).filter((b) => b.is_active);
 
     const modal = UI.openModal(`
@@ -373,12 +384,13 @@ async function renderUsers(view) {
         Currently <b>${UI.escapeHtml(u.role_label || State.roleLabelOf(u))}</b>${u.branch_name ? ' at ' + UI.escapeHtml(u.branch_name) : ''}.
         They keep the username <b>${UI.escapeHtml(u.username)}</b>.
       </p>
+      <p class="page-subtitle" style="margin:0 0 12px;font-size:12px;">A General Manager role is organisation-wide. Only an Owner, PharmaRidge Admin, or an existing General Manager may assign it to another person; no one can change their own role.</p>
       <div class="form-row">
         <label for="tr-role">New role</label>
         <select id="tr-role">
           <option value="STAFF" ${currentUiRole === 'STAFF' ? 'selected' : ''}>Staff — one branch</option>
           <option value="BRANCH_MANAGER" ${currentUiRole === 'BRANCH_MANAGER' ? 'selected' : ''}>Branch Manager — runs one branch</option>
-          <option value="GENERAL_MANAGER" ${currentUiRole === 'GENERAL_MANAGER' ? 'selected' : ''}>General Manager — all branches</option>
+          ${canGrantGeneralManager ? `<option value="GENERAL_MANAGER" ${currentUiRole === 'GENERAL_MANAGER' ? 'selected' : ''}>General Manager — all branches</option>` : ''}
           ${canGrantOwner ? `<option value="OWNER" ${currentUiRole === 'OWNER' ? 'selected' : ''}>Owner — full control</option>` : ''}
         </select>
       </div>

@@ -877,6 +877,24 @@ tbody tr:last-child td { border-bottom: none; }
   background: var(--gray-50); color: var(--gray-400); cursor: not-allowed;
 }
 .form-row input::placeholder, .form-row textarea::placeholder { color: var(--gray-400); }
+
+/* PIN/PASSWORD REVEAL ------------------------------------------------------
+   The input and its eye control are one visual unit but remain two real
+   controls: the button never submits a form, has a full 44px target, and is
+   separated by a clear gap so a phone thumb cannot toggle it while typing. */
+.password-field { display: flex; align-items: stretch; gap: 8px; width: 100%; }
+.password-field > input { flex: 1 1 auto; min-width: 0; }
+.password-toggle {
+  width: 44px; min-width: 44px; min-height: 44px; padding: 0;
+  border: 1px solid var(--gray-300); border-radius: var(--radius-sm);
+  background: var(--white); color: var(--green-700);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.password-toggle:hover, .password-toggle:focus-visible, .password-toggle.is-revealed {
+  border-color: var(--green-500); background: var(--green-50); color: var(--green-800);
+}
+.password-toggle svg { width: 19px; height: 19px; }
 /* ---------- Checkboxes and radios ----------------------------------------
    BUG 61 — THE HIGHEST-CONSEQUENCE CONTROLS IN THE PRODUCT WERE 13x13 PIXELS.
 
@@ -976,6 +994,25 @@ input[type="checkbox"], input[type="radio"] { min-height: 18px; }
    label occupies in its siblings. Buttons that ARE inside a .form-row keep
    their existing behaviour — hence the child combinator. */
 .form-inline > .btn { align-self: flex-start; margin-top: 2.8em; }
+
+/* PHONE FORM RHYTHM --------------------------------------------------------
+   A mobile form is not a compressed desktop row. Fields, card edges and
+   actions need deliberate breathing room so an operator can see which value
+   belongs to which label and cannot tap Save while trying to edit the last
+   input. Keep each inline control full-width below 620px and give action
+   buttons their own clearly separated row. */
+@media (max-width: 620px) {
+  .card { padding: 16px; margin-bottom: 18px; }
+  .form-row { margin-bottom: 16px; }
+  .form-inline { gap: 16px; }
+  .form-inline .form-row { flex: 1 0 100%; min-width: 100%; }
+  .form-inline > .btn { width: 100%; min-height: 44px; margin-top: 0; }
+  .password-field { gap: 10px; }
+  .modal-backdrop { padding: 12px; align-items: flex-end; }
+  .modal { max-height: calc(100vh - 24px); padding: 20px 16px; }
+  .modal-actions { flex-direction: column-reverse; gap: 12px; margin-top: 18px; padding-top: 14px; }
+  .modal-actions .btn { width: 100%; min-height: 44px; }
+}
 
 /* ---------- Tabs ---------------------------------------------------------- */
 .tabs {

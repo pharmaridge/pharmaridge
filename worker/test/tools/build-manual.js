@@ -20,10 +20,23 @@ const OUT_HTML = '/tmp/manual.html';
 // ---- pricing, computed once -------------------------------------------
 const PER_STAFF_DAY = 50;
 const PER_BRANCH_DAY = 50;
+// Commercial subscription windows requested for this release. Every amount is
+// calculated from the same transparent daily basis — no hidden per-seat or
+// per-branch figure is introduced by a longer term.
+const SUBSCRIPTION_WINDOWS = {
+  fourMonths: { label: '4 months', days: 120 },
+  sixMonths: { label: '6 months', days: 180 },
+  yearly: { label: '1 year', days: 365 },
+};
 const N = (n) => 'N' + Number(n).toLocaleString('en-NG', { maximumFractionDigits: 0 });
 function plan(branches, staff) {
   const perDay = branches * PER_BRANCH_DAY + staff * PER_STAFF_DAY;
-  return { branches, staff, perDay, perMonth: perDay * 30, perYear: perDay * 365 };
+  return {
+    branches, staff, perDay,
+    fourMonths: perDay * SUBSCRIPTION_WINDOWS.fourMonths.days,
+    sixMonths: perDay * SUBSCRIPTION_WINDOWS.sixMonths.days,
+    perYear: perDay * SUBSCRIPTION_WINDOWS.yearly.days,
+  };
 }
 const SHAPES = [
   ['One shop, 2 staff', plan(1, 2)],
@@ -373,7 +386,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
   <h2>Before you commit: what has been proven</h2>
   <p class="lead">A proprietor should pay for a system because it is useful and evidenced, not because a sales page makes a promise. This sample is deliberately set up so you can test the important flows yourself.</p>
   <div class="note">
-    <b>Live audit evidence.</b> The current release completed a fresh-data, end-to-end audit across sales, VAT/WHT, debtors, suppliers, change owed, till and safe movements, stock receiving, transfers, user promotion/demotion, one-device sessions, role boundaries, forms, dropdowns, responsive layouts and PWA behaviour. A separate 90-day operating simulation verified dated sales, VAT/WHT, creditor/debtor, attendance, stock and transfer history. The final passing run exercised <b>3,207 checks</b> across API, database, browser and PWA surfaces.
+    <b>Live audit evidence.</b> The current release completed a fresh-data, end-to-end audit across sales, VAT/WHT, debtors, suppliers, change owed, till and safe movements, stock receiving, transfers, user promotion/demotion, one-device sessions, role boundaries, forms, dropdowns, responsive layouts and PWA behaviour. A separate 90-day operating simulation verified dated sales, VAT/WHT, creditor/debtor, attendance, stock and transfer history. The final passing run exercised <b>3,240 checks</b> across API, database, browser and PWA surfaces.
   </div>
   <h3>What each person can prove in a demonstration</h3>
   <table>
@@ -400,6 +413,19 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
     <li><b>Your actual equipment:</b> check the PWA, printer and network behaviour on the device you will use at the counter.</li>
     <li><b>Your agreement:</b> confirm deployment scope, data ownership/export, onboarding, support contacts and commercial terms in writing before payment.</li>
   </ol>
+  <h3>One complete first-day click path</h3>
+  <ol>
+    <li><b>Admin → Users &amp; Branches → Add User:</b> create the named client Owner.</li>
+    <li><b>Owner → Users &amp; Branches → Branches → Add Branch:</b> enter the premises, licence and attendance method; then add a General Manager, Branch Manager and counter Staff.</li>
+    <li><b>Owner → My Plan:</b> set VAT/WHT and the manager/cashier permissions that match the pharmacy’s rules before the first shift.</li>
+    <li><b>Manager → Suppliers / Creditors → Add Supplier:</b> add the wholesaler; then open <b>Purchase Orders</b>, choose the supplier and add the requested products.</li>
+    <li><b>Manager → Purchase Orders → Receive:</b> enter the actual batch number, expiry, quantity, cost and selling price. The product is now visible in <b>Stock &amp; Expiry</b> and sellable at the correct branch.</li>
+    <li><b>Staff → Till / Cash → Open:</b> enter the physical opening float. Then go to <b>Point of Sale</b>, search the received item, select the unit, take payment and complete the sale.</li>
+    <li><b>Staff → Receipt:</b> hand over the thermal receipt or print/save A4 where required. If change is unavailable, record <b>Change Owed</b> with a name or phone number instead of inventing a till difference.</li>
+    <li><b>Manager → Till / Cash:</b> compare expected cash with the physical count, record any real discrepancy and close the shift. Review attendance and approve genuine expenses.</li>
+    <li><b>Owner → Accounting / GL:</b> open Trial Balance, Profit &amp; Loss, Balance Sheet and WHT register. Print/PDF or CSV export the filtered report you are reviewing.</li>
+  </ol>
+  <div class="note"><b>This is the full circle:</b> people and permissions → supplier and stock → till and sale → receipt → cash accountability → attendance → management report. Nothing needs to be copied into a second book for the reports to agree.</div>
   <div class="warn">
     <b>Make the decision transparently.</b> Before paying upfront, confirm that the demonstrated roles, stock workflow, printer/PWA behaviour and support arrangements fit your own pharmacy. A real client deployment must use its own database, secure credentials, custom branding and reviewed regulatory settings — never this shared sample.
   </div>
@@ -672,6 +698,7 @@ touch the subscription, and cannot remove business data. They do receive the org
   <h3>What you can do everywhere</h3>
   <ul>
     <li>Open branches, hire staff, and move people between shops.</li>
+    <li><b>Promote another employee to General Manager</b> when they genuinely need organisation-wide responsibility. The change is staged for that person’s confirmation, records the reason, and never rewrites their past sales or shifts.</li>
     <li>Order stock, receive deliveries, and move stock between branches.</li>
     <li>Set prices, run stocktakes, and write off damaged or expired stock.</li>
     <li>Void a sale, approve an expense, and settle supplier accounts.</li>
@@ -743,7 +770,7 @@ possibility of reading another branch's numbers by mistake.</p>`)}
   <h3>What you cannot do</h3>
   <ul>
     <li>See or touch another branch — including its safe, its stock and its staff.</li>
-    <li>Open a new branch, or change anyone's role to Owner.</li>
+    <li>Open a new branch, change anyone's role to Owner, or appoint an organisation-wide General Manager. You may manage promotions inside your own branch only.</li>
     <li>Change VAT, withholding-tax rates, or the permission switches.</li>
   </ul>
 
@@ -1163,9 +1190,10 @@ is the fast path, never the only one, because a lost receipt must not mean lost 
   <h4>People and settings</h4>
   ${permissionTable([
     ['Hire a member of staff', 'Yes', 'Yes', 'Own branch', 'No'],
-    ['Promote / transfer somebody', 'Yes', 'Yes', 'No', 'No'],
+    ['Promote / transfer within one branch', 'Yes', 'Yes', 'Own branch', 'No'],
+    ['Appoint another General Manager (all branches)', 'Yes', 'Yes', 'No', 'No'],
+    ['Create / appoint an Owner', 'Yes', 'No', 'No', 'No'],
     ['Deactivate an account', 'Yes', 'Yes', 'Own branch', 'No'],
-    ['Create an Owner account', 'Yes', 'No', 'No', 'No'],
     ['Open a new branch', 'Yes', 'Yes', 'No', 'No'],
     ['Close / relocate a branch', 'Yes', 'Yes', 'No', 'No'],
     ['Review flagged attendance', 'Yes', 'Yes', 'Own branch', 'No'],
@@ -1454,11 +1482,12 @@ product name typed as <code>=cmd</code> cannot execute on the machine that opens
 <!-- ============ 11. PRICING ============ -->
 <section class="page">
   <h2>11. What it costs, and what it saves</h2>
-  <p class="lead">PharmaRidge is priced per day, on what you actually run:
-  <b>${N(PER_BRANCH_DAY)} per branch per day</b> and <b>${N(PER_STAFF_DAY)} per member of staff per day</b>.</p>
+  <p class="lead">PharmaRidge is calculated from one clear daily basis:
+  <b>${N(PER_BRANCH_DAY)} per active branch per day</b> plus <b>${N(PER_STAFF_DAY)} per active staff account per day</b>.</p>
+  <div class="note"><b>Three subscription batches.</b> Choose <b>4 months</b> (120 days), <b>6 months</b> (180 days), or <b>1 year</b> (365 days). Each package is simply the daily basis multiplied by its stated days: <code>${N(PER_BRANCH_DAY)} × branches + ${N(PER_STAFF_DAY)} × staff</code>, then × 120, × 180, or × 365. Confirm the final invoice start/end dates and terms in writing before payment.</div>
   <table>
-    <thead><tr><th>Your pharmacy</th><th>Per day</th><th>Per month</th><th>Per year</th></tr></thead>
-    <tbody>${SHAPES.map(([label, p]) => `<tr><td><b>${label}</b></td><td>${N(p.perDay)}</td><td>${N(p.perMonth)}</td><td>${N(p.perYear)}</td></tr>`).join('')}</tbody>
+    <thead><tr><th>Your pharmacy</th><th>Daily basis</th><th>4 months</th><th>6 months</th><th>1 year</th></tr></thead>
+    <tbody>${SHAPES.map(([label, p]) => `<tr><td><b>${label}</b></td><td>${N(p.perDay)}</td><td>${N(p.fourMonths)}</td><td>${N(p.sixMonths)}</td><td>${N(p.perYear)}</td></tr>`).join('')}</tbody>
   </table>
   <div class="kpi">
     <div><div class="k">One shop, 2 staff</div><div class="v">${N(plan(1, 2).perDay)}<span style="font-size:9pt;font-weight:400;">/day</span></div></div>
@@ -1466,9 +1495,7 @@ product name typed as <code>=cmd</code> cannot execute on the machine that opens
     <div><div class="k">Five shops, 20 staff</div><div class="v">${N(plan(5, 20).perDay)}<span style="font-size:9pt;font-weight:400;">/day</span></div></div>
   </div>
   <h3>What that means in plain terms</h3>
-  <p>A single shop with two staff pays <b>${N(plan(1, 2).perDay)} a day</b> — less than a sachet of
-  paracetamol and a bottle of water. A five-branch group with twenty staff pays
-  <b>${N(plan(5, 20).perDay)} a day</b>, which is ${N(plan(5, 20).perDay / 5)} per shop.</p>
+  <p>A single shop with two staff has a daily basis of <b>${N(plan(1, 2).perDay)}</b>, which calculates to <b>${N(plan(1, 2).fourMonths)}</b> for four months, <b>${N(plan(1, 2).sixMonths)}</b> for six months, or <b>${N(plan(1, 2).perYear)}</b> for a year. A five-branch group with twenty staff has a daily basis of <b>${N(plan(5, 20).perDay)}</b>, which is ${N(plan(5, 20).perDay / 5)} per shop per day before the selected subscription window is applied.</p>
 
   <h3>What your plan actually is: capacity you have already bought</h3>
   <p>Your plan is a number of <b>branch slots</b> and a number of <b>staff seats</b>. You have paid for

@@ -67,6 +67,46 @@ const UI = (() => {
     return el;
   }
 
+  // PIN/PASSWORD REVEAL — a counter worker should be able to check an entry
+  // before saving it, especially on a small phone keyboard. Every front-end
+  // PIN/password field uses this one component so login, Add User and Reset
+  // PIN cannot drift into different reveal behaviour or accessibility labels.
+  function passwordField(id, options) {
+    const o = options || {};
+    const label = escapeHtml(o.label || 'password');
+    const placeholder = o.placeholder ? ` placeholder="${escapeHtml(o.placeholder)}"` : '';
+    const autocomplete = o.autocomplete ? ` autocomplete="${escapeHtml(o.autocomplete)}"` : '';
+    const required = o.required ? ' required' : '';
+    return `<div class="password-field">
+      <input type="password" id="${escapeHtml(id)}"${placeholder}${autocomplete}${required} />
+      <button type="button" class="password-toggle" data-password-toggle="${escapeHtml(id)}" data-password-noun="${label}" aria-label="Show ${label}" title="Show ${label}" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.7"/></svg>
+      </button>
+    </div>`;
+  }
+
+  function bindPasswordReveals(root) {
+    const scope = root || document;
+    if (!scope || !scope.querySelectorAll) return;
+    scope.querySelectorAll('[data-password-toggle]').forEach((button) => {
+      if (button.getAttribute('data-password-bound')) return;
+      button.setAttribute('data-password-bound', '1');
+      button.addEventListener('click', () => {
+        const id = button.getAttribute('data-password-toggle');
+        const input = scope.querySelector ? scope.querySelector(`#${id}`) : document.getElementById(id);
+        if (!input) return;
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        const noun = button.getAttribute('data-password-noun') || 'password';
+        const next = showing ? `Show ${noun}` : `Hide ${noun}`;
+        button.setAttribute('aria-label', next);
+        button.setAttribute('title', next);
+        button.setAttribute('aria-pressed', showing ? 'false' : 'true');
+        button.classList.toggle('is-revealed', !showing);
+      });
+    });
+  }
+
   // Prevents a double-submit race (rapid double-click, or an
   // accidental double-tap on a touchscreen — realistic on a busy POS
   // counter) on a "one-shot mutating action" button — Save, Add,
@@ -152,7 +192,7 @@ const UI = (() => {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  return { toast, money, shortDate, badge, openModal, closeModal, on, guardedClick, updateOfflineBanner, escapeHtml };
+  return { toast, money, shortDate, badge, openModal, closeModal, on, passwordField, bindPasswordReveals, guardedClick, updateOfflineBanner, escapeHtml };
 })();
 
 // BUG 111 — `window.UI` IS UNDEFINED, AND CALLERS FEATURE-DETECT ON IT.
