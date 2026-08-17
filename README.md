@@ -1,7 +1,5 @@
 # PharmaRidge
 
-> **Recovery notice — 2026-08-04.** The project source and a second test artifact have been reconstructed into this repository. The restored suite now includes live cash/till, WHT/GL, procurement/transfer, sync, icon, and browser/PWA checks. Historical aggregate totals in older project documents still are not production certification. See [docs/RECOVERY-STATUS.md](docs/RECOVERY-STATUS.md), [worker/test/README.md](worker/test/README.md), and [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md).
-
 **Multi-branch pharmacy / patent medicine store management system for Nigeria.**
 Offline-first PWA frontend + Cloudflare Workers & D1 edge backend.
 
@@ -14,9 +12,9 @@ Offline-first PWA frontend + Cloudflare Workers & D1 edge backend.
 | **Current verification** | 1,055 fresh-D1 full-domain checks; 1,992 frontend/browser checks; 137 PWA/splash checks; 42 transparent-icon checks; 20 three-month simulation checks; structural and migration checks — all passing locally |
 | **UI** | Light **and dark** theme, zero external dependencies — no framework, icon font or webfont |
 | **Audit** | Current evidence: [`docs/FULL-AUDIT-REPORT.md`](docs/FULL-AUDIT-REPORT.md); runner guide: [`worker/test/README.md`](worker/test/README.md) |
-| **Onboarding guide** | 68-page role-based PDF: [`docs/PharmaRidge-Onboarding-Guide.pdf`](docs/PharmaRidge-Onboarding-Guide.pdf) |
-| **Deployment status** | [`docs/DEPLOYMENT-STATUS.md`](docs/DEPLOYMENT-STATUS.md) |
-| **Deploying?** | New private GitHub repo + Cloudflare Worker Assets walkthrough: [`DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md`](DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md) · multi-client SSH/Cloudflare PDF: [`docs/PharmaRidge-Multi-Client-Windows-Deployment.pdf`](docs/PharmaRidge-Multi-Client-Windows-Deployment.pdf) · legacy Windows notes: [`DEPLOY-FROM-WINDOWS.md`](DEPLOY-FROM-WINDOWS.md) |
+| **Onboarding guide** | 71-page role-based PDF: [`docs/PharmaRidge-Onboarding-Guide.pdf`](docs/PharmaRidge-Onboarding-Guide.pdf) |
+| **Data management** | Owner-only, previewed and confirmed removal controls: [`docs/DATA-MANAGEMENT.md`](docs/DATA-MANAGEMENT.md) |
+| **Deploying?** | New private GitHub repo + Cloudflare Worker Assets walkthrough: [`DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md`](DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md) · multi-client SSH/Cloudflare walkthrough: [`DEPLOY-MULTI-CLIENT-SSH-CLOUDFLARE-WINDOWS.md`](DEPLOY-MULTI-CLIENT-SSH-CLOUDFLARE-WINDOWS.md) |
 | **Node** | **22+ required** (Wrangler 4 refuses Node 20) |
 
 ---
@@ -157,8 +155,8 @@ Open `http://localhost:8788`.
 **Run verification** (Node.js 22+ for the live/browser commands):
 
 ```bash
-npm test                       # fast structural recovery verification
-npm run test:restored:syntax   # parses and verifies the restored test artifact
+npm test                       # verifies the active test suite parses
+npm run test:restored:syntax   # parses and verifies the active test sources
 npm run assets:icons           # rebuilds every PWA icon from one artwork source
 npm run test:icons             # validates icon geometry, mask safety and SW wiring
 npm run test:live:core         # fresh-D1 cash, WHT/GL, workflows and sync audits
@@ -166,8 +164,8 @@ npm run test:browser:pwa       # fresh-D1 Chromium PWA/theme/accessibility audit
 ```
 
 `test:live:core` resets local D1 before each audit so database mutation from one audit
-cannot affect another. The restored suite, commands, and evidence boundary are documented
-in [worker/test/README.md](worker/test/README.md) and [docs/RECOVERY-STATUS.md](docs/RECOVERY-STATUS.md).
+cannot affect another. The active test commands and their local-data safety boundary are documented
+in [worker/test/README.md](worker/test/README.md).
 
 ---
 

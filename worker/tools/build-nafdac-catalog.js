@@ -6,7 +6,7 @@
 //
 // WHY A MIGRATION AND NOT A SEED:
 // The catalog is REFERENCE DATA, not demo data. Seeds are optional and are
-// deliberately skipped on real client deployments (see DEPLOY-FROM-WINDOWS.md
+// deliberately skipped on real client deployments (see DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md
 // step 8); this catalog must exist on EVERY deployment, so it ships as schema.
 //
 // WHAT THIS IS AND IS NOT:

@@ -2,7 +2,7 @@
 //
 // This checks the new destructive-data control from both directions without
 // ever executing a deletion against a scenario database. The Owner gets a
-// reachable, labelled control and a three-scope preview; General Manager and
+// reachable, labelled control and a four-scope preview; General Manager and
 // Admin are denied by BOTH the DOM and the live API. An invalid server-side
 // purge request proves a forged browser request cannot skip confirmation.
 const puppeteer = require('puppeteer');
@@ -86,8 +86,8 @@ async function api(token, method, path, body) {
       overflows: document.documentElement.scrollWidth > innerWidth,
     }));
     check('Owner modal names the irreversible data-management decision', /Owner Data Management/i.test(modal.title || ''), JSON.stringify(modal));
-    check('Owner modal offers period, all-business and full-team scopes',
-      modal.options.map((o) => o.value).join(',') === 'PERIOD,ALL_BUSINESS_DATA,FULL_SETUP_RESET', JSON.stringify(modal.options));
+    check('Owner modal offers period, all-business, accounting-continuity and full-team scopes',
+      modal.options.map((o) => o.value).join(',') === 'PERIOD,ALL_BUSINESS_DATA,CLEAR_OPERATIONAL_KEEP_ACCOUNTING,FULL_SETUP_RESET', JSON.stringify(modal.options));
     check('Owner modal has no horizontal overflow on phone', !modal.overflows, JSON.stringify(modal));
 
     await owner.page.select('#dm-mode', 'PERIOD');

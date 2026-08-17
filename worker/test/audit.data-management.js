@@ -53,7 +53,7 @@ async function asUser(path, method, token, body) {
 }
 
 const sqlite = new Database(':memory:');
-for (const migration of ['0001_initial_schema.sql', '0003_single_active_sessions.sql', '0004_owner_data_management.sql']) {
+for (const migration of ['0001_initial_schema.sql', '0003_single_active_sessions.sql', '0004_owner_data_management.sql', '0005_accounting_continuity_data_management.sql']) {
   sqlite.exec(fs.readFileSync(`${__dirname}/../migrations/${migration}`, 'utf8'));
 }
 const DB = d1Adapter(sqlite);
@@ -77,6 +77,13 @@ const ENV = { DB, JWT_SECRET: SECRET, ENVIRONMENT: 'test' };
   sqlite.prepare("INSERT INTO sale_items (id,sale_id,stock_batch_id,product_id,quantity,quantity_base_units,unit_price,line_total) VALUES ('si-old','sale-old','batch1','prod1',1,1,15,15),('si-new','sale-new','batch1','prod1',1,1,15,15)").run();
   sqlite.prepare("INSERT INTO sale_payments (id,sale_id,method,amount,created_at) VALUES ('sp-old','sale-old','CASH',15,'2025-01-10 09:00:00'),('sp-new','sale-new','CASH',15,'2025-02-10 09:00:00')").run();
   sqlite.prepare("INSERT INTO expenses (id,branch_id,category,description,amount,recorded_by,expense_date,created_at) VALUES ('expense-old','b1','Utilities','Old bill',10,'owner1','2025-01-11','2025-01-11 10:00:00')").run();
+  // Independent accounting rows make the continuity contract testable: the
+  // accounting-preserving cleanup must retain these while deleting every live
+  // sale/product/customer/supplier record around them.
+  sqlite.prepare("INSERT INTO gl_accounts (id,code,name,account_type,is_system) VALUES ('audit-cash','AUDIT_CASH','Audit Cash','ASSET',0),('audit-revenue','AUDIT_REVENUE','Audit Revenue','REVENUE',0)").run();
+  sqlite.prepare("INSERT INTO gl_journal_entries (id,branch_id,entry_date,source_type,source_id,description,posted_by,status) VALUES ('je-keep','b1','2025-02-10','SALE','sale-new','Cumulative sale figure','owner1','POSTED')").run();
+  sqlite.prepare("INSERT INTO gl_journal_lines (id,journal_entry_id,account_id,debit,credit) VALUES ('jl-keep-dr','je-keep','audit-cash',15,0),('jl-keep-cr','je-keep','audit-revenue',0,15)").run();
+  sqlite.prepare("INSERT INTO branch_safe_ledger (id,branch_id,entry_type,amount,reason,recorded_by) VALUES ('safe-keep','b1','DEPOSIT',50,'Opening reserve','owner1')").run();
 
   const ownerToken = await signToken({ id: 'owner1', sid: 'owner-session' }, SECRET);
   const gmToken = await signToken({ id: 'gm1', sid: 'gm-session' }, SECRET);
@@ -105,13 +112,21 @@ const ENV = { DB, JWT_SECRET: SECRET, ENVIRONMENT: 'test' };
   check('newer sale outside the period remains', sqlite.prepare("SELECT COUNT(*) AS n FROM sales WHERE id='sale-new'").get().n === 1, 'new sale missing');
   check('period cleanup leaves Manager and Staff credentials intact', sqlite.prepare("SELECT COUNT(*) AS n FROM users WHERE role IN ('MANAGER','STAFF')").get().n === 2, 'accounts missing');
 
+  r = await asUser('/preview?mode=CLEAR_OPERATIONAL_KEEP_ACCOUNTING', 'GET', ownerToken);
+  check('accounting-continuity preview is available to the Owner', r.status === 200
+    && r.body.mode === 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING'
+    && !Object.prototype.hasOwnProperty.call(r.body.records || {}, 'gl_journal_entries'), `status=${r.status} ${JSON.stringify(r.body)}`);
+
   r = await asUser('/purge', 'POST', ownerToken, {
-    mode: 'ALL_BUSINESS_DATA', confirmation: 'CLEAR ALL BUSINESS DATA', export_confirmed: true, retention_acknowledged: true,
+    mode: 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING', confirmation: 'CLEAR OPERATIONS KEEP ACCOUNTING', export_confirmed: true, retention_acknowledged: true,
   });
-  check('all-business reset clears master/operating data but keeps the team and branch setup', r.status === 200
+  check('accounting-continuity cleanup clears master/operating data but keeps team and branch setup', r.status === 200
     && sqlite.prepare('SELECT COUNT(*) AS n FROM products').get().n === 0
     && sqlite.prepare("SELECT COUNT(*) AS n FROM users WHERE role IN ('MANAGER','STAFF')").get().n === 2
     && sqlite.prepare('SELECT COUNT(*) AS n FROM branches').get().n === 1, `status=${r.status}`);
+  check('accounting-continuity cleanup preserves cumulative GL and branch-safe figures', sqlite.prepare("SELECT COUNT(*) AS n FROM gl_journal_entries WHERE id='je-keep'").get().n === 1
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM gl_journal_lines WHERE journal_entry_id='je-keep'").get().n === 2
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM branch_safe_ledger WHERE id='safe-keep'").get().n === 1, 'accounting continuity row was removed');
 
   // A device-reported offline backlog is also a blocker: the Owner must sync
   // known records before wiping the central database underneath them.

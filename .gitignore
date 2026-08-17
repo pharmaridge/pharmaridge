@@ -135,7 +135,7 @@ playwright-report/
 # Operating systems
 # -----------------------------------------------------------------------------
 # Windows is the primary deployment workstation for this project
-# (see DEPLOY-FROM-WINDOWS.md), so these matter in practice.
+# (see DEPLOY-MULTI-CLIENT-SSH-CLOUDFLARE-WINDOWS.md), so these matter in practice.
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db

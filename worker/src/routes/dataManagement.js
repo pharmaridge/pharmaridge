@@ -42,6 +42,11 @@ const MODES = {
     phrase: 'CLEAR ALL BUSINESS DATA',
     description: 'Hard-deletes trading, stock, accounting, supplier/customer and sync records while keeping branches and every existing account credential.',
   },
+  CLEAR_OPERATIONAL_KEEP_ACCOUNTING: {
+    label: 'Clear operational data; keep accounting continuity',
+    phrase: 'CLEAR OPERATIONS KEEP ACCOUNTING',
+    description: 'Hard-deletes live trading, inventory, purchasing, customer/supplier, attendance, staff-transfer and sync records while keeping branches, account credentials, the chart of accounts, posted general-ledger figures and branch-safe cash history. Historical GL source IDs remain as ledger references, but their deleted operational source records will no longer open.',
+  },
   FULL_SETUP_RESET: {
     label: 'Full business and team reset',
     phrase: 'RESET BUSINESS AND TEAM',
@@ -211,6 +216,29 @@ function allBusinessDeletions() {
   ];
 }
 
+// This scope deliberately keeps only the numeric/accounting continuities that
+// do not depend on a customer, supplier, product, sale or purchase-order row.
+// The general ledger is the authoritative cumulative figure set behind Trial
+// Balance, P&L and Balance Sheet. The branch-safe ledger is kept too, because
+// it is the ongoing physical cash position for each retained branch. Detailed
+// WHT, debtor and creditor registers are operational source records and are
+// removed; their financial effect is already represented in posted GL lines.
+function operationalDeletionsKeepAccounting() {
+  const accountingContinuityTables = new Set([
+    'gl_journal_lines',
+    'gl_journal_entries',
+    'branch_safe_ledger',
+  ]);
+  return allBusinessDeletions().filter((op) => !accountingContinuityTables.has(op.table));
+}
+
+function deletionsForScope(scope) {
+  if (scope.mode === 'PERIOD') return periodDeletions(scope.startDate, scope.endDate);
+  if (scope.mode === 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING') return operationalDeletionsKeepAccounting();
+  if (scope.mode === 'FULL_SETUP_RESET') return fullSetupDeletions();
+  return allBusinessDeletions();
+}
+
 function fullSetupDeletions() {
   return [
     ...allBusinessDeletions(),
@@ -290,10 +318,10 @@ async function blockersFor(db, scope) {
 }
 
 async function makePreview(db, scope) {
-  const ops = scope.mode === 'PERIOD'
-    ? periodDeletions(scope.startDate, scope.endDate)
-    : (scope.mode === 'FULL_SETUP_RESET' ? fullSetupDeletions() : allBusinessDeletions());
-  const counts = scope.mode === 'PERIOD'
+  const ops = deletionsForScope(scope);
+  // The accounting-continuity preview reports only the rows that will really
+  // be removed. It must not present retained GL/safe figures as deletions.
+  const counts = (scope.mode === 'PERIOD' || scope.mode === 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING')
     ? await tableCounts(db, ops)
     : await allTableCounts(db, scope.mode === 'FULL_SETUP_RESET');
   const blockers = await blockersFor(db, scope);
@@ -387,9 +415,7 @@ dataManagement.post('/purge', async (c) => {
   }
 
   const user = c.get('user');
-  const ops = scope.mode === 'PERIOD'
-    ? periodDeletions(scope.startDate, scope.endDate)
-    : (scope.mode === 'FULL_SETUP_RESET' ? fullSetupDeletions() : allBusinessDeletions());
+  const ops = deletionsForScope(scope);
   const summary = {
     record_total: preview.record_total,
     records: preview.records,
@@ -428,9 +454,11 @@ dataManagement.post('/purge', async (c) => {
     storage_after: storageAfter,
     message: scope.mode === 'FULL_SETUP_RESET'
       ? 'Business data, Manager and Staff credentials, devices and branches were removed. Your Owner account remains signed in so you can set up the new business.'
-      : scope.mode === 'ALL_BUSINESS_DATA'
-        ? 'Business data was removed. Existing Owner, Manager and Staff credentials and branch setup remain.'
-        : 'The selected historical period was removed. Current setup and master records remain.',
+      : scope.mode === 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING'
+        ? 'Operational data was removed. Branches and account credentials remain, and the cumulative general-ledger and branch-safe figures are retained for accounting continuity.'
+        : scope.mode === 'ALL_BUSINESS_DATA'
+          ? 'Business data was removed. Existing Owner, Manager and Staff credentials and branch setup remain.'
+          : 'The selected historical period was removed. Current setup and master records remain.',
   });
 });
 

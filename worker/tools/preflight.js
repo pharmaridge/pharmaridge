@@ -48,10 +48,6 @@ if (localSecrets.length) {
   warnings.push(`Local credential file(s) present and correctly gitignored: ${localSecrets.map((file) => path.relative(repoRoot, file)).join(', ')}. Confirm they are not deployed or committed.`);
 }
 
-const docs = path.join(repoRoot, 'docs', 'RECOVERY-STATUS.md');
-if (fs.existsSync(docs)) {
-  warnings.push('The supplied artifact did not include the original automated test sources. Review docs/RECOVERY-STATUS.md before treating the structural test as behavioural certification.');
-}
 
 for (const warning of warnings) console.warn(`WARN: ${warning}`);
 if (failures.length) {
