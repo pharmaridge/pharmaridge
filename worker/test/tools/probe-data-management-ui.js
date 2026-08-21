@@ -2,7 +2,7 @@
 //
 // This checks the new destructive-data control from both directions without
 // ever executing a deletion against a scenario database. The Owner gets a
-// reachable, labelled control and a four-scope preview; General Manager and
+// reachable, labelled control and a five-scope preview; General Manager and
 // Admin are denied by BOTH the DOM and the live API. An invalid server-side
 // purge request proves a forged browser request cannot skip confirmation.
 const puppeteer = require('puppeteer');
@@ -86,9 +86,16 @@ async function api(token, method, path, body) {
       overflows: document.documentElement.scrollWidth > innerWidth,
     }));
     check('Owner modal names the irreversible data-management decision', /Owner Data Management/i.test(modal.title || ''), JSON.stringify(modal));
-    check('Owner modal offers period, all-business, accounting-continuity and full-team scopes',
-      modal.options.map((o) => o.value).join(',') === 'PERIOD,ALL_BUSINESS_DATA,CLEAR_OPERATIONAL_KEEP_ACCOUNTING,FULL_SETUP_RESET', JSON.stringify(modal.options));
+    check('Owner modal offers period, all-business, both continuity and full-team scopes',
+      modal.options.map((o) => o.value).join(',') === 'PERIOD,ALL_BUSINESS_DATA,CLEAR_OPERATIONAL_KEEP_ACCOUNTING,CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK,FULL_SETUP_RESET', JSON.stringify(modal.options));
     check('Owner modal has no horizontal overflow on phone', !modal.overflows, JSON.stringify(modal));
+
+    await owner.page.select('#dm-mode', 'CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK');
+    const continuityHelp = await owner.page.evaluate(() => ({
+      detail: document.getElementById('dm-mode-help').innerText,
+      protected: document.getElementById('dm-mode-retains').innerText,
+    }));
+    check('stock-continuity choice explains both deleted operations and protected stock/accounting', /in-stock batches/i.test(continuityHelp.detail) && /current in-stock batches/i.test(continuityHelp.protected), JSON.stringify(continuityHelp));
 
     await owner.page.select('#dm-mode', 'PERIOD');
     const periodInputs = await owner.page.evaluate(() => ({ start: !!document.getElementById('dm-start'), end: !!document.getElementById('dm-end'), shown: document.getElementById('dm-period').style.display !== 'none' }));

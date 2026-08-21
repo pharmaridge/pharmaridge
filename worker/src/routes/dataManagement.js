@@ -46,6 +46,13 @@ const MODES = {
     label: 'Clear operational data; keep accounting continuity',
     phrase: 'CLEAR OPERATIONS KEEP ACCOUNTING',
     description: 'Hard-deletes live trading, inventory, purchasing, customer/supplier, attendance, staff-transfer and sync records while keeping branches, account credentials, the chart of accounts, posted general-ledger figures and branch-safe cash history. Historical GL source IDs remain as ledger references, but their deleted operational source records will no longer open.',
+    retains: 'Branches and accounts; chart of accounts; posted GL entries and lines; branch-safe cash history.',
+  },
+  CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK: {
+    label: 'Clear operations; keep accounting and current stock',
+    phrase: 'CLEAR OPERATIONS KEEP ACCOUNTING AND STOCK',
+    description: 'Hard-deletes trading, customers, suppliers, purchasing, attendance, staff-transfer and sync history while retaining each branch’s in-stock batches, their products and current selling prices, plus the cumulative general ledger and branch-safe cash history. Retained stock is detached from deleted supplier and purchase-order links so no old supplier or order record remains.',
+    retains: 'Branches and accounts; current in-stock batches and their products/prices; chart of accounts; posted GL entries and lines; branch-safe cash history.',
   },
   FULL_SETUP_RESET: {
     label: 'Full business and team reset',
@@ -232,11 +239,71 @@ function operationalDeletionsKeepAccounting() {
   return allBusinessDeletions().filter((op) => !accountingContinuityTables.has(op.table));
 }
 
+function currentStockCondition(alias) {
+  const prefix = alias ? `${alias}.` : '';
+  return `${prefix}quantity_remaining > 0 AND ${prefix}is_deleted = 0`;
+}
+
+function activeStockProductIds() {
+  return `SELECT DISTINCT product_id FROM stock_batches WHERE ${currentStockCondition()}`;
+}
+
+// This continuity choice retains what is actually on the shelf: only batches
+// with a positive remaining quantity, their products and branch prices. Empty
+// batches and products with no current stock are removed with operations.
+function operationalDeletionsKeepAccountingAndCurrentStock() {
+  const accountingContinuityTables = new Set([
+    'gl_journal_lines',
+    'gl_journal_entries',
+    'branch_safe_ledger',
+  ]);
+  const activeProducts = activeStockProductIds();
+  return allBusinessDeletions().map((op) => {
+    if (accountingContinuityTables.has(op.table)) return null;
+    if (op.table === 'stock_batches') return deletion('stock_batches', `NOT (${currentStockCondition()})`);
+    if (op.table === 'products') return deletion('products', `id NOT IN (${activeProducts})`);
+    if (op.table === 'product_price_overrides') return deletion('product_price_overrides', `product_id NOT IN (${activeProducts})`);
+    return op;
+  }).filter(Boolean);
+}
+
 function deletionsForScope(scope) {
   if (scope.mode === 'PERIOD') return periodDeletions(scope.startDate, scope.endDate);
   if (scope.mode === 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING') return operationalDeletionsKeepAccounting();
+  if (scope.mode === 'CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK') return operationalDeletionsKeepAccountingAndCurrentStock();
   if (scope.mode === 'FULL_SETUP_RESET') return fullSetupDeletions();
   return allBusinessDeletions();
+}
+
+// Protected stock has supplier and purchase-order foreign keys. Detach those
+// links in the same atomic batch before deleting their operational records;
+// batch quantities, expiry, product, prices and branch stay untouched.
+function preparationsForScope(db, scope) {
+  if (scope.mode !== 'CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK') return [];
+  return [db.prepare(`
+    UPDATE stock_batches
+       SET purchase_order_id = NULL,
+           supplier_id = NULL,
+           updated_at = datetime('now')
+     WHERE ${currentStockCondition()}
+  `)];
+}
+
+async function retainedContinuity(db, scope) {
+  if (scope.mode !== 'CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK') return null;
+  const row = await db.prepare(`
+    SELECT COUNT(*) AS stock_batch_count,
+           COALESCE(SUM(quantity_remaining), 0) AS stock_base_units,
+           COUNT(DISTINCT product_id) AS stocked_product_count
+      FROM stock_batches
+     WHERE ${currentStockCondition()}
+  `).first();
+  return {
+    stock_batches: Number((row && row.stock_batch_count) || 0),
+    stock_base_units: Number((row && row.stock_base_units) || 0),
+    stocked_products: Number((row && row.stocked_product_count) || 0),
+    accounting_tables: ['gl_accounts', 'gl_journal_entries', 'gl_journal_lines', 'branch_safe_ledger'],
+  };
 }
 
 function fullSetupDeletions() {
@@ -321,7 +388,7 @@ async function makePreview(db, scope) {
   const ops = deletionsForScope(scope);
   // The accounting-continuity preview reports only the rows that will really
   // be removed. It must not present retained GL/safe figures as deletions.
-  const counts = (scope.mode === 'PERIOD' || scope.mode === 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING')
+  const counts = (scope.mode === 'PERIOD' || scope.mode === 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING' || scope.mode === 'CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK')
     ? await tableCounts(db, ops)
     : await allTableCounts(db, scope.mode === 'FULL_SETUP_RESET');
   const blockers = await blockersFor(db, scope);
@@ -337,6 +404,8 @@ async function makePreview(db, scope) {
     blockers,
     can_run: blockers.length === 0,
     storage_before: storage,
+    retained: await retainedContinuity(db, scope),
+    retains: MODES[scope.mode].retains || null,
     confirmation_phrase: MODES[scope.mode].phrase,
     retention_notice: 'Deleting a record is permanent from this application. Export and verify every report or backup you must retain before continuing. Resolve every reported offline queue first; after any cleanup, an old queued replay is quarantined for review instead of being allowed to recreate records. Check your accountant, tax adviser and applicable pharmacy/controlled-drug retention obligations before deleting financial, VAT/WHT, prescription or controlled-drug records.',
     storage_notice: 'This removes live rows and reduces PharmaRidge’s active-data estimate. Cloudflare manages physical database allocation; do not rely on deletion alone as a guarantee of immediate billed-storage reduction. If capacity is critical, plan an upgrade with support as well.',
@@ -371,7 +440,7 @@ dataManagement.get('/status', async (c) => {
   return c.json({
     storage: await getStorageHealth(db),
     recent_cleanups: await recentLog(db),
-    modes: Object.entries(MODES).map(([code, spec]) => ({ code, label: spec.label, description: spec.description, needs_dates: !!spec.needsDates, confirmation_phrase: spec.phrase })),
+    modes: Object.entries(MODES).map(([code, spec]) => ({ code, label: spec.label, description: spec.description, retains: spec.retains || null, needs_dates: !!spec.needsDates, confirmation_phrase: spec.phrase })),
   });
 });
 
@@ -438,6 +507,7 @@ dataManagement.post('/purge', async (c) => {
   // to delete. Re-pointing it at the acting Owner before that delete preserves
   // the foreign-key invariant without weakening foreign-key enforcement.
   statements.push(db.prepare("UPDATE client_settings SET data_reset_at = datetime('now'), updated_at = datetime('now'), updated_by = ? WHERE id = 1").bind(user.id));
+  statements.push(...preparationsForScope(db, scope));
   statements.push(...ops.map((op) => db.prepare(sqlForDelete(op)).bind(...op.binds)));
   statements.push(db.prepare(`
     INSERT INTO data_cleanup_log (mode, initiated_by, initiated_by_username, start_date, end_date, deleted_summary_json)
@@ -452,13 +522,16 @@ dataManagement.post('/purge', async (c) => {
     mode_label: spec.label,
     removed: summary,
     storage_after: storageAfter,
+    retained: preview.retained,
     message: scope.mode === 'FULL_SETUP_RESET'
       ? 'Business data, Manager and Staff credentials, devices and branches were removed. Your Owner account remains signed in so you can set up the new business.'
-      : scope.mode === 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING'
-        ? 'Operational data was removed. Branches and account credentials remain, and the cumulative general-ledger and branch-safe figures are retained for accounting continuity.'
-        : scope.mode === 'ALL_BUSINESS_DATA'
-          ? 'Business data was removed. Existing Owner, Manager and Staff credentials and branch setup remain.'
-          : 'The selected historical period was removed. Current setup and master records remain.',
+      : scope.mode === 'CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK'
+        ? 'Operational data was removed. Current in-stock batches, product/pricing information and cumulative accounting figures remain for continuity; old supplier and purchase-order links were removed from retained batches.'
+        : scope.mode === 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING'
+          ? 'Operational data was removed. Branches and account credentials remain, and the cumulative general-ledger and branch-safe figures are retained for accounting continuity.'
+          : scope.mode === 'ALL_BUSINESS_DATA'
+            ? 'Business data was removed. Existing Owner, Manager and Staff credentials and branch setup remain.'
+            : 'The selected historical period was removed. Current setup and master records remain.',
   });
 });
 

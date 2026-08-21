@@ -1,9 +1,35 @@
 const UI = (() => {
+  // Every red toast gets a short, explicit recovery reference. Individual views
+  // still give precise validation text; generic API errors cannot leave the
+  // operator without knowing the expected next step.
+  function errorRecovery(message) {
+    const text = String(message || '').toLowerCase();
+    // An "open till session" is an operational blocker, not an expired login;
+    // test it before the broader session/sign-in wording below.
+    if (/open till|open stocktake|open attendance|pending.*transfer|unsynced/.test(text)) return 'Close or resolve the named operation, sync devices, then preview and try again.';
+    if (/session|sign in|auth|token|account.*deactiv/.test(text)) return 'Sign in again with an active account, then repeat the action.';
+    if (/offline|network|connection|sync/.test(text)) return 'Check the connection, then use Sync Status or retry when the device is online.';
+    if (/permission|forbidden|not allowed|owner|manager|role/.test(text)) return 'Use an account with the required role, or ask the Owner or Manager to complete this action.';
+    if (/stock|quantity|batch|expiry/.test(text)) return 'Review the available batch, quantity, expiry and branch, correct the entry, then try again.';
+    if (/required|must|invalid|choose|enter|date|amount|pin|password/.test(text)) return 'Complete the highlighted field in the stated format, then submit again.';
+    if (/not found|unknown|no matching|missing/.test(text)) return 'Refresh this screen, confirm the selected record still exists, then try again.';
+    return 'Review the message, correct the required setup or entry, then try again. If it continues, refresh and contact your Manager.';
+  }
+
   function toast(message, type = 'info', timeout = 4000) {
     const container = document.getElementById('toast-container');
     const el = document.createElement('div');
     el.className = `toast ${type}`;
-    el.textContent = message;
+    const main = document.createElement('div');
+    main.className = 'toast-message';
+    main.textContent = message;
+    el.appendChild(main);
+    if (type === 'error') {
+      const action = document.createElement('div');
+      action.className = 'toast-recovery';
+      action.textContent = `What to do: ${errorRecovery(message)}`;
+      el.appendChild(action);
+    }
     container.appendChild(el);
     setTimeout(() => el.remove(), timeout);
   }
@@ -293,7 +319,7 @@ const UI = (() => {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  return { toast, money, shortDate, badge, openModal, closeModal, on, passwordField, bindPasswordReveals, applyFieldGuidance, guardedClick, updateOfflineBanner, escapeHtml };
+  return { toast, errorRecovery, money, shortDate, badge, openModal, closeModal, on, passwordField, bindPasswordReveals, applyFieldGuidance, guardedClick, updateOfflineBanner, escapeHtml };
 })();
 
 // BUG 111 — `window.UI` IS UNDEFINED, AND CALLERS FEATURE-DETECT ON IT.

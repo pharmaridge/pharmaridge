@@ -219,11 +219,7 @@ Expect **6801**.
 > and SQLite adds `sqlite_sequence`. Filtering those out gives a number you can
 > actually compare against.
 
-Four migrations currently run: `0001_initial_schema.sql` (core schema and
-system accounts), `0002_nafdac_catalog.sql` (6,801 NAFDAC-approved products),
-`0003_single_active_sessions.sql` (one active device session per person), and
-`0004_owner_data_management.sql` (Owner data-retention controls). Never skip a
-migration.
+Two migrations now run: `0001_initial_schema.sql` (the full operational baseline, including system accounts, one-active-session control and Owner data management) and `0002_nafdac_catalog.sql` (the separate 6,801-product NAFDAC reference catalog). Never skip a migration.
 
 > **Current Windows deployment walkthrough:**
 > [`DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md`](DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md).
@@ -385,7 +381,7 @@ npx wrangler d1 migrations list pharmaridge-db --remote
 npm run db:migrate:remote
 ```
 
-**Updating the app.** Bump `CACHE_NAME` in `public/sw.js` (currently `pharmaridge-v82`) whenever you change cached assets, or field devices keep the stale shell.
+**Updating the app.** Bump `CACHE_NAME` in `public/sw.js` (currently `pharmaridge-v83`) whenever you change cached assets, or field devices keep the stale shell.
 
 ---
 

@@ -53,7 +53,7 @@ async function asUser(path, method, token, body) {
 }
 
 const sqlite = new Database(':memory:');
-for (const migration of ['0001_initial_schema.sql', '0003_single_active_sessions.sql', '0004_owner_data_management.sql', '0005_accounting_continuity_data_management.sql']) {
+for (const migration of ['0001_initial_schema.sql']) {
   sqlite.exec(fs.readFileSync(`${__dirname}/../migrations/${migration}`, 'utf8'));
 }
 const DB = d1Adapter(sqlite);
@@ -69,9 +69,11 @@ const ENV = { DB, JWT_SECRET: SECRET, ENVIRONMENT: 'test' };
   sqlite.prepare("INSERT INTO users (id,branch_id,full_name,username,pin_hash,role) VALUES ('staff1','b1','Staff One','staff','x','STAFF')").run();
   sqlite.prepare("INSERT INTO user_sessions (user_id,session_id) VALUES ('owner1','owner-session'),('gm1','gm-session')").run();
   sqlite.prepare("INSERT INTO suppliers (id,name) VALUES ('sup1','Supplier')").run();
-  sqlite.prepare("INSERT INTO products (id,name) VALUES ('prod1','Test Product')").run();
+  sqlite.prepare("INSERT INTO products (id,name) VALUES ('prod1','Current Stock Product'),('prod-empty','Exhausted Product')").run();
+  sqlite.prepare("INSERT INTO purchase_orders (id,branch_id,supplier_id,ordered_by) VALUES ('po1','b1','sup1','owner1')").run();
   sqlite.prepare("INSERT INTO customers (id,branch_id,name) VALUES ('cust1','b1','Customer')").run();
-  sqlite.prepare("INSERT INTO stock_batches (id,branch_id,product_id,quantity_received,quantity_remaining,cost_price_per_unit,selling_price_per_unit) VALUES ('batch1','b1','prod1',10,8,10,15)").run();
+  sqlite.prepare("INSERT INTO stock_batches (id,branch_id,product_id,quantity_received,quantity_remaining,cost_price_per_unit,selling_price_per_unit,supplier_id,purchase_order_id) VALUES ('batch1','b1','prod1',10,8,10,15,'sup1','po1'),('batch-empty','b1','prod-empty',2,0,10,15,'sup1','po1')").run();
+  sqlite.prepare("INSERT INTO product_price_overrides (id,branch_id,product_id,default_selling_price) VALUES ('price-current','b1','prod1',16),('price-empty','b1','prod-empty',16)").run();
   sqlite.prepare("INSERT INTO till_sessions (id,branch_id,opened_by,opening_cash,opened_at,status) VALUES ('t-old','b1','owner1',0,'2025-01-10 08:00:00','CLOSED'),('t-new','b1','owner1',0,'2025-02-10 08:00:00','CLOSED')").run();
   sqlite.prepare("INSERT INTO sales (id,branch_id,served_by,customer_id,subtotal,discount,total,is_credit_sale,status,till_session_id,created_at,updated_at) VALUES ('sale-old','b1','owner1','cust1',15,0,15,0,'COMPLETED','t-old','2025-01-10 09:00:00','2025-01-10 09:00:00'),('sale-new','b1','owner1','cust1',15,0,15,0,'COMPLETED','t-new','2025-02-10 09:00:00','2025-02-10 09:00:00')").run();
   sqlite.prepare("INSERT INTO sale_items (id,sale_id,stock_batch_id,product_id,quantity,quantity_base_units,unit_price,line_total) VALUES ('si-old','sale-old','batch1','prod1',1,1,15,15),('si-new','sale-new','batch1','prod1',1,1,15,15)").run();
@@ -112,21 +114,36 @@ const ENV = { DB, JWT_SECRET: SECRET, ENVIRONMENT: 'test' };
   check('newer sale outside the period remains', sqlite.prepare("SELECT COUNT(*) AS n FROM sales WHERE id='sale-new'").get().n === 1, 'new sale missing');
   check('period cleanup leaves Manager and Staff credentials intact', sqlite.prepare("SELECT COUNT(*) AS n FROM users WHERE role IN ('MANAGER','STAFF')").get().n === 2, 'accounts missing');
 
-  r = await asUser('/preview?mode=CLEAR_OPERATIONAL_KEEP_ACCOUNTING', 'GET', ownerToken);
-  check('accounting-continuity preview is available to the Owner', r.status === 200
-    && r.body.mode === 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING'
+  r = await asUser('/preview?mode=CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK', 'GET', ownerToken);
+  check('accounting-and-stock continuity preview is available to the Owner', r.status === 200
+    && r.body.mode === 'CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK'
+    && r.body.retained && r.body.retained.stock_batches === 1 && r.body.retained.stock_base_units === 8
     && !Object.prototype.hasOwnProperty.call(r.body.records || {}, 'gl_journal_entries'), `status=${r.status} ${JSON.stringify(r.body)}`);
+
+  r = await asUser('/purge', 'POST', ownerToken, {
+    mode: 'CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK', confirmation: 'CLEAR OPERATIONS KEEP ACCOUNTING AND STOCK', export_confirmed: true, retention_acknowledged: true,
+  });
+  check('accounting-and-stock cleanup clears operations but keeps team and branch setup', r.status === 200
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM sales").get().n === 0
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM users WHERE role IN ('MANAGER','STAFF')").get().n === 2
+    && sqlite.prepare('SELECT COUNT(*) AS n FROM branches').get().n === 1, `status=${r.status}`);
+  check('accounting-and-stock cleanup preserves only on-hand stock, its product and price', sqlite.prepare("SELECT COUNT(*) AS n FROM stock_batches WHERE id='batch1' AND quantity_remaining=8 AND supplier_id IS NULL AND purchase_order_id IS NULL").get().n === 1
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM products WHERE id='prod1'").get().n === 1
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM product_price_overrides WHERE id='price-current'").get().n === 1
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM stock_batches WHERE id='batch-empty'").get().n === 0
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM products WHERE id='prod-empty'").get().n === 0
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM product_price_overrides WHERE id='price-empty'").get().n === 0, 'current-stock continuity did not match the protected set');
+  check('accounting-and-stock cleanup preserves cumulative GL and branch-safe figures', sqlite.prepare("SELECT COUNT(*) AS n FROM gl_journal_entries WHERE id='je-keep'").get().n === 1
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM gl_journal_lines WHERE journal_entry_id='je-keep'").get().n === 2
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM branch_safe_ledger WHERE id='safe-keep'").get().n === 1, 'accounting continuity row was removed');
 
   r = await asUser('/purge', 'POST', ownerToken, {
     mode: 'CLEAR_OPERATIONAL_KEEP_ACCOUNTING', confirmation: 'CLEAR OPERATIONS KEEP ACCOUNTING', export_confirmed: true, retention_acknowledged: true,
   });
-  check('accounting-continuity cleanup clears master/operating data but keeps team and branch setup', r.status === 200
+  check('accounting-only continuity option still removes the retained stock master data', r.status === 200
+    && sqlite.prepare('SELECT COUNT(*) AS n FROM stock_batches').get().n === 0
     && sqlite.prepare('SELECT COUNT(*) AS n FROM products').get().n === 0
-    && sqlite.prepare("SELECT COUNT(*) AS n FROM users WHERE role IN ('MANAGER','STAFF')").get().n === 2
-    && sqlite.prepare('SELECT COUNT(*) AS n FROM branches').get().n === 1, `status=${r.status}`);
-  check('accounting-continuity cleanup preserves cumulative GL and branch-safe figures', sqlite.prepare("SELECT COUNT(*) AS n FROM gl_journal_entries WHERE id='je-keep'").get().n === 1
-    && sqlite.prepare("SELECT COUNT(*) AS n FROM gl_journal_lines WHERE journal_entry_id='je-keep'").get().n === 2
-    && sqlite.prepare("SELECT COUNT(*) AS n FROM branch_safe_ledger WHERE id='safe-keep'").get().n === 1, 'accounting continuity row was removed');
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM gl_journal_entries WHERE id='je-keep'").get().n === 1, `status=${r.status}`);
 
   // A device-reported offline backlog is also a blocker: the Owner must sync
   // known records before wiping the central database underneath them.

@@ -60,6 +60,9 @@ run_one() {
   WORKER_BASE="${BASE}" node "${script}"
 }
 
+# Central error recovery messaging has no API dependency but is part of every UI flow.
+node test/tools/probe-toast-recovery.js
+
 # Controls, role-gated triggers, dropdowns, form alignment, touch targets and
 # responsive states. These probes re-read live backend state after UI actions.
 run_one test/tools/probe-role-triggers.js

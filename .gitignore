@@ -84,6 +84,8 @@ worker/seed.sql
 worker/live-sample-reset.sql
 worker/first-admin.sql
 worker/client-admin-reset.sql
+worker/schema-admin-format.sql
+worker/schema-admin-restore.sql
 
 # Database exports / backups produced by `wrangler d1 export`. These contain
 # REAL CLIENT DATA — patient prescriptions, buyer IDs from the controlled-drug

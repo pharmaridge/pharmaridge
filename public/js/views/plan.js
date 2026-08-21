@@ -502,6 +502,7 @@ async function openOwnerDataManagement() {
       <label for="dm-mode">What do you want to remove?</label>
       <select id="dm-mode">${(status.modes || []).map((m) => `<option value="${UI.escapeHtml(m.code)}">${UI.escapeHtml(m.label)}</option>`).join('')}</select>
       <small id="dm-mode-help" class="muted" style="display:block;margin-top:5px;font-size:12px;"></small>
+      <small id="dm-mode-retains" class="muted" style="display:block;margin-top:5px;font-size:12px;"></small>
     </div>
     <div id="dm-period" class="grid grid-2" style="margin:8px 0;">
       <div class="form-row"><label for="dm-start">From date (inclusive)</label><input id="dm-start" type="date" max="${today}" /></div>
@@ -516,6 +517,7 @@ async function openOwnerDataManagement() {
   const byId = (id) => modal.querySelector(`#${id}`);
   const select = byId('dm-mode');
   const help = byId('dm-mode-help');
+  const retains = byId('dm-mode-retains');
   const period = byId('dm-period');
   const previewEl = byId('dm-preview');
   function selectedMode() { return (status.modes || []).find((m) => m.code === select.value) || null; }
@@ -523,6 +525,7 @@ async function openOwnerDataManagement() {
     const mode = selectedMode();
     period.style.display = mode && mode.needs_dates ? '' : 'none';
     help.textContent = mode ? mode.description : '';
+    retains.innerHTML = mode && mode.retains ? `<strong>Protected for continuity:</strong> ${UI.escapeHtml(mode.retains)}` : '';
     previewEl.innerHTML = 'Option changed. Select <strong>Preview impact</strong>; nothing has been deleted.';
   }
   select.addEventListener('change', resetPreview);
@@ -545,6 +548,9 @@ async function openOwnerDataManagement() {
       const list = counts.length
         ? `<ul style="columns:2;column-gap:24px;margin:8px 0 0;padding-left:20px;">${counts.map(([table, count]) => `<li>${UI.escapeHtml(table.replace(/_/g, ' '))}: <strong>${Number(count).toLocaleString()}</strong></li>`).join('')}</ul>`
         : '<p style="margin:8px 0 0;">No matching rows are currently found. Preview again immediately before confirming if data may still arrive.</p>';
+      const retained = preview.retained
+        ? `<div style="margin-top:10px;padding:10px;border-left:4px solid var(--green-500);background:var(--tint-green);"><strong>Protected for continuity:</strong> ${Number(preview.retained.stock_batches || 0).toLocaleString()} current stock batch(es), ${Number(preview.retained.stock_base_units || 0).toLocaleString()} base unit(s), ${Number(preview.retained.stocked_products || 0).toLocaleString()} stocked product(s), plus posted GL and branch-safe figures. Supplier and purchase-order links on retained batches will be removed.</div>`
+        : (preview.retains ? `<div style="margin-top:10px;padding:10px;border-left:4px solid var(--green-500);background:var(--tint-green);"><strong>Protected for continuity:</strong> ${UI.escapeHtml(preview.retains)}</div>` : '');
       const blockers = preview.blockers && preview.blockers.length
         ? `<div style="margin-top:10px;padding:10px;border-left:4px solid var(--red-500);background:var(--tint-red);"><strong>Cannot run yet:</strong> ${preview.blockers.map((b) => `${b.count} ${UI.escapeHtml(b.label)}`).join(', ')}. Close/resolve these operations, then preview again.</div>`
         : '';
@@ -552,7 +558,7 @@ async function openOwnerDataManagement() {
         <h3 style="margin:0 0 5px;">Preview: ${UI.escapeHtml(preview.mode_label)}</h3>
         <p style="margin:0;">${UI.escapeHtml(preview.description || '')}</p>
         <p style="margin:8px 0 0;"><strong>${Number(preview.record_total || 0).toLocaleString()}</strong> records currently match this cleanup.</p>
-        ${list}${blockers}
+        ${list}${retained}${blockers}
         <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--gray-200);">
           <label style="display:flex;gap:7px;align-items:flex-start;margin:7px 0;"><input id="dm-exported" type="checkbox" /> <span>I exported or verified the reports/backup I am responsible for retaining.</span></label>
           <label style="display:flex;gap:7px;align-items:flex-start;margin:7px 0;"><input id="dm-retention" type="checkbox" /> <span>I understand the deletion is permanent in this app and I have considered financial, VAT/WHT, prescription and controlled-drug record-retention obligations.</span></label>

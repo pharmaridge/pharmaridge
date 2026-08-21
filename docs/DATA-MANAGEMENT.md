@@ -16,7 +16,7 @@ Open **My Plan → Owner Data Management → Review data-management options**.
 
 The dialog always follows this sequence:
 
-1. Pick one of the four scopes below.
+1. Pick one of the five scopes below.
 2. For a period, select the inclusive start and end dates.
 3. Select **Preview impact**. The server returns current matching row counts and checks for unresolved work.
 4. Export or verify every report/backup the business must keep.
@@ -32,6 +32,7 @@ The API repeats role, date, active-operation, acknowledgement and typed-phrase c
 | **Delete selected period** | Activity dated within the chosen inclusive range: sale details/payments, associated prescription/controlled-register entries, ledgers, WHT, GL entries/lines, expenses, stocktakes/adjustments/transfers, till/attendance history and technical history where applicable. | Current branch/team setup, products, suppliers, customers and stock batches. A till with a sale outside the range is retained rather than orphaned. |
 | **Clear all business data** | Trading, stock, accounting, supplier/customer/product master, purchasing, attendance/till, sync and technical history. | Existing Owner, Manager and Staff credentials, plus branch setup and devices. This is for a fresh trading dataset without re-onboarding the team. |
 | **Clear operational data; keep accounting continuity** | Live sales, stock, purchasing, customer/supplier, attendance, staff-transfer and sync records. | Branches and credentials, chart of accounts, posted GL journal entries/lines and branch-safe cash history. Trial Balance, P&L and Balance Sheet retain their cumulative figures. Detailed source records, WHT, debtor and creditor registers are deleted, so historical GL source IDs no longer open an operational record. |
+| **Clear operations; keep accounting and current stock** | Sales, customers, suppliers, purchase orders/receipts, attendance, transfers, stocktake/adjustment history and sync records. Empty stock batches and products with no current batch are removed. | Branches and credentials; each active batch with `quantity_remaining > 0`; the matching product and branch price record; chart of accounts; posted GL entries/lines; branch-safe cash history. Supplier and purchase-order links are cleared from the retained batches before their source records are deleted, so stock remains sellable without retaining old supplier/order data. |
 | **Full business and team reset** | Everything in the previous scope, then branch devices, branches, and every Manager/Staff credential. | Owner and PharmaRidge Support accounts, plan/settings, VAT/WHT configuration, system GL/chart configuration, NAFDAC reference catalog and a minimal cleanup log. The Owner who ran it remains signed in to build the new setup. |
 
 This is not a command to drop the D1 database, delete the vendor support account, or remove the current Owner account. Those protections are intentional: a successful reset must not lock the pharmacy out of its own deployment.
@@ -45,6 +46,16 @@ PHARMARIDGE_CONFIRM_RESET=RESET_CLIENT_DATA npm run db:generate:preserve-admin-r
 ```
 
 It generates an ignored SQL file for review and one deliberate local or remote D1 execution. It removes every non-Admin account and all client operations, while retaining the database schema/migrations, application settings, chart/tax reference configuration and NAFDAC reference catalog that the application needs to start. It does **not** retain any Owner, Manager, Staff, branch, sale, stock, customer, supplier or journal-entry data. Back up and verify the intended D1 target before using it; the browser Data Management flow is the right option when accounting continuity must remain.
+
+### Consolidated schema format
+
+New deployments use just two migrations: `0001_initial_schema.sql` for the complete operational baseline and `0002_nafdac_catalog.sql` for the NAFDAC reference catalog. For an intentionally retired D1 deployment that must be rebuilt onto that baseline, generate the paired **schema format / Admin restore** files:
+
+```bash
+PHARMARIDGE_CONFIRM_SCHEMA_RESET=FORMAT_SCHEMA_PRESERVE_ADMIN npm run db:generate:preserve-admin-schema-format
+```
+
+The procedure temporarily preserves only existing active Admin row(s), removes all application tables and migration history, reapplies the two baseline migrations, then restores those Admin row(s). It retains the existing password hash; it deliberately does **not** place a known or shared password in code, seed SQL, Git or the public sample. All other users, branches, operations, accounting records and catalog rows are rebuilt from the new migrations.
 
 ## Safety controls
 
@@ -69,4 +80,4 @@ Data removal can reduce active rows and PharmaRidge's capacity estimate, but Clo
 
 ## Validation
 
-`npm run test:data-management` runs the isolated data-management regression audit. It checks Owner-only access, date-range deletion, typed confirmation, active-till and unsynced-queue blocks, all-business retention of accounts/branches, full-reset deletion order, Manager/Staff credential removal, Owner session preservation, reset queue fencing, cleanup-log retention, and the accounting-continuity mode retaining posted GL and branch-safe figures while operational records are removed.
+`npm run test:data-management` runs the isolated data-management regression audit. It checks Owner-only access, date-range deletion, typed confirmation, active-till and unsynced-queue blocks, all-business retention of accounts/branches, full-reset deletion order, Manager/Staff credential removal, Owner session preservation, reset queue fencing, cleanup-log retention, accounting-only continuity, and stock-plus-accounting continuity retaining live batches/products/prices while detaching deleted supplier/order links.

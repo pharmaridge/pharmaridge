@@ -2170,3 +2170,33 @@ INSERT INTO wht_rates (id, code, name, rate_percent, direction, is_system, note)
   (lower(hex(randomblob(16))), 'DIRECTORS_FEES', 'Directorsّ Fees', 15.0, 'PAYABLE', 1, 'INCREASED to 15% by the 2024 Regulations for residents (20% non-resident, final tax). Note some practitioners argue s.72 PITA''s 10% still governs; the owner can edit this rate if their tax adviser directs otherwise.'),
   (lower(hex(randomblob(16))), 'DIVIDEND_INTEREST', 'Dividend & Interest', 10.0, 'BOTH', 1, 'Unchanged at 10%. Interest and fees paid to a Nigerian bank by direct debit of funds domiciled with that bank are exempt.'),
   (lower(hex(randomblob(16))), 'ROYALTY', 'Royalty', 10.0, 'BOTH', 1, '10% to corporate recipients, 5% to individuals.');
+
+-- =====================================================================
+-- BASELINE ADDITIONS — one active session and Owner data management
+-- =====================================================================
+CREATE TABLE user_sessions (
+    user_id     TEXT PRIMARY KEY REFERENCES users(id),
+    session_id  TEXT NOT NULL,
+    issued_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_user_sessions_session ON user_sessions(session_id);
+
+CREATE TABLE data_cleanup_log (
+    id                     TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    mode                   TEXT NOT NULL CHECK (mode IN (
+      'PERIOD',
+      'ALL_BUSINESS_DATA',
+      'CLEAR_OPERATIONAL_KEEP_ACCOUNTING',
+      'CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK',
+      'FULL_SETUP_RESET'
+    )),
+    initiated_by           TEXT NOT NULL,
+    initiated_by_username  TEXT NOT NULL,
+    start_date             TEXT,
+    end_date               TEXT,
+    deleted_summary_json   TEXT NOT NULL,
+    created_at             TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_data_cleanup_log_created ON data_cleanup_log(created_at);
+ALTER TABLE client_settings ADD COLUMN data_reset_at TEXT;

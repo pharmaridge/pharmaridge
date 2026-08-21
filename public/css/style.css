@@ -1199,4 +1199,9 @@ input[type="checkbox"], input[type="radio"] { min-height: 18px; }
   border-radius: var(--radius-sm); color: var(--gray-800);
 }
 .receive-preview .rp-wait { color: var(--gray-600); font-style: italic; }
-// UI helpers: toasts, modals, formatting, offline banner.
+/* Every error toast carries a clear next action, not just a failure sentence. */
+.toast-message { overflow-wrap: anywhere; }
+.toast-recovery {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.28);
+  font-size: 12px; line-height: 1.45; font-weight: 700; overflow-wrap: anywhere;
+}
