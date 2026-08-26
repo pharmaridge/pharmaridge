@@ -84,6 +84,12 @@ function applyBackdates(statements) {
     dispensing_type: 'OTC', base_unit: 'tablet', units_per_pack: 10, reorder_level: 100 } });
   if (simProductRes.status !== 201) throw new Error(`simulation product create failed: ${simProductRes.status}`);
   const simulationProduct = simProductRes.body;
+  // Continuity runs may deliberately start after an accounting-only cleanup,
+  // where every former product was removed but branches and people remain.
+  // The fresh simulation product is valid OTC stock too, so include it in the
+  // later procurement/transfer selection instead of silently skipping the
+  // transfer leg in a second or third three-month term.
+  allowedProducts.set(simulationProduct.id, simulationProduct);
   for (const [branch, offset] of [[lagos, 90], [minna, 89]]) {
     const po = await request('POST', '/api/purchase-orders', { token: owner, body: {
       branch_id: branch.id, supplier_id: supplier.id,

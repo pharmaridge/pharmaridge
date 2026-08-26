@@ -81,3 +81,5 @@ Data removal can reduce active rows and PharmaRidge's capacity estimate, but Clo
 ## Validation
 
 `npm run test:data-management` runs the isolated data-management regression audit. It checks Owner-only access, date-range deletion, typed confirmation, active-till and unsynced-queue blocks, all-business retention of accounts/branches, full-reset deletion order, Manager/Staff credential removal, Owner session preservation, reset queue fencing, cleanup-log retention, accounting-only continuity, and stock-plus-accounting continuity retaining live batches/products/prices while detaching deleted supplier/order links.
+
+`npm run test:data-management:consecutive-terms` runs the longer continuity proof locally: three consecutive 90-day operating terms for accounting-only protection, then three further 90-day terms for accounting-plus-current-stock protection. After every term it calls the real Owner cleanup API, re-reads Trial Balance, branch-safe history, current batches/products/prices, and verifies the next term can trade. Each policy ends with a deliberate all-business deletion check.
