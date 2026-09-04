@@ -13,7 +13,7 @@ Offline-first PWA frontend + Cloudflare Workers & D1 edge backend.
 | **UI** | Light **and dark** theme, zero external dependencies — no framework, icon font or webfont |
 | **Audit** | Current evidence: [`docs/FULL-AUDIT-REPORT.md`](docs/FULL-AUDIT-REPORT.md); runner guide: [`worker/test/README.md`](worker/test/README.md) |
 | **Onboarding guide** | 71-page role-based PDF: [`docs/PharmaRidge-Onboarding-Guide.pdf`](docs/PharmaRidge-Onboarding-Guide.pdf) |
-| **Data management** | Owner-only, previewed and confirmed removal controls: [`docs/DATA-MANAGEMENT.md`](docs/DATA-MANAGEMENT.md) |
+| **Data management** | Owner-only cleanup, stock/accounting continuity, and safe lower-plan guidance: [`docs/DATA-MANAGEMENT.md`](docs/DATA-MANAGEMENT.md) |
 | **First Admin** | Secure terminal-only bootstrap without committing a password: [`docs/ADMIN-TERMINAL-BOOTSTRAP.md`](docs/ADMIN-TERMINAL-BOOTSTRAP.md) |
 | **Deploying?** | New private GitHub repo + Cloudflare Worker Assets walkthrough: [`DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md`](DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md) · multi-client SSH/Cloudflare walkthrough: [`DEPLOY-MULTI-CLIENT-SSH-CLOUDFLARE-WINDOWS.md`](DEPLOY-MULTI-CLIENT-SSH-CLOUDFLARE-WINDOWS.md) |
 | **Node** | **22+ required** (Wrangler 4 refuses Node 20) |

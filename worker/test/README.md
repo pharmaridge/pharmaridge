@@ -10,6 +10,7 @@ at a production Worker or production D1 database.
 npm test                         # parse active test sources
 npm run test:data-management     # isolated Owner-only cleanup/reset audit
 npm run test:data-management:consecutive-terms  # three 90-day terms per accounting/stock continuity policy
+npm run test:production-readiness:capacity # simultaneous same-stock POS sales + safe plan downgrade checks
 npm run test:simulation:three-months  # 90-day local operations simulation
 npm run test:live:full-domain    # full local domain suite
 npm run test:frontend:full       # browser/UI suite

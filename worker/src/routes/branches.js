@@ -167,6 +167,18 @@ branches.put('/:id', managerOnly, async (c) => {
   const closing = isExplicitFalse(body.is_active) && existing.is_active;
   const inFlight = closing ? await workInFlight(c.env.DB, id) : null;
 
+  // A closed branch does not consume a paid slot. Reopening it does, so this
+  // direct edit route must enforce the exact same cap as branch creation and
+  // relocation. Otherwise a lower plan can be bypassed by toggle-on.
+  const reopening = !existing.is_active && (body.is_active === true || body.is_active === 1);
+  if (reopening) {
+    try { await assertCanAddBranch(c.env.DB); }
+    catch (e) {
+      if (e instanceof PlanLimitError) return c.json({ error: e.message, code: e.code }, e.status);
+      throw e;
+    }
+  }
+
   await c.env.DB.prepare(`UPDATE branches SET ${setClause}, updated_at = datetime('now') WHERE id = ?`).bind(...vals, id).run();
   const updated = await c.env.DB.prepare('SELECT * FROM branches WHERE id = ?').bind(id).first();
 

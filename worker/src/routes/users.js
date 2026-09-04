@@ -388,6 +388,17 @@ users.put('/:id', managerOnly, async (c) => {
     const lastOwner = await wouldRemoveLastOwner(c.env.DB, existing);
     if (lastOwner) return c.json({ error: lastOwner, code: 'LAST_OWNER_PROTECTED' }, 400);
   }
+  // A deactivated person frees a paid seat. Reinstating them must take one
+  // again; otherwise a client could bypass a downgraded staff plan merely by
+  // toggling inactive records back on instead of creating new accounts.
+  const reactivating = !existing.is_active && (is_active === true || is_active === 1);
+  if (reactivating) {
+    try { await assertCanAddStaff(c.env.DB); }
+    catch (e) {
+      if (e instanceof PlanLimitError) return c.json({ error: e.message, code: e.code }, e.status);
+      throw e;
+    }
+  }
   if (pin != null && String(pin).length < 4) return c.json({ error: 'PIN must be at least 4 characters.' }, 400);
 
   const sets = [];

@@ -46,7 +46,8 @@
     "test:data-management": "node test/audit.data-management.js",
     "test:simulation:three-months:triple": "bash test/run-three-month-triple-audit.sh",
     "db:generate:preserve-admin-schema-format": "node tools/generate-preserve-admin-schema-reset-sql.js",
-    "test:data-management:consecutive-terms": "bash test/run-consecutive-continuity-audit.sh"
+    "test:data-management:consecutive-terms": "bash test/run-consecutive-continuity-audit.sh",
+    "test:production-readiness:capacity": "bash test/run-capacity-readiness-audit.sh"
   },
   "dependencies": {
     "hono": "^4.12.32"

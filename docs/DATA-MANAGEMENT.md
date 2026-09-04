@@ -83,3 +83,28 @@ Data removal can reduce active rows and PharmaRidge's capacity estimate, but Clo
 `npm run test:data-management` runs the isolated data-management regression audit. It checks Owner-only access, date-range deletion, typed confirmation, active-till and unsynced-queue blocks, all-business retention of accounts/branches, full-reset deletion order, Manager/Staff credential removal, Owner session preservation, reset queue fencing, cleanup-log retention, accounting-only continuity, and stock-plus-accounting continuity retaining live batches/products/prices while detaching deleted supplier/order links.
 
 `npm run test:data-management:consecutive-terms` runs the longer continuity proof locally: three consecutive 90-day operating terms for accounting-only protection, then three further 90-day terms for accounting-plus-current-stock protection. After every term it calls the real Owner cleanup API, re-reads Trial Balance, branch-safe history, current batches/products/prices, and verifies the next term can trade. Each policy ends with a deliberate all-business deletion check.
+
+## Lowering branch or staff allowance safely
+
+A plan allowance is changed by the PharmaRidge **Admin Portal**; the pharmacy
+Owner first brings active usage within the requested limit. The server refuses
+an unsafe downgrade atomically — it does not save a partial lower plan against
+resources the pharmacy still has active.
+
+For example, to move from **3 active branches / 4 active staff accounts** to a
+**2 branches / 2 staff accounts** allowance:
+
+1. The Admin Portal previews current active usage.
+2. The Owner closes or deactivates one branch. A closed branch retains history
+   but does not consume an active branch allowance.
+3. The Owner deactivates two operational Staff/Manager/Owner accounts as
+   appropriate. The system protects the final active Owner account.
+4. The Admin Portal applies the 2 / 2 allowance only after usage is at or below
+   those limits.
+5. New branch/staff creation and reactivation are then both checked against the
+   lower allowance. Reopening a closed branch or reactivating a former staff
+   account cannot bypass the plan.
+
+The refusal includes the number of branches/staff to reduce and the exact next
+action. It is not a subscription cancellation, billing adjustment or deletion
+of history; commercial terms remain a written agreement with PharmaRidge.

@@ -94,6 +94,8 @@ run_one test/audit.staff.js
 run_one test/audit.rolelifecycle.js
 run_one test/audit.promotionauthority.js
 run_one test/audit.single-session.js
+run_one test/audit.concurrent-pos-sales.js
+run_one test/audit.plan-downgrade.js
 run_one test/tools/probe-crossdomain.js
 
 # Owner-only data-retention/reset controls use an isolated in-memory D1-shaped

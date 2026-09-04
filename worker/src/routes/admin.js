@@ -37,6 +37,37 @@ async function usageSnapshot(db, settings) {
   };
 }
 
+// A plan may never be lowered below resources that are still active. Without
+// this guard an Admin could save “2 branches / 2 staff” against 3 live shops
+// and 4 people, leaving the client on a plan it cannot actually comply with.
+// The refusal is atomic: no requested plan field is written until the Owner
+// first closes/deactivates enough resources (or chooses a higher limit).
+async function downgradeConflict(db, settings, body) {
+  const proposedMultiBranch = body.multi_branch_enabled === undefined
+    ? !!settings.multi_branch_enabled : !!body.multi_branch_enabled;
+  const proposedBranches = body.max_branches === undefined ? settings.max_branches : body.max_branches;
+  const proposedStaff = body.max_staff === undefined ? settings.max_staff : body.max_staff;
+  const effectiveBranches = proposedMultiBranch ? proposedBranches : 1;
+  const [branchesUsed, staffUsed] = await Promise.all([activeBranchCount(db), activeStaffCount(db)]);
+  const reductions = [];
+  if (branchesUsed > effectiveBranches) {
+    reductions.push({ resource: 'active branch', used: branchesUsed, requested: effectiveBranches, reduce_by: branchesUsed - effectiveBranches,
+      action: `Close or deactivate at least ${branchesUsed - effectiveBranches} active branch${branchesUsed - effectiveBranches === 1 ? '' : 'es'} before lowering this limit.` });
+  }
+  if (staffUsed > proposedStaff) {
+    reductions.push({ resource: 'active staff account', used: staffUsed, requested: proposedStaff, reduce_by: staffUsed - proposedStaff,
+      action: `Deactivate at least ${staffUsed - proposedStaff} active Staff, Manager or Owner account${staffUsed - proposedStaff === 1 ? '' : 's'} before lowering this limit.` });
+  }
+  if (!reductions.length) return null;
+  return {
+    error: `Cannot lower this plan yet: active usage is above the requested allowance. ${reductions.map((r) => r.action).join(' ')}`,
+    code: 'PLAN_DOWNGRADE_REQUIRES_REDUCTION',
+    current_usage: { branches: branchesUsed, staff: staffUsed },
+    requested_limits: { max_branches: proposedBranches, effective_max_branches: effectiveBranches, max_staff: proposedStaff },
+    reductions,
+  };
+}
+
 admin.get('/settings', async (c) => {
   const db = c.env.DB;
   const settings = await getClientSettings(db);
@@ -112,6 +143,10 @@ admin.put('/settings', async (c) => {
       return c.json({ error: e.message }, 400);
     }
   }
+
+  const currentSettings = await getClientSettings(db);
+  const conflict = await downgradeConflict(db, currentSettings, body);
+  if (conflict) return c.json(conflict, 409);
 
   const sets = [];
   const vals = [];
