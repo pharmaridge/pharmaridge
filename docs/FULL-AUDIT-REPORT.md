@@ -35,13 +35,16 @@ The latest re-run adds a role-and-device boundary sweep:
 The re-run includes the Owner-only retention and capacity control from both directions:
 
 - browser/mobile control reachability and no-overflow geometry for the Owner modal;
-- all three scopes: selected period, all business data, and full business-and-team reset;
+- all five scopes: selected period, all-business data, accounting-only continuity, accounting-plus-current-stock continuity, and full business-and-team reset;
 - exact typed confirmation plus export/retention acknowledgements enforced on the server;
 - General Manager and vendor Admin denied by both the UI and API;
 - open till, active operations and reported offline queue blockers;
 - preservation of Owner access, support/Admin access, tax/system configuration and the NAFDAC reference catalogue after full reset;
 - removal of Manager/Staff credentials and branches only in the full-reset scope; and
 - stale offline replay fencing plus retained minimal cleanup audit log.
+- three consecutive 90-day operating terms for each continuity policy, verifying GL/branch-safe persistence, stock/product/price persistence where selected, and the final deliberate deletion path;
+- three separate staff selling from one shared batch at once, with cash, sale attribution, stock and Trial Balance re-read after the race; and
+- safe plan reduction from three active branches/four active staff to two/two, including blocked partial downgrade, branch reactivation and staff reactivation bypass attempts.
 
 ## Three-month operating simulation
 
@@ -73,13 +76,13 @@ The full run covers Admin, Owner, General Manager, Branch Manager and Staff auth
 After the audit and simulation, the production sample database was reset using `npm run sample:reset:remote` semantics:
 
 ```text
-Active Admin: 1 (admin / 1234)
+Active Admin: 1 (credential not printed)
 Owners: 0
 Branches: 0
 Staff: 0
 Sales: 0
 Stock batches: 0
-Products: 6,801 NAFDAC-derived rows
+Products: 0 (the separate NAFDAC reference catalog retains 6,801 rows)
 ```
 
 The shared sample is deliberately a clean Admin-first environment. It is not an audit fixture and must not contain real client data.

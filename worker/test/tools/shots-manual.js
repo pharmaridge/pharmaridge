@@ -163,6 +163,10 @@ async function shot(page, file, caption, { hash, wait = 2600, action, focus, mob
       await shot(page, '11a-owner-data-management.png', 'Owner Data Management — preview before any permanent removal', {
         hash: '#/plan', wait: 3000, action: async (pg) => {
           await pg.evaluate(() => { const b = document.getElementById('owner-data-management'); if (b) b.click(); });
+          await pg.waitForSelector('#dm-mode');
+          await pg.select('#dm-mode', 'CLEAR_OPERATIONS_KEEP_ACCOUNTING_AND_STOCK');
+          await pg.click('#dm-preview-button');
+          await pg.waitForFunction(() => /Preview: Clear operations; keep accounting and current stock/i.test((document.getElementById('dm-preview') || {}).innerText || ''), { timeout: 15000 });
           await sl(900);
         } });
       await shot(page, '12-owner-accounting.png', 'Accounting — the books, kept automatically', { hash: '#/accounting', wait: 3600 });

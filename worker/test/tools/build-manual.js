@@ -404,7 +404,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
   <h2>Before you commit: what has been proven</h2>
   <p class="lead">A proprietor should pay for a system because it is useful and evidenced, not because a sales page makes a promise. This sample is deliberately set up so you can test the important flows yourself.</p>
   <div class="note">
-    <b>Live audit evidence.</b> The current release completed a fresh-data, end-to-end audit across sales, VAT/WHT, debtors, suppliers, change owed, till and safe movements, stock receiving, transfers, user promotion/demotion, one-device sessions, role boundaries, forms, dropdowns, responsive layouts and PWA behaviour. A separate 90-day operating simulation verified dated sales, VAT/WHT, creditor/debtor, attendance, stock and transfer history. The final passing run exercised <b>3,253 checks</b> across API, database, browser and PWA surfaces.
+    <b>Live audit evidence.</b> Each release is tested against fresh local databases through the same APIs the app uses. The current assurance set covers sales, VAT/WHT, debtors, suppliers, change owed, till/safe movements, receiving, transfers, role boundaries, forms, responsive PWA behaviour and 90-day operating histories. It also exercises three staff selling from one branch&rsquo;s stock at the same time, safe plan reduction from three active branches/four active staff to two/two, and three consecutive 90-day terms under each protected-cleanup option. Read the current audit report and test runbook for the detailed, dated check results; an audit result is evidence, not a substitute for your own acceptance test.
   </div>
   <h3>What each person can prove in a demonstration</h3>
   <table>
@@ -465,14 +465,15 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><title>PharmaRidg
 <!-- ============ 2. GETTING IN ============ -->
 <section class="page">
   <h2>2. Getting in</h2>
-  <p>Everybody signs in the same way: a username and a PIN. There is no email, no password reset
-  email, and nothing to remember beyond four digits — because the person signing in is often standing
-  at a counter with a queue in front of them.</p>
+  <p>Everybody signs in with a username and their own PIN. There is no email sign-in or reset link;
+  an authorised manager or Owner resets a forgotten PIN through the recorded Users workflow. Choose a
+  unique PIN of at least four characters for each person, and use a stronger unique secret for the
+  terminal-created deployment Admin account.</p>
   ${fig('00-login-desktop.png', 'The sign-in screen on a laptop', `<p>This is the only way into PharmaRidge, and it is the same for everybody from the
 proprietor to the newest cashier: a <b>username</b> and a <b>PIN</b>.</p>
-<p>There is no email address, no password-reset link and nothing to remember beyond four digits. That is
-deliberate — the person signing in is often standing at a counter with a queue in front of them, on a
-phone, possibly with no data connection.</p>
+<p>There is no email address or password-reset link. A forgotten PIN is reset by an authorised manager or
+Owner in the Users screen, so the change is controlled rather than sent through an unverified email.
+Counter PINs must be at least four characters; use a stronger unique secret for the deployment Admin.</p>
 <p>Credentials are issued per person and are deliberately <b>not printed in this guide</b>. Before live trade, the Owner should issue every person a unique PIN and confirm the correct role and branch on the Users screen.</p>`)}
   <div class="note">
     <b>Shared live-sample access.</b> Demonstration access is issued separately by PharmaRidge; access
@@ -489,6 +490,11 @@ phone, possibly with no data connection.</p>
   <p>PharmaRidge shows you the screen that matches your job. A cashier lands on the Point of Sale. A
   manager or owner lands on the dashboard. The menu on the left only ever lists what your role is
   allowed to open — you will not find a screen that refuses you when you tap it.</p>
+  <div class="note"><b>Use the controls deliberately.</b> The eye button beside a PIN lets you check what
+  you typed before submitting, then hides it again. One account has one active device session: signing
+  in on another device asks the earlier device to sign in again, so every sale and till action stays tied
+  to the person currently using it. If a red message appears, read its <b>What to do</b> line before
+  retrying rather than repeatedly pressing the same button.</div>
 </section>
 
 <!-- ============ SIDE NAVIGATION OPERATING MAP ============ -->
@@ -558,6 +564,7 @@ phone, possibly with no data connection.</p>
     </tbody>
   </table>
   <div class="note"><b>Input discipline protects the report.</b> A correct sale cannot repair a wrong batch cost; a correct Profit &amp; Loss cannot repair an unrecorded expense. The field guidance is there so the first record is useful without guessing.</div>
+  <div class="note"><b>When the app stops you.</b> Every red error message includes a <b>What to do</b> line. It tells you the expected next action: complete the stated field, sign in again, use the authorised role, resolve the named till/stocktake/transfer, reconnect and sync, or check the batch/quantity. Read that line before trying again; it is part of the workflow, not an unexplained technical error.</div>
 </section>
 
 <!-- ============ 3. OWNER ============ -->
@@ -613,7 +620,15 @@ managers and cashiers are permitted to do without asking you.</p>`)}
 <li>Choose the scope and select <b>Preview impact</b>. You see current matching row counts before anything changes.</li>
 <li>Tick both acknowledgements and type the displayed phrase exactly. The server repeats the role, range, active-operation and confirmation checks; changing a browser field cannot bypass them.</li>
 </ol>
-<p>There are three choices: remove a selected dated period while keeping current master setup; clear all business data while keeping branches and existing credentials; or perform a full business-and-team reset that also removes Manager and Staff credentials, devices and branches. A full reset still preserves the Owner account, support/admin seat, plan/tax setup, system accounts, NAFDAC reference catalogue and a minimal cleanup log so the business is never locked out.</p>
+<p><b>There are five choices, and the exact words shown in the app must be confirmed before anything is deleted.</b></p>
+<table><thead><tr><th>Choice</th><th>Use it when</th><th>What remains</th></tr></thead><tbody>
+<tr><td><b>Delete selected period</b></td><td>You have exported a defined historical range.</td><td>Current people, branches, products, suppliers, customers and stock batches.</td></tr>
+<tr><td><b>Clear all business data</b></td><td>You need a new trading dataset and do not need in-app accounting continuity.</td><td>Branches and existing account credentials.</td></tr>
+<tr><td><b>Clear operational data; keep accounting continuity</b></td><td>You need a fresh operating dataset but cumulative books must continue.</td><td>Branches/accounts, chart of accounts, posted GL entries/lines and branch-safe history. Stock and detailed WHT/debtor/creditor/source records are removed.</td></tr>
+<tr><td><b>Clear operations; keep accounting and current stock</b></td><td>You need fresh operations while keeping what is physically on the shelf.</td><td>Everything in accounting continuity plus batches with a positive quantity remaining, their products and branch prices. Supplier and purchase-order links are detached from retained batches.</td></tr>
+<tr><td><b>Full business and team reset</b></td><td>You are deliberately starting the client business/team setup again.</td><td>The Owner and support/Admin accounts, plan/tax/system configuration, NAFDAC reference catalogue and the minimal cleanup log.</td></tr>
+</tbody></table>
+<p><b>Use the preview as a checklist.</b> Choose the scope, select dates if asked, read the server-counted rows and protected figures, resolve every open till/stocktake/shift/transfer and reported offline queue, export records you must keep, tick both acknowledgements, then type the displayed phrase exactly. The server repeats those checks at execution; the browser alone cannot erase data.</p>
 <p>Old offline requests are quarantined for review after a cleanup instead of silently recreating removed records. Deletion reduces active rows, but Cloudflare controls physical allocation; it is not a promise of an immediate storage/billing reduction. Plan capacity early as well as retaining records correctly.</p>`)}
   <h3>Your books, kept as you trade</h3>
   <p>Every sale, delivery, expense, write-off and payment posts a double entry as it happens. There is
@@ -914,6 +929,11 @@ the signal returns.</p>`)}
 "paracetamol" finds Panadol and vice versa.</p>
 <p>Adding an item picks the correct batch for you: the one expiring soonest. You choose the unit — a single,
 a pack, or a carton — and the price follows automatically.</p>
+<p><b>More than one cashier can sell from the same shelf.</b> Each completed sale checks the live batch
+quantity in the database. If two or three cashiers reach the last units together, only the sales that
+fit the available quantity commit; a losing request is refused without a partial sale or negative stock.
+The red message tells the cashier to review live stock and retry with what remains. The till and ledger
+record only the committed sales.</p>
 <p>Prescription-only and controlled medicines will stop and ask for the prescriber or buyer details a PCN
 inspector expects to see. That is the system protecting the pharmacy's licence, not obstructing the sale.</p>`)}
 </section>
@@ -959,6 +979,11 @@ short at close of day.</p>
     place. Whichever you picked was wrong, and at close of day one of the two came up short — usually
     looking like <i>your</i> mistake. Now each pot is reduced by exactly what left it.
   </div>
+  <div class="note"><b>When three people sell from one shelf.</b> Use the stock figure on screen as a
+  live guide, not a promise that the last packs are reserved. If another cashier completes a sale first,
+  your requested quantity may no longer fit. PharmaRidge records the successful sale once, never creates
+  a partial receipt, and never allows stock below zero. Read the red message&rsquo;s <b>What to do</b> line,
+  refresh the cart if needed, and sell the quantity still available.</div>
   <div class="warn">
     <b>There is a limit on the safe, and your manager sets it.</b> You can take up to whatever your
     manager or the Owner has allowed for one purchase — anything larger needs them. The till drawer is
@@ -996,6 +1021,10 @@ spent on a purchase, and change you kept because you had no note to give.</p>`)}
   <div class="note"><b>If you are short, say so and close anyway.</b> A recorded shortage with an
   honest explanation is a normal event that your manager can investigate. A drawer left open
   overnight, or a count typed to match, is what turns a small discrepancy into a real problem.</div>
+  <div class="note"><b>When a close is blocked.</b> Do not work around it with a second till or another
+  person&rsquo;s account. The message tells you the open till, shift, stocktake, transfer, missing count or
+  permission that must be resolved. Finish or ask a manager to resolve that real-world item, then try the
+  action again. The same rule protects the next cashier as well as the books.</div>
 </section>
 
 <section class="page">
@@ -1037,6 +1066,13 @@ pay to a bad signal.</p>`)}
   <p>The full Point of Sale runs on a phone. If the network drops, keep selling — sales are stored on
   the device and sent automatically when the signal returns.</p>
   <div class="note"><b>The phone views beside the POS and till plates above are the actual same screens at mobile width.</b> They are shown once, next to their laptop counterparts, so a buyer can compare the working layout without paging through repeated screenshots. A phone can run the counter when the laptop is elsewhere; the authority, stock controls and receipt trail remain the same.</div>
+  <h4>Safe offline routine</h4>
+  <ol>
+    <li>Keep the phone charged and do not clear its browser/app data while it has pending work.</li>
+    <li>When the signal returns, wait for the normal sync message; then open <b>Sync Status</b> if a row needs attention.</li>
+    <li>Do not enter the same sale again just because the network was slow. A completed queued sale is protected against duplication.</li>
+    <li>If a queued row is rejected after a stock, branch or data-cleanup change, read the <b>What to do</b> message, review it with a manager, then record the real-world event correctly.</li>
+  </ol>
 </section>
 
 <!-- ============ 8. SAFE ============ -->
@@ -1551,27 +1587,28 @@ product name typed as <code>=cmd</code> cannot execute on the machine that opens
   <h3>What that means in plain terms</h3>
   <p>A single shop with two staff has a daily basis of <b>${N(plan(1, 2).perDay)}</b>, which calculates to <b>${N(plan(1, 2).fourMonths)}</b> for four months, <b>${N(plan(1, 2).sixMonths)}</b> for six months, or <b>${N(plan(1, 2).perYear)}</b> for a year. A five-branch group with twenty staff has a daily basis of <b>${N(plan(5, 20).perDay)}</b>, which is ${N(plan(5, 20).perDay / 5)} per shop per day before the selected subscription window is applied.</p>
 
-  <h3>What your plan actually is: capacity you have already bought</h3>
-  <p>Your plan is a number of <b>branch slots</b> and a number of <b>staff seats</b>. You have paid for
-  them, so they are yours &mdash; whether or not you fill them.</p>
+  <h3>How active plan capacity is counted</h3>
+  <p>Your plan has an active-branch allowance and an active-staff-account allowance. The displayed
+  daily basis is calculated from active branches and active pharmacy accounts; the PharmaRidge support
+  Admin account is excluded. Commercial amounts, dates and any reduction must be confirmed in writing
+  with PharmaRidge.</p>
   <ul>
-    <li><b>Unused capacity is not wasted money you can claw back; it is room to grow.</b> If you have
-      paid for five branches and run three, the other two are already yours: open them whenever you
-      are ready, at no extra cost and with no waiting.</li>
-    <li><b>You cannot go past what you have paid for.</b> Try to open a sixth branch on a five-branch
-      plan and PharmaRidge refuses, and tells you who to contact. That is deliberate &mdash; it stops
-      a plan quietly growing into a bill you did not agree to.</li>
-    <li><b>Only PharmaRidge can raise the ceiling</b>, because raising it is a purchase. Nobody inside
-      your pharmacy &mdash; not even the Owner &mdash; can lift their own limit. The moment support
-      raises it, the new capacity is live: no restart, no re-installation.</li>
-    <li><b>Closing a shop frees its SLOT, not your money.</b> A deactivated branch releases the slot so
-      you can open a different one in its place, and its records stay readable forever. The same is
-      true of a staff seat when somebody leaves.</li>
-    <li><b>The support account is free.</b> PharmaRidge's own seat is never counted against your staff.</li>
+    <li><b>You cannot go past the active allowance.</b> Creating a branch or staff account is refused
+      at the server when the limit has been reached.</li>
+    <li><b>Only PharmaRidge can change the contractual ceiling.</b> The Owner sees usage and prepares
+      the business; the Admin Portal applies the agreed branch/staff limit.</li>
+    <li><b>To reduce a plan, reduce active use first.</b> For example, from three active branches and
+      four active staff to two/two: the Owner closes or deactivates one branch and deactivates two
+      operational accounts, then PharmaRidge applies the new limit. The system refuses a lower plan
+      until active use is at or below it, and it does not partially save the request.</li>
+    <li><b>Reactivation is also checked.</b> Reopening a closed branch or reactivating a former staff
+      account consumes capacity again and is refused when the reduced allowance is full.</li>
+    <li><b>Closing/deactivating does not itself change an invoice or erase history.</b> It changes the
+      live usage count; confirm the commercial effect with PharmaRidge.</li>
   </ul>
-  <div class="note">Your <b>My Plan</b> screen shows this as <b>&ldquo;3 of 5 paid for&rdquo;</b> with
-  &ldquo;2 more already paid for and ready to use&rdquo;, so you can always see the capacity you own
-  rather than guessing at an allowance.</div>
+  <div class="note">Your <b>My Plan</b> screen shows active use against the agreed allowance. If you see
+  3 of 5, it means three active resources are currently counted against an allowance of five; it is a
+  usage indicator, not a promise about refunds, credits or future billing.</div>
 
   <h3>Where the money comes back</h3>
   <p>These are not projections. They are the arithmetic of the leaks described in chapter 1.</p>
@@ -1584,8 +1621,9 @@ product name typed as <code>=cmd</code> cannot execute on the machine that opens
       <tr><td>A single N50,000 credit sale to a customer who never returns</td><td><b>${N(50000)}</b></td></tr>
     </tbody>
   </table>
-  <p>A five-branch group pays <b>${N(plan(5, 20).perYear)}</b> a year. Preventing expiry write-offs
-  alone — one pack per shop per month — covers it nearly twice over.</p>
+  <p>A five-branch group has a daily basis of <b>${N(plan(5, 20).perDay)}</b> under the stated formula.
+  The examples show arithmetic only; they are not a promise of savings, a discount, a refund, or a
+  substitute for written commercial terms.</p>
 
   <h3>Before you make an upfront payment</h3>
   <div class="note"><b>Decide from evidence, not a promise.</b> Before paying, demonstrate the roles you will use, receive stock into your own test branch, complete a cash and a credit sale, print a receipt, close a till, inspect a report/CSV, test the PWA on the actual phone/printer you intend to use, and agree the commercial/support terms directly with PharmaRidge. The walkthrough and audit evidence show what was tested; they do not replace your own acceptance check, accounting advice, regulatory advice, or a written commercial agreement.</div>

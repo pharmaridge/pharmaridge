@@ -12,7 +12,7 @@ Offline-first PWA frontend + Cloudflare Workers & D1 edge backend.
 | **Current verification** | 1,055 fresh-D1 full-domain checks; 1,992 frontend/browser checks; 137 PWA/splash checks; 42 transparent-icon checks; 20 three-month simulation checks; structural and migration checks — all passing locally |
 | **UI** | Light **and dark** theme, zero external dependencies — no framework, icon font or webfont |
 | **Audit** | Current evidence: [`docs/FULL-AUDIT-REPORT.md`](docs/FULL-AUDIT-REPORT.md); runner guide: [`worker/test/README.md`](worker/test/README.md) |
-| **Onboarding guide** | 71-page role-based PDF: [`docs/PharmaRidge-Onboarding-Guide.pdf`](docs/PharmaRidge-Onboarding-Guide.pdf) |
+| **Onboarding guide** | 72-page role-based PDF: [`docs/PharmaRidge-Onboarding-Guide.pdf`](docs/PharmaRidge-Onboarding-Guide.pdf) |
 | **Data management** | Owner-only cleanup, stock/accounting continuity, and safe lower-plan guidance: [`docs/DATA-MANAGEMENT.md`](docs/DATA-MANAGEMENT.md) |
 | **First Admin** | Secure terminal-only bootstrap without committing a password: [`docs/ADMIN-TERMINAL-BOOTSTRAP.md`](docs/ADMIN-TERMINAL-BOOTSTRAP.md) |
 | **Deploying?** | New private GitHub repo + Cloudflare Worker Assets walkthrough: [`DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md`](DEPLOY-NEW-REPO-CLOUDFLARE-WINDOWS.md) · multi-client SSH/Cloudflare walkthrough: [`DEPLOY-MULTI-CLIENT-SSH-CLOUDFLARE-WINDOWS.md`](DEPLOY-MULTI-CLIENT-SSH-CLOUDFLARE-WINDOWS.md) |

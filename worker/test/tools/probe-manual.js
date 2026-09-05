@@ -23,6 +23,7 @@ const os = require('os');
 const path = require('path');
 
 const PDF = process.env.MANUAL_PDF || '/home/user/PharmaRidge-Onboarding-Guide.pdf';
+const MANUAL_SOURCE = path.join(__dirname, 'build-manual.js');
 
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => {
@@ -158,22 +159,46 @@ function pngGrey(file) {
       /Save as PDF/i.test(text) && /selectable/i.test(text));
   }
 
-  console.log('\n=== THE PLAN IS DESCRIBED AS PREPAID CAPACITY ===');
+  console.log('\n=== CURRENT PLAN, CONCURRENCY AND DATA-MANAGEMENT RULES ===');
   {
-    // The client corrected this directly: the seats are ALREADY PAID FOR, and
-    // only the vendor can raise the ceiling. The old wording ("close a shop
-    // and it stops costing you") described a metered allowance and was wrong.
-    check('the guide calls the plan capacity you have already bought',
-      /already bought/i.test(text) || /already paid for/i.test(text));
-    check('...and says unused capacity is room to grow, not wasted money',
-      /room to grow/i.test(text));
-    check('...and that the client cannot exceed what they paid for',
-      /cannot go past/i.test(text) || /PharmaRidge refuses/i.test(text));
-    check('...and that only PharmaRidge can raise the ceiling',
-      /only PharmaRidge can raise/i.test(text));
-    check('the old metered-allowance wording is gone',
-      !/stops costing you/i.test(text) && !/seat is free immediately/i.test(text),
-      'the guide still describes the plan as an allowance being consumed');
+    const flat = text.replace(/\s+/g, ' ');
+    check('the guide describes the active branch/staff billing basis',
+      /active-branch allowance/i.test(text) && /active-staff-account allowance/i.test(text));
+    check('it says the support Admin is excluded from staff billing',
+      /support[\s\S]{0,100}Admin[\s\S]{0,100}excluded/i.test(text));
+    check('it explains safe plan reduction before a lower limit is applied',
+      /reduce active use first/i.test(text) && /three active branches[\s\S]{0,200}two\/two/i.test(text));
+    check('it says reactivating a branch or staff account is checked against a reduced limit',
+      /Reactivation is also checked/i.test(text));
+    check('it avoids refund or invoice promises when resources are deactivated',
+      /does not itself change an invoice or erase history/i.test(text));
+
+    const choices = [
+      'Delete selected period',
+      'Clear all business data',
+      'Clear operational data; keep accounting continuity',
+      'Clear operations; keep accounting and current stock',
+      'Full business and team reset',
+    ];
+    // PDF table extraction reads columns in parallel, so exact option labels
+    // are checked in the build source while PDF text confirms the rendered
+    // consequence statements actually reached the reader.
+    const source = fs.readFileSync(MANUAL_SOURCE, 'utf8');
+    check('the guide source names all five Owner Data Management choices',
+      choices.every((choice) => source.includes(choice)), choices.filter((choice) => !source.includes(choice)).join(', '));
+    check('the current-stock choice explains only positive on-hand batches remain',
+      /positive quantity remaining/i.test(flat) && /Supplier and purchase-order links are/i.test(flat) && /detached from retained batches/i.test(flat));
+    check('the accounting-only choice states detailed source records and stock are removed',
+      /Stock and/i.test(flat) && /detailed WHT\/debtor\/creditor\/source records are/i.test(flat) && /removed/i.test(flat));
+    check('it gives the complete server-backed preview/acknowledgement sequence',
+      /Use the preview as a checklist/i.test(text) && /tick both acknowledgements/i.test(text) && /server repeats those checks/i.test(text));
+    check('it explains simultaneous staff sales from one batch without negative stock',
+      /More than one cashier can sell from the same shelf/i.test(text) && /negative stock/i.test(text));
+    check('it documents the What to do recovery reference on red errors',
+      /What to do/i.test(text) && /red error message/i.test(text));
+    check('no shared Admin username/PIN or password is printed',
+      !/admin\s*\/\s*(?:PIN|password|\d)/i.test(text) && !/administrator credential/i.test(text),
+      'shared credential wording found');
   }
 
   console.log('\n=== EVERY FULL SCREENSHOT HAS ITS MOBILE VIEW BESIDE IT ===');
@@ -216,30 +241,23 @@ function pngGrey(file) {
       imgCount2 >= onComputer + onPhone, `${imgCount2} images for ${onComputer + onPhone} pair halves`);
   }
 
-  console.log('\n=== PRICING, SUPPORT AND THE REFUND POLICY ===');
+  console.log('\n=== PRICING AND COMMERCIAL TERMS STAY TRUTHFUL ===');
   {
     const flat2 = text.replace(/\s+/g, ' ');
-    // Pricing is now N50 per branch per day AND N50 per staff per day.
-    check('the guide quotes N50 per branch per day',
-      /N50 per branch per day/i.test(flat2), 'branch rate not found or not 50');
-    check('...and N50 per member of staff per day',
-      /N50 per member of staff per day/i.test(flat2), 'staff rate not found or not 50');
+    check('the guide quotes N50 per active branch per day',
+      /N50 per active branch per day/i.test(flat2), 'active branch rate not found or not 50');
+    check('...and N50 per active staff account per day',
+      /N50 per active staff account per day/i.test(flat2), 'active staff rate not found or not 50');
     check('the old N70 branch rate is gone', !/N70 per branch/i.test(flat2));
-    // One shop + 2 staff = 150/day at the new rate; the worked example must
-    // agree with the rate quoted above or the document contradicts itself.
-    check('the worked example matches the quoted rates', /N150 a day/i.test(flat2),
+    // One active shop + two active staff = N150/day at the stated formula.
+    check('the worked example matches the quoted rates', /daily basis of N150/i.test(flat2),
       'the per-day example does not reconcile with N50 + N50');
-
-    check('technical support on a broken feature is promised', /Technical support/i.test(text)
-      && /does not work/i.test(flat2));
-    check('...and stated to cost the client nothing',
-      /support costs you nothing/i.test(flat2));
-    check('...and the guide says where to reach support',
-      /My Plan/i.test(flat2) && /phone number/i.test(flat2));
-    check('payment is stated to be non-refundable',
-      /Payment is non-refundable/i.test(flat2));
-    check('...alongside what the client IS entitled to instead',
-      /everything works/i.test(flat2));
+    check('commercial/support/refund terms are confirmed in writing rather than invented',
+      /terms in writing/i.test(flat2) && /refund\/cancellation terms in writing/i.test(flat2));
+    check('the guide does not promise free support, refunds or a savings return',
+      !/support costs you nothing/i.test(flat2) && !/Payment is non-refundable/i.test(flat2) && !/covers it nearly twice over/i.test(flat2));
+    check('it directs the reader to My Plan for the agreed support contact',
+      /contact details shown on My Plan/i.test(flat2));
   }
 
   console.log('\n=== TAKING A DELIVERY IS EXPLAINED ===');
