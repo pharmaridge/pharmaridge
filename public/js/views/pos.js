@@ -161,8 +161,7 @@ async function renderPos(view) {
     } else {
       document.getElementById('pos-customer-row').classList.add('hidden');
     }
-    const owesChange = posPayments.some(p => p.method === 'CASH' && Number(p.change_owed) > 0);
-    document.getElementById('pos-change-owed-row').classList.toggle('hidden', !owesChange);
+    syncChangeOwedCustomerRow();
 
     el.querySelectorAll('[data-pay-method]').forEach((sel) => sel.addEventListener('change', () => {
       posPayments[Number(sel.dataset.payMethod)].method = sel.value;
@@ -171,18 +170,32 @@ async function renderPos(view) {
     el.querySelectorAll('[data-pay-amount]').forEach((inp) => inp.addEventListener('input', () => {
       posPayments[Number(inp.dataset.payAmount)].amount = Number(inp.value) || 0;
     }));
+    // Mobile input stability: calling renderTotals() here used to rebuild
+    // #pos-payments on EVERY digit. That replaces the focused <input>, which
+    // dismisses Android/iOS's numeric keyboard after the first character. Cash
+    // tendered affects no displayed total, so state can update in place. Change
+    // owed only needs to reveal/hide the customer-claim row, which we toggle
+    // without replacing this focused field. Structural changes (method/add/
+    // remove) still use the full render below.
     el.querySelectorAll('[data-pay-tendered]').forEach((inp) => inp.addEventListener('input', () => {
-      posPayments[Number(inp.dataset.payTendered)].cash_tendered = Number(inp.value) || 0;
-      renderTotals();
+      const raw = inp.value;
+      posPayments[Number(inp.dataset.payTendered)].cash_tendered = raw === '' ? '' : (Number(raw) || 0);
     }));
     el.querySelectorAll('[data-pay-owed]').forEach((inp) => inp.addEventListener('input', () => {
-      posPayments[Number(inp.dataset.payOwed)].change_owed = Number(inp.value) || 0;
-      renderTotals();
+      const raw = inp.value;
+      posPayments[Number(inp.dataset.payOwed)].change_owed = raw === '' ? '' : (Number(raw) || 0);
+      syncChangeOwedCustomerRow();
     }));
     el.querySelectorAll('[data-remove-payment]').forEach((btn) => btn.addEventListener('click', () => {
       posPayments.splice(Number(btn.dataset.removePayment), 1);
       renderTotals();
     }));
+  }
+
+  function syncChangeOwedCustomerRow() {
+    const owesChange = posPayments.some((p) => p.method === 'CASH' && Number(p.change_owed) > 0);
+    const row = document.getElementById('pos-change-owed-row');
+    if (row) row.classList.toggle('hidden', !owesChange);
   }
 
   document.getElementById('pos-add-payment').addEventListener('click', () => {
