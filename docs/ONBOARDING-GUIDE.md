@@ -4,10 +4,10 @@
 
 ## Delivered document
 
-- A4 PDF, **72 pages**
+- A4 PDF, **74 pages**
 - Covers Owner / Co-owner, General Manager, Branch Manager, and Counter Staff roles
 - Includes an owner decision guide with the audit-backed capability summary, role-by-role demonstration flow, transparent upfront-payment checklist, and shared-sample warning
-- Explains onboarding, login, daily operations, POS, till, stock, procurement, transfers, safe, expenses, debtors, change owed, attendance, tax/accounting, offline work, roles, permissions, exports, the five Owner Data Management scopes, current-stock/accounting continuity, safe plan downgrades, concurrent counter sales, pricing, and go-live steps
+- Explains onboarding, login, daily operations, POS, till, stock, procurement, transfers, safe, expenses, debtors, change owed, attendance, tax/accounting, offline work, roles, permissions, exports, the five Owner Data Management scopes, current-stock/accounting continuity, safe plan downgrades, concurrent counter sales, retail categories for pharmaceuticals/food & drinks/accessories/beauty, category sales history, pricing, and go-live steps
 - Contains no shared-sample username, PIN, or administrator access detail
 - Uses each workflow screenshot once; desktop/mobile companions are paired on one plate rather than repeated later in the guide
 - Includes a direct side-navigation operating map, a screen anatomy diagram (user/branch strip → navigation → input fields → action buttons), and a click-by-click first-day flow: Admin → Owner → staff → supplier/receiving → POS/receipt → till → attendance → Profit & Loss

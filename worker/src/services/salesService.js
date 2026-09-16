@@ -44,6 +44,7 @@ const glService = require('./glService');
 const { getClientSettings } = require('../lib/planLimits');
 const whtLib = require('../lib/wht');
 const changeOwedService = require('./changeOwedService');
+const { DEFAULT_RETAIL_CATEGORY } = require('../lib/retailCategories');
 
 
 const VALID_UNIT_TYPES = ['BASE_UNIT', 'PACK', 'CARTON'];
@@ -476,9 +477,9 @@ async function createSale(db, { branchId, servedBy, servedByRole = null, custome
       const saleItemId = uuid();
       itemSummaries.push(`${takeInUnitType} x ${product.name} @ N${unitPrice}`);
       statements.push(db.prepare(`
-        INSERT INTO sale_items (id, sale_id, stock_batch_id, product_id, unit_type, quantity, quantity_base_units, unit_price, line_total)
-        VALUES (?,?,?,?,?,?,?,?,?)
-      `).bind(saleItemId, saleId, pick.batch.id, item.product_id, unitType, takeInUnitType, pick.take, unitPrice, lineTotal));
+        INSERT INTO sale_items (id, sale_id, stock_batch_id, product_id, unit_type, quantity, quantity_base_units, unit_price, line_total, retail_category)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+      `).bind(saleItemId, saleId, pick.batch.id, item.product_id, unitType, takeInUnitType, pick.take, unitPrice, lineTotal, product.retail_category || DEFAULT_RETAIL_CATEGORY));
 
       // UNGUARDED decrement — this is deliberate, not an oversight. It
       // may look safer to add "AND quantity_remaining >= ?" here, but

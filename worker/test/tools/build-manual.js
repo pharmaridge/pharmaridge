@@ -495,6 +495,9 @@ Counter PINs must be at least four characters; use a stronger unique secret for 
   in on another device asks the earlier device to sign in again, so every sale and till action stays tied
   to the person currently using it. If a red message appears, read its <b>What to do</b> line before
   retrying rather than repeatedly pressing the same button.</div>
+  <p><b>One person, one sign-in.</b> Do not hand your account to a colleague when the counter is busy.
+  The signed-in person is the name on the sale, till, adjustment and attendance record. Sign out or let
+  the next person sign in with their own account at handover.</p>
 </section>
 
 <!-- ============ SIDE NAVIGATION OPERATING MAP ============ -->
@@ -535,6 +538,7 @@ Counter PINs must be at least four characters; use a stronger unique secret for 
       <tr><td><b>Expenses</b></td><td>Record category, description, amount and real payment source → obtain approval where required → check it reaches the correct cash pot.</td><td>Staff record; managers/Owner review</td></tr>
       <tr><td><b>Accounting</b></td><td>Read Trial Balance → Profit &amp; Loss → Balance Sheet → WHT register; print or export the exact filtered view for review.</td><td>Managers and Owner</td></tr>
       <tr><td><b>Users &amp; Branches</b></td><td>Create one account per person → assign correct role/branch → reset a forgotten PIN → transfer/promote through the recorded workflow.</td><td>Managers and Owner</td></tr>
+      <tr><td><b>Retail Categories</b></td><td>Set the product&rsquo;s sell-side category → receive stock normally → choose the category at POS → review the category sales summary.</td><td>Managers set; all counter staff sell</td></tr>
       <tr><td><b>Sync Status</b></td><td>Read pending/failed device work → resolve a rejected item → do not clear or reset business data while a reported queue is outstanding.</td><td>All see own work; managers oversee</td></tr>
       <tr><td><b>My Plan</b></td><td>Review capacity and feature use → Owner sets tax/permissions and, only after export/preview, data-management retention actions.</td><td>Owner; limited manager view</td></tr>
       <tr><td><b>Admin Portal</b></td><td>Vendor support configures the client deployment, limits and branding; it is not a pharmacy till, cash or staff account.</td><td>PharmaRidge support only</td></tr>
@@ -564,6 +568,24 @@ Counter PINs must be at least four characters; use a stronger unique secret for 
     </tbody>
   </table>
   <div class="note"><b>Input discipline protects the report.</b> A correct sale cannot repair a wrong batch cost; a correct Profit &amp; Loss cannot repair an unrecorded expense. The field guidance is there so the first record is useful without guessing.</div>
+  <h3>Retail category is not the medicine group</h3>
+  <p>Use <b>Retail Category</b> to decide where an item is sold and reported: <b>Pharmaceuticals</b>,
+  <b>Food &amp; Drinks</b>, <b>Accessories</b>, or <b>Beauty &amp; Personal Care</b>. Use the separate
+  optional <b>Product Group</b> field for a useful detail such as Analgesic, Water, Soap or Cream.</p>
+  <ul>
+    <li>Choosing a NAFDAC medicine starts it in <b>Pharmaceuticals</b>; its prescription and controlled-drug rules remain separate and unchanged.</li>
+    <li>Food, drinks, accessories and beauty items are added manually through the same Product → Purchase Order → Receive Stock workflow.</li>
+    <li>At POS, choose a retail category before searching to show that shelf area. In Sales History, the same filter and Category Sales Summary show completed line values and base units by category.</li>
+    <li>The category is saved with each sale line. If a product is later moved from one retail category to another, earlier sales history stays in its original category.</li>
+  </ul>
+  <div class="note"><b>Do not use a retail category as a regulatory decision.</b> It does not make an item OTC or POM, and it does not override controlled-drug, expiry, batch, tax or receipt rules. Record the correct product/medicine details as well.</div>
+  <h4>Category selling routine</h4>
+  <ol>
+    <li>Create or edit the product and select its retail category before receiving it.</li>
+    <li>Receive the real stock batch with quantity, cost, selling price and expiry where applicable.</li>
+    <li>At POS, choose the retail category, search or select the product, take payment and complete the receipt.</li>
+    <li>Use Sales History → Retail Category and Category Sales Summary to review completed line values and quantities.</li>
+  </ol>
   <div class="note"><b>When the app stops you.</b> Every red error message includes a <b>What to do</b> line. It tells you the expected next action: complete the stated field, sign in again, use the authorised role, resolve the named till/stocktake/transfer, reconnect and sync, or check the batch/quantity. Read that line before trying again; it is part of the workflow, not an unexplained technical error.</div>
 </section>
 
@@ -654,6 +676,9 @@ every one has been changed, because an account on a default PIN is an account an
 <p><b>Roles in one line:</b> an <b>Owner</b> sees everything and controls tax and permissions. A <b>General
 Manager</b> runs every branch. A <b>Branch Manager</b> runs exactly one. <b>Staff</b> serve customers at one
 branch.</p>`)}
+  ${fig('13a-owner-retail-categories.png', 'Products: choose the retail category separately from the product group', `<p>Use this screen before receiving stock. The <b>Retail Category</b> drop-down controls the POS and category sales history; the optional <b>Product Group</b> is the practical detail that helps a pharmacist or counter worker find the item.</p>
+<p>NAFDAC selections are medicines and begin as Pharmaceuticals. Drinks, water, accessories, soap, creams and similar shop goods are entered manually, then received with the same quantity, batch, cost and selling-price discipline as medicines.</p>
+<p>The category saved here is copied into every completed sale line. That preserves historical category reporting if an item is moved to a different category later.</p>`)}
   ${fig('14-owner-transfer-modal.png', 'Transfer &amp; Promote: a move is recorded with a reason and a date, never by inventing a second account', `<p>When somebody changes branch or is promoted, use <b>Transfer &amp; Promote</b> — never
 create a second account for the same person.</p>
 <p>PharmaRidge asks for a reason and records the date, so the change is auditable. The person keeps <b>one
@@ -1025,6 +1050,10 @@ spent on a purchase, and change you kept because you had no note to give.</p>`)}
   person&rsquo;s account. The message tells you the open till, shift, stocktake, transfer, missing count or
   permission that must be resolved. Finish or ask a manager to resolve that real-world item, then try the
   action again. The same rule protects the next cashier as well as the books.</div>
+  <h4>Counter handover</h4>
+  <p>Before another cashier takes over, close or hand over the till using the branch&rsquo;s approved process,
+  record every expense and change claim, and have the next person sign in with their own account. This
+  keeps the cash, stock and person named on each record understandable the next morning.</p>
 </section>
 
 <section class="page">
@@ -1072,6 +1101,7 @@ pay to a bad signal.</p>`)}
     <li>When the signal returns, wait for the normal sync message; then open <b>Sync Status</b> if a row needs attention.</li>
     <li>Do not enter the same sale again just because the network was slow. A completed queued sale is protected against duplication.</li>
     <li>If a queued row is rejected after a stock, branch or data-cleanup change, read the <b>What to do</b> message, review it with a manager, then record the real-world event correctly.</li>
+    <li>Keep the phone on the same branch and do not share a counter account. A new sign-in safely replaces the old device session.</li>
   </ol>
 </section>
 
@@ -1386,6 +1416,10 @@ settings they are changing.</p>`)}
   <b>PARTIALLY RECEIVED</b> and the balance can be recorded whenever the rest turns up, on
   its own batch numbers and its own invoice figure. You are never forced to pretend a
   delivery was complete to close the paperwork.</p>
+  <div class="note"><b>Retail category stays with the product, not the invoice.</b> Select Pharmaceuticals,
+  Food &amp; Drinks, Accessories or Beauty &amp; Personal Care while creating/editing the product. The same
+  receiving controls protect every category: record the quantity, batch, cost and selling price that
+  actually arrived.</div>
 </section>
 
 <!-- ============ 10a. WORKING OFFLINE ============ -->

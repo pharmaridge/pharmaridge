@@ -1,59 +1,87 @@
-async function renderSales(view, path) {
+async function renderSales(view, path, selectedRetailCategory) {
   const parts = path.split('/');
   const saleId = parts[2];
   if (saleId) return renderSaleDetail(view, saleId);
 
-  const session = State.getSession();
   const branchId = State.effectiveBranchId();
-  const scopeQuery = branchId ? `?branch_id=${branchId}` : '';
-  const sales = await Api.get(`/sales${scopeQuery}`);
+  const retailCategory = selectedRetailCategory || 'ALL';
+  const query = [];
+  if (branchId) query.push(`branch_id=${encodeURIComponent(branchId)}`);
+  if (retailCategory !== 'ALL') query.push(`retail_category=${encodeURIComponent(retailCategory)}`);
+  const scopeQuery = query.length ? `?${query.join('&')}` : '';
+  const [sales, categorySummary] = await Promise.all([
+    Api.get(`/sales${scopeQuery}`),
+    Api.get(`/sales/category-summary${scopeQuery}`),
+  ]);
+  const categoriesFor = (value) => String(value || '').split(',').filter(Boolean)
+    .map((code) => UI.retailCategoryLabel(code)).join(', ') || '—';
 
   view.innerHTML = `
     <h2 class="page-title">Sales History</h2>
-    <p class="page-subtitle">Every completed and voided transaction — click a row for the full receipt and to void if needed.</p>
+    <p class="page-subtitle">Every completed and voided transaction, grouped by the retail category saved with each sale line. Click a row for the full receipt and to void if needed.</p>
+    <div class="card">
+      <div class="form-row" style="max-width:360px;margin-bottom:0;">
+        <label for="sales-retail-category">Retail Category</label>
+        <select id="sales-retail-category">${UI.retailCategoryOptions(retailCategory, true, 'All retail categories')}</select>
+        <small class="muted">Filter sales containing a category. A mixed basket can appear under more than one category; the summary below uses each line's own value.</small>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Category Sales Summary</h3>
+      <p class="page-subtitle">Completed sales only. Gross sales and quantities are grouped from the saved sale-line category, so later product edits do not rewrite history.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Retail Category</th><th style="text-align:right;">Sales</th><th style="text-align:right;">Base Units Sold</th><th style="text-align:right;">Gross Sales</th></tr></thead>
+        <tbody>${categorySummary.map((row) => `<tr><td>${UI.escapeHtml(UI.retailCategoryLabel(row.retail_category))}</td><td style="text-align:right;">${Number(row.sale_count || 0).toLocaleString()}</td><td style="text-align:right;">${Number(row.base_units_sold || 0).toLocaleString()}</td><td style="text-align:right;">${UI.money(row.gross_sales)}</td></tr>`).join('') || '<tr><td colspan="4" class="empty-state">No completed sales in this category selection</td></tr>'}</tbody>
+      </table></div>
+    </div>
     ${Exporter.toolbar('sales', { label: 'this sales history' })}
     <div class="card">
       <div class="table-wrap">
         <table>
-          <thead><tr>${branchId ? '' : '<th>Branch</th>'}<th>Date</th><th>Served By</th><th>Customer</th><th>Total</th><th>Status</th><th></th></tr></thead>
+          <thead><tr>${branchId ? '' : '<th>Branch</th>'}<th>Date</th><th>Served By</th><th>Customer</th><th>Retail Category</th><th>Total</th><th>Status</th><th></th></tr></thead>
           <tbody>
-            ${sales.map(s => `
+            ${sales.map((sale) => `
               <tr>
-                ${branchId ? '' : `<td>${UI.escapeHtml(s.branch_name)}</td>`}
-                <td>${UI.shortDate(s.created_at)}</td>
-                <td>${UI.escapeHtml(s.served_by_name)}</td>
-                <td>${UI.escapeHtml(s.customer_name || 'Walk-in')}</td>
-                <td>${UI.money(s.total)}</td>
-                <td>${s.status === 'COMPLETED' ? UI.badge('COMPLETED', 'green') : s.status === 'VOIDED' ? UI.badge('VOIDED', 'red') : UI.badge(s.status, 'amber')}</td>
-                <td><a class="btn btn-secondary btn-sm" href="#/sales/${s.id}">View</a></td>
+                ${branchId ? '' : `<td>${UI.escapeHtml(sale.branch_name)}</td>`}
+                <td>${UI.shortDate(sale.created_at)}</td>
+                <td>${UI.escapeHtml(sale.served_by_name)}</td>
+                <td>${UI.escapeHtml(sale.customer_name || 'Walk-in')}</td>
+                <td>${UI.escapeHtml(categoriesFor(sale.retail_categories))}</td>
+                <td>${UI.money(sale.total)}</td>
+                <td>${sale.status === 'COMPLETED' ? UI.badge('COMPLETED', 'green') : sale.status === 'VOIDED' ? UI.badge('VOIDED', 'red') : UI.badge(sale.status, 'amber')}</td>
+                <td><a class="btn btn-secondary btn-sm" href="#/sales/${sale.id}">View</a></td>
               </tr>
-            `).join('') || `<tr><td colspan="7" class="empty-state">No sales recorded yet</td></tr>`}
+            `).join('') || `<tr><td colspan="8" class="empty-state">No sales recorded in this category selection</td></tr>`}
           </tbody>
         </table>
       </div>
     </div>
   `;
 
+  document.getElementById('sales-retail-category').addEventListener('change', (event) => {
+    renderSales(view, path, event.target.value);
+  });
   Exporter.wireTableReport('sales', {
     title: 'Sales History',
-    subtitle: branchId ? 'Selected branch' : 'All branches',
-    filename: 'sales-history',
+    subtitle: `${branchId ? 'Selected branch' : 'All branches'} · ${retailCategory === 'ALL' ? 'All retail categories' : UI.retailCategoryLabel(retailCategory)}`,
+    filename: retailCategory === 'ALL' ? 'sales-history' : `sales-history-${retailCategory.toLowerCase()}`,
     columns: [
-      { key: 'created_at', label: 'Date', format: (v) => UI.shortDate(v) },
-      { key: 'id', label: 'Receipt No.', format: (v) => String(v).slice(0, 8).toUpperCase() },
+      { key: 'created_at', label: 'Date', format: (value) => UI.shortDate(value) },
+      { key: 'id', label: 'Receipt No.', format: (value) => String(value).slice(0, 8).toUpperCase() },
       ...(branchId ? [] : [{ key: 'branch_name', label: 'Branch' }]),
       { key: 'served_by_name', label: 'Served By' },
-      { key: 'customer_name', label: 'Customer', format: (v) => v || 'Walk-in' },
-      { key: 'total', label: 'Total', align: 'right', format: (v) => UI.money(v) },
+      { key: 'customer_name', label: 'Customer', format: (value) => value || 'Walk-in' },
+      { key: 'retail_categories', label: 'Retail Category', format: categoriesFor },
+      { key: 'total', label: 'Total', align: 'right', format: (value) => UI.money(value) },
       { key: 'status', label: 'Status' },
     ],
     rows: sales,
     summary: [
       { label: 'Transactions', value: String(sales.length) },
-      { label: 'Completed Value', value: UI.money(sales.filter((x) => x.status === 'COMPLETED').reduce((a, x) => a + Number(x.total || 0), 0)) },
-      { label: 'Voided', value: String(sales.filter((x) => x.status === 'VOIDED').length) },
+      { label: 'Completed Value', value: UI.money(sales.filter((sale) => sale.status === 'COMPLETED').reduce((total, sale) => total + Number(sale.total || 0), 0)) },
+      { label: 'Voided', value: String(sales.filter((sale) => sale.status === 'VOIDED').length) },
     ],
-    note: 'Voided transactions are listed for audit but excluded from the completed value total.',
+    note: 'Voided transactions are listed for audit but excluded from the completed value total. Category summary uses completed sale-line values.',
     emptyMessage: 'No sales recorded for this selection.',
   });
 }

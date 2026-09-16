@@ -4,18 +4,25 @@ const { authRequired, managerOnly } = require('../lib/auth');
 const { assertManagerPermission } = require('../lib/planLimits');
 const { uuid } = require('../lib/crypto');
 const { readJsonBody } = require('../lib/http');
+const { DEFAULT_RETAIL_CATEGORY, RETAIL_CATEGORIES, isRetailCategory } = require('../lib/retailCategories');
 
 const products = new Hono();
 products.use('*', authRequired);
 
 products.get('/', async (c) => {
   const q = (c.req.query('q') || '').trim();
+  const retailCategory = c.req.query('retail_category');
+  if (retailCategory && !isRetailCategory(retailCategory)) {
+    return c.json({ error: `retail_category must be one of: ${RETAIL_CATEGORIES.map((entry) => entry.code).join(', ')}` }, 400);
+  }
+  const categorySql = retailCategory ? ' AND retail_category = ?' : '';
+  const categoryBinds = retailCategory ? [retailCategory] : [];
   let results;
   if (q) {
     const like = `%${q}%`;
-    ({ results } = await c.env.DB.prepare(`SELECT * FROM products WHERE is_deleted = 0 AND (name LIKE ? OR generic_name LIKE ? OR nafdac_reg_no LIKE ?) ORDER BY name LIMIT 100`).bind(like, like, like).all());
+    ({ results } = await c.env.DB.prepare(`SELECT * FROM products WHERE is_deleted = 0${categorySql} AND (name LIKE ? OR generic_name LIKE ? OR nafdac_reg_no LIKE ?) ORDER BY name LIMIT 100`).bind(...categoryBinds, like, like, like).all());
   } else {
-    ({ results } = await c.env.DB.prepare('SELECT * FROM products WHERE is_deleted = 0 ORDER BY name LIMIT 500').all());
+    ({ results } = await c.env.DB.prepare(`SELECT * FROM products WHERE is_deleted = 0${categorySql} ORDER BY name LIMIT 500`).bind(...categoryBinds).all());
   }
   return c.json(results);
 });
@@ -30,6 +37,10 @@ products.get('/:id', async (c) => {
 products.post('/', managerOnly, async (c) => {
   const body = await readJsonBody(c);
   if (!body.name) return c.json({ error: 'name is required' }, 400);
+  const retailCategory = body.retail_category == null ? DEFAULT_RETAIL_CATEGORY : String(body.retail_category).trim();
+  if (!isRetailCategory(retailCategory)) {
+    return c.json({ error: `retail_category must be one of: ${RETAIL_CATEGORIES.map((entry) => entry.code).join(', ')}`, code: 'INVALID_RETAIL_CATEGORY' }, 400);
+  }
   // FINANCIAL/DATA-INTEGRITY: see the full explanation below.
   if (body.units_per_pack != null && (!Number.isInteger(body.units_per_pack) || body.units_per_pack < 1)) {
     return c.json({ error: 'units_per_pack must be a positive whole number' }, 400);
@@ -62,9 +73,9 @@ products.post('/', managerOnly, async (c) => {
 
   const id = uuid();
   await c.env.DB.prepare(`
-    INSERT INTO products (id, name, generic_name, category, nafdac_reg_no, is_controlled, dispensing_type, base_unit, units_per_pack, packs_per_carton, reorder_level, nafdac_catalog_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-  `).bind(id, body.name, body.generic_name || null, body.category || null, body.nafdac_reg_no || null, body.is_controlled ? 1 : 0,
+    INSERT INTO products (id, name, generic_name, retail_category, category, nafdac_reg_no, is_controlled, dispensing_type, base_unit, units_per_pack, packs_per_carton, reorder_level, nafdac_catalog_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).bind(id, body.name, body.generic_name || null, retailCategory, body.category || null, body.nafdac_reg_no || null, body.is_controlled ? 1 : 0,
           body.dispensing_type || 'OTC', body.base_unit || 'tablet', body.units_per_pack || 1, body.packs_per_carton || null, body.reorder_level || 0, catalogId).run();
   return c.json(await c.env.DB.prepare('SELECT * FROM products WHERE id = ?').bind(id).first(), 201);
 });
@@ -74,6 +85,9 @@ products.put('/:id', managerOnly, async (c) => {
   const existing = await c.env.DB.prepare('SELECT * FROM products WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!existing) return c.json({ error: 'Product not found' }, 404);
   const body = await readJsonBody(c);
+  if (body.retail_category !== undefined && !isRetailCategory(body.retail_category)) {
+    return c.json({ error: `retail_category must be one of: ${RETAIL_CATEGORIES.map((entry) => entry.code).join(', ')}`, code: 'INVALID_RETAIL_CATEGORY' }, 400);
+  }
   if (body.units_per_pack !== undefined && body.units_per_pack != null && (!Number.isInteger(body.units_per_pack) || body.units_per_pack < 1)) {
     return c.json({ error: 'units_per_pack must be a positive whole number' }, 400);
   }
@@ -83,7 +97,7 @@ products.put('/:id', managerOnly, async (c) => {
   if (body.reorder_level !== undefined && body.reorder_level != null && (!Number.isInteger(body.reorder_level) || body.reorder_level < 0)) {
     return c.json({ error: 'reorder_level must be a non-negative whole number' }, 400);
   }
-  const fields = ['name', 'generic_name', 'category', 'nafdac_reg_no', 'is_controlled', 'dispensing_type', 'base_unit', 'units_per_pack', 'packs_per_carton', 'reorder_level'];
+  const fields = ['name', 'generic_name', 'retail_category', 'category', 'nafdac_reg_no', 'is_controlled', 'dispensing_type', 'base_unit', 'units_per_pack', 'packs_per_carton', 'reorder_level'];
   const updates = fields.filter((f) => body[f] !== undefined);
   if (updates.length === 0) return c.json(existing);
   const setClause = updates.map((f) => `${f} = ?`).join(', ');

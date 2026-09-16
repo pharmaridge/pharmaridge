@@ -32,6 +32,11 @@ async function renderPos(view) {
       <div>
         <div class="card">
           <h3>Find Product</h3>
+          <div class="form-row" style="margin-bottom:8px;">
+            <label for="pos-retail-category">Retail Category</label>
+            <select id="pos-retail-category">${UI.retailCategoryOptions('ALL', true, 'All sellable categories')}</select>
+            <small class="muted">Choose Pharmaceuticals, Food &amp; Drinks, Accessories or Beauty &amp; Personal Care to limit the product list.</small>
+          </div>
           <input type="text" id="pos-search" placeholder="Search by name, generic name, or NAFDAC no..." autocomplete="off" />
           <div id="pos-search-results" class="product-search-results hidden"></div>
         </div>
@@ -205,47 +210,64 @@ async function renderPos(view) {
 
   document.getElementById('pos-discount').addEventListener('input', renderTotals);
 
-  // Product search
+  // Product search and retail-category selling. The category filter works
+  // with or without typed search text so a counter can deliberately switch
+  // from medicines to drinks/beauty/accessories without memorising names.
   const outsideClickHandler = (e) => {
-    if (!e.target.closest('#pos-search') && !e.target.closest('#pos-search-results')) {
+    if (!e.target.closest('#pos-search') && !e.target.closest('#pos-search-results') && !e.target.closest('#pos-retail-category')) {
       const resultsEl = document.getElementById('pos-search-results');
       if (resultsEl) resultsEl.classList.add('hidden');
     }
   };
   let searchTimer;
-  document.getElementById('pos-search').addEventListener('input', (e) => {
-    clearTimeout(searchTimer);
-    const q = e.target.value.trim();
-    if (!q) { document.getElementById('pos-search-results').classList.add('hidden'); return; }
-    searchTimer = setTimeout(async () => {
-      const products = await Api.get(`/products?q=${encodeURIComponent(q)}`);
-      const resultsEl = document.getElementById('pos-search-results');
+  let latestSearch = 0;
+  async function loadProductResults() {
+    const searchInput = document.getElementById('pos-search');
+    const categoryInput = document.getElementById('pos-retail-category');
+    const resultsEl = document.getElementById('pos-search-results');
+    const q = searchInput.value.trim();
+    const retailCategory = categoryInput.value;
+    if (!q && retailCategory === 'ALL') { resultsEl.classList.add('hidden'); return; }
+    const sequence = ++latestSearch;
+    let url = `/products?${q ? `q=${encodeURIComponent(q)}` : ''}`;
+    if (retailCategory !== 'ALL') url += `${q ? '&' : ''}retail_category=${encodeURIComponent(retailCategory)}`;
+    try {
+      const products = await Api.get(url);
+      // A slower response from an earlier keypress/category must never replace
+      // the current category's result list.
+      if (sequence !== latestSearch) return;
       if (!products.length) {
-        resultsEl.innerHTML = '<div class="product-search-item">No products found</div>';
+        resultsEl.innerHTML = `<div class="product-search-item">No ${retailCategory === 'ALL' ? '' : UI.escapeHtml(UI.retailCategoryLabel(retailCategory).toLowerCase() + ' ')}products found</div>`;
       } else {
-        resultsEl.innerHTML = products.map(p => `
-          <div class="product-search-item" data-product-id="${p.id}">
+        resultsEl.innerHTML = products.map((product) => `
+          <div class="product-search-item" data-product-id="${product.id}">
             <div>
-              <div>${UI.escapeHtml(p.name)} ${p.is_controlled ? UI.badge('CTRL', 'red') : ''} ${p.dispensing_type === 'POM' ? UI.badge('POM', 'amber') : ''}</div>
-              <div class="meta">${UI.escapeHtml(p.generic_name || '')} · ${p.base_unit}</div>
+              <div>${UI.escapeHtml(product.name)} ${product.is_controlled ? UI.badge('CTRL', 'red') : ''} ${product.dispensing_type === 'POM' ? UI.badge('POM', 'amber') : ''}</div>
+              <div class="meta">${UI.escapeHtml(UI.retailCategoryLabel(product.retail_category))} · ${UI.escapeHtml(product.generic_name || product.category || '')} · ${UI.escapeHtml(product.base_unit)}</div>
             </div>
             <span>Add →</span>
           </div>
         `).join('');
         resultsEl.querySelectorAll('[data-product-id]').forEach((item) => {
           item.addEventListener('click', async () => {
-            const product = products.find(p => p.id === item.dataset.productId);
-            document.getElementById('pos-search').value = '';
+            const product = products.find((entry) => entry.id === item.dataset.productId);
+            searchInput.value = '';
             resultsEl.classList.add('hidden');
             await addProductToCart(product, branchId, renderCart);
           });
         });
       }
       resultsEl.classList.remove('hidden');
-    }, 250);
-  });
+    } catch (e) { UI.toast(e.message || 'Could not load products for this category.', 'error'); }
+  }
+  function scheduleProductSearch(delay) {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(loadProductResults, delay == null ? 250 : delay);
+  }
+  document.getElementById('pos-search').addEventListener('input', () => scheduleProductSearch());
+  document.getElementById('pos-retail-category').addEventListener('change', () => scheduleProductSearch(0));
   document.addEventListener('click', outsideClickHandler);
-  Router.onCleanup(() => document.removeEventListener('click', outsideClickHandler));
+  Router.onCleanup(() => { document.removeEventListener('click', outsideClickHandler); clearTimeout(searchTimer); });
 
   // Customer search (for credit sales)
   let custTimer;

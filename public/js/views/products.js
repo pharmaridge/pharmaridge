@@ -47,7 +47,8 @@ async function renderProducts(view) {
       <div class="form-inline">
         <div class="form-row"><label>Name</label><input id="p-name" placeholder="e.g. Panadol Extra" /></div>
         <div class="form-row"><label>Generic Name</label><input id="p-generic" placeholder="e.g. Paracetamol 500mg" /></div>
-        <div class="form-row"><label>Category</label><input id="p-category" placeholder="e.g. Analgesic" /></div>
+        <div class="form-row"><label>Retail Category</label><select id="p-retail-category">${UI.retailCategoryOptions('PHARMACEUTICALS')}</select><small class="muted">Choose where it sells: medicines, food/drinks, accessories or beauty/personal care.</small></div>
+        <div class="form-row"><label>Product Group (optional)</label><input id="p-category" placeholder="e.g. Analgesic, Water, Soap or Cream" /></div>
         <div class="form-row"><label>NAFDAC Reg. No.</label><input id="p-nafdac" /></div>
         <div class="form-row">
           <label>Dispensing Type</label>
@@ -72,12 +73,13 @@ async function renderProducts(view) {
       ${Exporter.toolbar('products', { label: 'the product catalogue' })}
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Generic Name</th><th>Category</th><th>Type</th><th>Controlled</th><th>Base Unit</th><th>Per Pack</th><th>Per Carton</th><th>Reorder Level</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Generic Name</th><th>Retail Category</th><th>Product Group</th><th>Type</th><th>Controlled</th><th>Base Unit</th><th>Per Pack</th><th>Per Carton</th><th>Reorder Level</th><th></th></tr></thead>
           <tbody>
             ${products.map(p => `
               <tr>
                 <td>${UI.escapeHtml(p.name)}</td>
                 <td>${UI.escapeHtml(p.generic_name || '—')}</td>
+                <td>${UI.escapeHtml(UI.retailCategoryLabel(p.retail_category))}</td>
                 <td>${UI.escapeHtml(p.category || '—')}</td>
                 <td>${UI.badge(p.dispensing_type, p.dispensing_type === 'POM' ? 'amber' : 'gray')}</td>
                 <td>${p.is_controlled ? UI.badge('Controlled', 'red') : '—'}</td>
@@ -91,7 +93,7 @@ async function renderProducts(view) {
                   <button class="btn btn-danger btn-sm" data-delete-product="${p.id}" data-name="${UI.escapeHtml(p.name)}">Delete</button>
                 </td>
               </tr>
-            `).join('') || `<tr><td colspan="10" class="empty-state">No products yet — add your first one above</td></tr>`}
+            `).join('') || `<tr><td colspan="11" class="empty-state">No products yet — add your first one above</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -105,7 +107,8 @@ async function renderProducts(view) {
     columns: [
       { key: 'name', label: 'Product' },
       { key: 'generic_name', label: 'Generic / Active Ingredient' },
-      { key: 'category', label: 'Category' },
+      { key: 'retail_category', label: 'Retail Category', format: (v) => UI.retailCategoryLabel(v) },
+      { key: 'category', label: 'Product Group' },
       { key: 'nafdac_reg_no', label: 'NAFDAC No.' },
       { key: 'dispensing_type', label: 'Type' },
       { key: 'is_controlled', label: 'Controlled', format: (v) => (v ? 'YES' : '') },
@@ -135,6 +138,7 @@ async function renderProducts(view) {
       await Api.post('/products', {
         name,
         generic_name: document.getElementById('p-generic').value.trim() || undefined,
+        retail_category: document.getElementById('p-retail-category').value,
         category: document.getElementById('p-category').value.trim() || undefined,
         nafdac_reg_no: document.getElementById('p-nafdac').value.trim() || undefined,
         dispensing_type: document.getElementById('p-dispensing').value,
@@ -280,6 +284,7 @@ function wireCatalogSearch() {
     // pharmacist means by the generic of a branded product.
     set('p-generic', [entry.ingredient_name, entry.strength].filter(Boolean).join(' '));
     set('p-category', entry.category);
+    set('p-retail-category', 'PHARMACEUTICALS');
     set('p-nafdac', entry.nafdac_reg_no);
     set('p-base-unit', entry.base_unit || 'tablet');
     const disp = document.getElementById('p-dispensing');
@@ -445,7 +450,8 @@ function openEditProductModal(p) {
     <h3>Edit Product — ${UI.escapeHtml(p.name)}</h3>
     <div class="form-row"><label>Name</label><input id="ep-name" value="${UI.escapeHtml(p.name)}" /></div>
     <div class="form-row"><label>Generic Name</label><input id="ep-generic" value="${UI.escapeHtml(p.generic_name || '')}" /></div>
-    <div class="form-row"><label>Category</label><input id="ep-category" value="${UI.escapeHtml(p.category || '')}" /></div>
+    <div class="form-row"><label>Retail Category</label><select id="ep-retail-category">${UI.retailCategoryOptions(p.retail_category || 'PHARMACEUTICALS')}</select><small class="muted">This drives POS and category sales history; it does not change a completed sale's saved category.</small></div>
+    <div class="form-row"><label>Product Group (optional)</label><input id="ep-category" value="${UI.escapeHtml(p.category || '')}" /></div>
     <div class="form-row"><label>NAFDAC Reg. No.</label><input id="ep-nafdac" value="${UI.escapeHtml(p.nafdac_reg_no || '')}" /></div>
     <div class="form-row">
       <label>Dispensing Type</label>
@@ -479,6 +485,7 @@ function openEditProductModal(p) {
       await Api.put(`/products/${p.id}`, {
         name,
         generic_name: modal.querySelector('#ep-generic').value.trim() || null,
+        retail_category: modal.querySelector('#ep-retail-category').value,
         category: modal.querySelector('#ep-category').value.trim() || null,
         nafdac_reg_no: modal.querySelector('#ep-nafdac').value.trim() || null,
         dispensing_type: modal.querySelector('#ep-dispensing').value,

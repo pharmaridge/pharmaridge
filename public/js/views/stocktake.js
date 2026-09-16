@@ -75,7 +75,7 @@ async function renderStocktake(view, path) {
 // products.
 async function openScopedStocktakeModal(branchId) {
   const products = await Api.get('/products');
-  const categories = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
+  const categories = [...new Set(products.map((product) => product.retail_category || 'PHARMACEUTICALS'))].sort();
 
   const modal = UI.openModal(`
     <h3>Start Scoped Stocktake</h3>
@@ -83,14 +83,14 @@ async function openScopedStocktakeModal(branchId) {
     <div class="form-row">
       <label>Scope</label>
       <select id="ss-scope">
-        <option value="category">By Category</option>
+        <option value="category">By Retail Category</option>
         <option value="controlled">Controlled Drug Register Only</option>
         <option value="products">Pick Individual Products</option>
       </select>
     </div>
     <div id="ss-category-row" class="form-row">
-      <label>Category</label>
-      <select id="ss-category">${categories.map(c => `<option value="${UI.escapeHtml(c)}">${UI.escapeHtml(c)}</option>`).join('') || '<option value="">No categories found</option>'}</select>
+      <label>Retail Category</label>
+      <select id="ss-category">${categories.map((category) => `<option value="${UI.escapeHtml(category)}">${UI.escapeHtml(UI.retailCategoryLabel(category))}</option>`).join('') || '<option value="">No retail categories found</option>'}</select>
     </div>
     <div id="ss-products-row" class="form-row" style="display:none;">
       <label>Products</label>
@@ -124,7 +124,7 @@ async function openScopedStocktakeModal(branchId) {
     if (scope === 'category') {
       const category = modal.querySelector('#ss-category').value;
       if (!category) { UI.toast('No category selected', 'error'); return; }
-      productIds = products.filter(p => p.category === category).map(p => p.id);
+      productIds = products.filter((product) => (product.retail_category || 'PHARMACEUTICALS') === category).map((product) => product.id);
     } else if (scope === 'controlled') {
       productIds = products.filter(p => p.is_controlled).map(p => p.id);
     } else {

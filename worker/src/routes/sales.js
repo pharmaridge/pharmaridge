@@ -4,6 +4,7 @@ const { assertManagerPermission, assertStaffCanVoid } = require('../lib/planLimi
 const { idempotent } = require('../lib/idempotency');
 const salesService = require('../services/salesService');
 const { readJsonBody } = require('../lib/http');
+const { RETAIL_CATEGORIES, isRetailCategory } = require('../lib/retailCategories');
 
 
 
@@ -14,10 +15,15 @@ sales.get('/', async (c) => {
   const branchId = resolveScopedBranchId(c);
   const from = c.req.query('from');
   const to = c.req.query('to');
+  const retailCategory = c.req.query('retail_category');
   const limit = Math.min(Number(c.req.query('limit')) || 200, 1000);
+  if (retailCategory && !isRetailCategory(retailCategory)) {
+    return c.json({ error: `retail_category must be one of: ${RETAIL_CATEGORIES.map((entry) => entry.code).join(', ')}`, code: 'INVALID_RETAIL_CATEGORY' }, 400);
+  }
 
   let sql = `
-    SELECT s.*, u.full_name AS served_by_name, cu.name AS customer_name, b.name AS branch_name
+    SELECT s.*, u.full_name AS served_by_name, cu.name AS customer_name, b.name AS branch_name,
+           (SELECT GROUP_CONCAT(DISTINCT si.retail_category) FROM sale_items si WHERE si.sale_id = s.id AND si.is_deleted = 0) AS retail_categories
     FROM sales s JOIN users u ON u.id = s.served_by LEFT JOIN customers cu ON cu.id = s.customer_id JOIN branches b ON b.id = s.branch_id
     WHERE s.is_deleted = 0
   `;
@@ -25,9 +31,43 @@ sales.get('/', async (c) => {
   if (branchId) { sql += ' AND s.branch_id = ?'; params.push(branchId); }
   if (from) { sql += ' AND s.created_at >= ?'; params.push(from); }
   if (to) { sql += ' AND s.created_at <= ?'; params.push(to); }
+  if (retailCategory) {
+    sql += ' AND EXISTS (SELECT 1 FROM sale_items rsi WHERE rsi.sale_id = s.id AND rsi.is_deleted = 0 AND rsi.retail_category = ?)';
+    params.push(retailCategory);
+  }
   sql += ' ORDER BY s.created_at DESC LIMIT ?';
   params.push(limit);
 
+  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  return c.json(results);
+});
+
+// Category-level sales history uses the immutable sale-item snapshot, not the
+// product's current category. Reclassifying a product tomorrow must not rewrite
+// what last month's category report said was sold.
+sales.get('/category-summary', async (c) => {
+  const branchId = resolveScopedBranchId(c);
+  const from = c.req.query('from');
+  const to = c.req.query('to');
+  const retailCategory = c.req.query('retail_category');
+  if (retailCategory && !isRetailCategory(retailCategory)) {
+    return c.json({ error: `retail_category must be one of: ${RETAIL_CATEGORIES.map((entry) => entry.code).join(', ')}`, code: 'INVALID_RETAIL_CATEGORY' }, 400);
+  }
+  let sql = `
+    SELECT si.retail_category,
+           COUNT(DISTINCT s.id) AS sale_count,
+           COALESCE(SUM(si.quantity_base_units), 0) AS base_units_sold,
+           COALESCE(SUM(si.line_total), 0) AS gross_sales
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+     WHERE s.is_deleted = 0 AND s.status = 'COMPLETED' AND si.is_deleted = 0
+  `;
+  const params = [];
+  if (branchId) { sql += ' AND s.branch_id = ?'; params.push(branchId); }
+  if (from) { sql += ' AND s.created_at >= ?'; params.push(from); }
+  if (to) { sql += ' AND s.created_at <= ?'; params.push(to); }
+  if (retailCategory) { sql += ' AND si.retail_category = ?'; params.push(retailCategory); }
+  sql += ' GROUP BY si.retail_category ORDER BY gross_sales DESC, si.retail_category';
   const { results } = await c.env.DB.prepare(sql).bind(...params).all();
   return c.json(results);
 });

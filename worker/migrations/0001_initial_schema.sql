@@ -517,6 +517,9 @@ CREATE TABLE products (
     id                TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     name              TEXT NOT NULL,
     generic_name      TEXT,
+    -- Commercial category for POS/stock/sales reporting. Keep this separate
+    -- from `category` below, which remains the therapeutic/item group.
+    retail_category   TEXT NOT NULL DEFAULT 'PHARMACEUTICALS' CHECK (retail_category IN ('PHARMACEUTICALS','FOOD_DRINKS','ACCESSORIES','BEAUTY_PERSONAL_CARE')),
     category          TEXT,
     nafdac_reg_no     TEXT,
     is_controlled     INTEGER NOT NULL DEFAULT 0,
@@ -529,6 +532,7 @@ CREATE TABLE products (
     updated_at        TEXT NOT NULL DEFAULT (datetime('now')),
     is_deleted        INTEGER NOT NULL DEFAULT 0
 );
+CREATE INDEX idx_products_retail_category ON products(retail_category) WHERE is_deleted = 0;
 
 -- Per-branch default selling price override for a product. Used to
 -- pre-fill the selling price when a branch receives a new stock_batch,
@@ -764,11 +768,15 @@ CREATE TABLE sale_items (
     unit_type          TEXT NOT NULL CHECK (unit_type IN ('BASE_UNIT','PACK','CARTON')) DEFAULT 'BASE_UNIT',
     quantity           INTEGER NOT NULL,        -- quantity in the chosen unit_type
     quantity_base_units INTEGER NOT NULL,       -- quantity converted to base_unit (used for stock deduction)
-    unit_price         REAL NOT NULL,           -- price per unit_type (pack/carton/base)
+    unit_price         REAL NOT NULL,     -- price per unit_type (pack/carton/base)
     line_total         REAL NOT NULL,
+    -- Immutable commercial-category snapshot for sales history. A later
+    -- product reclassification must never rewrite a completed sale report.
+    retail_category   TEXT NOT NULL DEFAULT 'PHARMACEUTICALS' CHECK (retail_category IN ('PHARMACEUTICALS','FOOD_DRINKS','ACCESSORIES','BEAUTY_PERSONAL_CARE')),
     updated_at         TEXT NOT NULL DEFAULT (datetime('now')),
     is_deleted         INTEGER NOT NULL DEFAULT 0
 );
+CREATE INDEX idx_sale_items_retail_category ON sale_items(retail_category, sale_id) WHERE is_deleted = 0;
 
 -- Split payments: one sale is very often part cash, part transfer, part
 -- POS card. cash_tendered/change_given keep till reconciliation correct

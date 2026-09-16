@@ -196,6 +196,14 @@ function pngGrey(file) {
       /More than one cashier can sell from the same shelf/i.test(text) && /negative stock/i.test(text));
     check('it documents the What to do recovery reference on red errors',
       /What to do/i.test(text) && /red error message/i.test(text));
+    check('it explains retail categories separately from therapeutic/product groups',
+      /Retail category is not the medicine group/i.test(text) && /Pharmaceuticals/i.test(text)
+      && /Food\s*&\s*Drinks/i.test(text) && /Accessories/i.test(text) && /Beauty\s*&\s*Personal Care/i.test(text));
+    check('it explains category-first POS and immutable category sales history',
+      /At POS, choose a retail category before searching/i.test(text)
+      && /category is saved with each sale line/i.test(text));
+    check('it keeps retail category separate from medicine compliance decisions',
+      /Do not use a retail category as a regulatory decision/i.test(text));
     check('no shared Admin username/PIN or password is printed',
       !/admin\s*\/\s*(?:PIN|password|\d)/i.test(text) && !/administrator credential/i.test(text),
       'shared credential wording found');

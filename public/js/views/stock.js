@@ -30,11 +30,12 @@ async function renderStock(view, path) {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr>${branchId ? '' : '<th>Branch</th>'}<th>Product</th><th>Batch No.</th><th>Expiry</th><th>Qty Remaining</th><th>How it arrived</th><th>Cost/Unit</th><th>Sell/Unit</th><th>Pack Price</th><th>Carton Price</th><th></th></tr></thead>
+            <thead><tr>${branchId ? '' : '<th>Branch</th>'}<th>Retail Category</th><th>Product</th><th>Batch No.</th><th>Expiry</th><th>Qty Remaining</th><th>How it arrived</th><th>Cost/Unit</th><th>Sell/Unit</th><th>Pack Price</th><th>Carton Price</th><th></th></tr></thead>
             <tbody>
               ${batches.map(b => `
                 <tr>
                   ${branchId ? '' : `<td>${UI.escapeHtml(b.branch_name)}</td>`}
+                  <td>${UI.escapeHtml(UI.retailCategoryLabel(b.retail_category))}</td>
                   <td>${UI.escapeHtml(b.product_name)}</td>
                   <td>${UI.escapeHtml(b.batch_no || '—')}</td>
                   <td>${b.expiry_date || '—'}</td>
@@ -53,7 +54,7 @@ async function renderStock(view, path) {
                   <td>${b.carton_price != null ? UI.money(b.carton_price) : '—'}</td>
                   <td><button class="btn btn-secondary btn-sm" data-adjust="${b.id}">Adjust</button></td>
                 </tr>
-              `).join('') || `<tr><td colspan="11" class="empty-state">No stock batches</td></tr>`}
+              `).join('') || `<tr><td colspan="12" class="empty-state">No stock batches</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -66,6 +67,7 @@ async function renderStock(view, path) {
       filename: 'stock-on-hand',
       columns: [
         ...(branchId ? [] : [{ key: 'branch_name', label: 'Branch' }]),
+        { key: 'retail_category', label: 'Retail Category', format: (v) => UI.retailCategoryLabel(v) },
         { key: 'product_name', label: 'Product' },
         { key: 'batch_no', label: 'Batch No.' },
         { key: 'expiry_date', label: 'Expiry' },

@@ -34,6 +34,25 @@ const UI = (() => {
     setTimeout(() => el.remove(), timeout);
   }
 
+  // Commercial retail categories are separate from a medicine's therapeutic
+  // group. The same labels are used by Products, POS, Stocktake and Sales
+  // History so a category cannot be called one thing at sale and another in a report.
+  const RETAIL_CATEGORIES = [
+    { code: 'PHARMACEUTICALS', label: 'Pharmaceuticals' },
+    { code: 'FOOD_DRINKS', label: 'Food & Drinks' },
+    { code: 'ACCESSORIES', label: 'Accessories' },
+    { code: 'BEAUTY_PERSONAL_CARE', label: 'Beauty & Personal Care' },
+  ];
+  function retailCategoryLabel(code) {
+    const entry = RETAIL_CATEGORIES.find((item) => item.code === code);
+    return entry ? entry.label : (code || 'Pharmaceuticals');
+  }
+  function retailCategoryOptions(selected, includeAll, allLabel) {
+    const options = includeAll ? [`<option value="ALL" ${selected === 'ALL' ? 'selected' : ''}>${escapeHtml(allLabel || 'All retail categories')}</option>`] : [];
+    options.push(...RETAIL_CATEGORIES.map((item) => `<option value="${item.code}" ${item.code === selected ? 'selected' : ''}>${item.label}</option>`));
+    return options.join('');
+  }
+
   function money(n) {
     const v = Number(n || 0);
     // Uses a plain "N" prefix rather than the Unicode Naira sign (₦) —
@@ -192,6 +211,7 @@ const UI = (() => {
     ['[data-b-sell]', 'e.g. 120 — selling price for ONE base piece/unit'],
     ['[data-b-pack]', 'Optional selling price for one complete pack'],
     ['[data-b-carton]', 'Optional selling price for one complete carton'],
+    ['#p-category, #ep-category', 'e.g. Analgesic, Water, Soap or Body Cream — product group within its retail category'],
     ['#p-nafdac, #ep-nafdac', 'e.g. 04-1234 — registration number on the pack'],
     ['#p-units-per-pack, #ep-units-per-pack', 'e.g. 10 — base units inside ONE pack'],
     ['#p-packs-per-carton, #ep-packs-per-carton', 'e.g. 10 — packs inside ONE carton'],
@@ -319,7 +339,7 @@ const UI = (() => {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  return { toast, errorRecovery, money, shortDate, badge, openModal, closeModal, on, passwordField, bindPasswordReveals, applyFieldGuidance, guardedClick, updateOfflineBanner, escapeHtml };
+  return { toast, errorRecovery, retailCategoryLabel, retailCategoryOptions, money, shortDate, badge, openModal, closeModal, on, passwordField, bindPasswordReveals, applyFieldGuidance, guardedClick, updateOfflineBanner, escapeHtml };
 })();
 
 // BUG 111 — `window.UI` IS UNDEFINED, AND CALLERS FEATURE-DETECT ON IT.

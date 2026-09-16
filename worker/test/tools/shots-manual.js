@@ -171,6 +171,7 @@ async function shot(page, file, caption, { hash, wait = 2600, action, focus, mob
         } });
       await shot(page, '12-owner-accounting.png', 'Accounting — the books, kept automatically', { hash: '#/accounting', wait: 3600 });
       await shot(page, '13-owner-users.png', 'Users & Branches — everyone who can sign in', { hash: '#/users', wait: 3200 });
+      await shot(page, '13a-owner-retail-categories.png', 'Products — retail category and product group', { hash: '#/products', wait: 3200 });
       await shot(page, '14-owner-transfer-modal.png', 'Transfer & Promote — moving a person, keeping one account', {
         hash: '#/users', wait: 2800, action: async (pg) => {
           await pg.evaluate(async () => {

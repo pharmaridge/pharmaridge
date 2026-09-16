@@ -1,5 +1,6 @@
 const { Hono } = require('hono');
 const { authRequired, resolveScopedBranchId } = require('../lib/auth');
+const { RETAIL_CATEGORIES, isRetailCategory } = require('../lib/retailCategories');
 
 const stock = new Hono();
 stock.use('*', authRequired);
@@ -7,17 +8,22 @@ stock.use('*', authRequired);
 stock.get('/', async (c) => {
   const branchId = resolveScopedBranchId(c);
   const productId = c.req.query('product_id');
+  const retailCategory = c.req.query('retail_category');
   const limit = Math.min(Number(c.req.query('limit')) || 500, 2000);
   const offset = Math.max(Number(c.req.query('offset')) || 0, 0);
 
+  if (retailCategory && !isRetailCategory(retailCategory)) {
+    return c.json({ error: `retail_category must be one of: ${RETAIL_CATEGORIES.map((entry) => entry.code).join(', ')}`, code: 'INVALID_RETAIL_CATEGORY' }, 400);
+  }
   let sql = `
-    SELECT sb.*, p.name AS product_name, p.base_unit, p.units_per_pack, p.packs_per_carton, b.name AS branch_name
+    SELECT sb.*, p.name AS product_name, p.retail_category, p.base_unit, p.units_per_pack, p.packs_per_carton, b.name AS branch_name
     FROM stock_batches sb JOIN products p ON p.id = sb.product_id JOIN branches b ON b.id = sb.branch_id
     WHERE sb.is_deleted = 0
   `;
   const params = [];
   if (branchId) { sql += ' AND sb.branch_id = ?'; params.push(branchId); }
   if (productId) { sql += ' AND sb.product_id = ?'; params.push(productId); }
+  if (retailCategory) { sql += ' AND p.retail_category = ?'; params.push(retailCategory); }
   sql += ' ORDER BY CASE WHEN sb.expiry_date IS NULL THEN 1 ELSE 0 END, sb.expiry_date ASC LIMIT ? OFFSET ?';
   params.push(limit, offset);
   const { results } = await c.env.DB.prepare(sql).bind(...params).all();
