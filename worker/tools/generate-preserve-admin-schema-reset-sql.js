@@ -21,7 +21,8 @@ const tables = [
   // Child/operational tables first. Foreign keys are also disabled for the
   // batch because the purpose is an explicit full format, not a partial clean.
   'controlled_substance_register', 'prescriptions', 'sale_payments', 'sale_items',
-  'sales', 'debtor_ledger', 'change_owed', 'branch_safe_ledger', 'creditor_ledger',
+  // Both ledgers/claims point back to sales, so they must clear before sales.
+  'debtor_ledger', 'change_owed', 'sales', 'branch_safe_ledger', 'creditor_ledger',
   'expenses', 'wht_entries', 'gl_journal_lines', 'gl_journal_entries',
   'stocktake_lines', 'stocktake_sessions', 'stock_adjustments', 'stock_transfers',
   'staff_attendance', 'till_sessions', 'stock_batches', 'purchase_order_receipts',
