@@ -49,13 +49,13 @@ It generates an ignored SQL file for review and one deliberate local or remote D
 
 ### Consolidated schema format
 
-New deployments use just two migrations: `0001_initial_schema.sql` for the complete operational baseline and `0002_nafdac_catalog.sql` for the NAFDAC reference catalog. For an intentionally retired D1 deployment that must be rebuilt onto that baseline, generate the paired **schema format / Admin restore** files:
+New deployments use just two migrations: `0001_initial_schema.sql` for the complete operational baseline and `0002_nafdac_catalog.sql` for the NAFDAC reference catalog. For an intentionally retired D1 deployment that must be rebuilt onto that baseline, generate the three-step **clear / schema format / Admin restore** files:
 
 ```bash
 PHARMARIDGE_CONFIRM_SCHEMA_RESET=FORMAT_SCHEMA_PRESERVE_ADMIN npm run db:generate:preserve-admin-schema-format
 ```
 
-The procedure temporarily preserves only existing active Admin row(s), removes all application tables and migration history, reapplies the two baseline migrations, then restores those Admin row(s). It retains the existing password hash; it deliberately does **not** place a known or shared password in code, seed SQL, Git or the public sample. All other users, branches, operations, accounting records and catalog rows are rebuilt from the new migrations.
+The procedure first preserves only existing active Admin row(s) and clears application rows, then drops the empty application schema/migration history, reapplies the two baseline migrations, and restores those Admin row(s). It retains the existing password hash; it deliberately does **not** place a known or shared password in code, seed SQL, Git or the public sample. All other users, branches, operations, accounting records and catalog rows are rebuilt from the new migrations.
 
 ## Safety controls
 
