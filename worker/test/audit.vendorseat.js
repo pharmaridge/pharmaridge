@@ -223,7 +223,16 @@ async function api(method, path, { token, body, headers } = {}) {
 
   console.log('\n=== I. PLAN LIMITS SET BY ADMIN ARE ENFORCED ON THE CLIENT ===');
   const cur = (await api('GET', '/api/admin/settings', { token: T.admin })).body;
-  await api('PUT', '/api/admin/settings', { token: T.admin, body: { max_branches: 1 } });
+  // A lower cap cannot be saved beneath current live usage. The dedicated
+  // plan-downgrade audit exercises the Owner's reduction workflow; this
+  // vendor-seat suite verifies that the Admin Portal honours the same guard.
+  const unsafeLower = await api('PUT', '/api/admin/settings', { token: T.admin, body: { max_branches: 1 } });
+  check('an unsafe lower branch cap is refused until active branches are reduced',
+    unsafeLower.status === 409 && unsafeLower.body.code === 'PLAN_DOWNGRADE_REQUIRES_REDUCTION',
+    `status=${unsafeLower.status} ${JSON.stringify(unsafeLower.body).slice(0, 90)}`);
+  const atUsage = await api('PUT', '/api/admin/settings', { token: T.admin, body: { max_branches: cur.usage.branches_used } });
+  check('Admin can set a branch cap equal to current active usage', atUsage.status === 200,
+    `status=${atUsage.status}`);
   const extraBranch = await api('POST', '/api/branches', {
     token: T.owner, body: { name: 'Probe Overflow Branch', address: 'x', phone: '080' },
   });
