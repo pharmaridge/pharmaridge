@@ -2,7 +2,7 @@
 // Exercises pharmaceutical and non-pharmaceutical shelf categories through
 // Products → PO/Receiving → POS sale → category sales history/reporting.
 const BASE = process.env.WORKER_BASE || 'http://127.0.0.1:9001';
-const categories = ['PHARMACEUTICALS', 'FOOD_DRINKS', 'ACCESSORIES', 'BEAUTY_PERSONAL_CARE'];
+const categories = ['PHARMACEUTICALS', 'FOOD_DRINKS', 'ACCESSORIES', 'BEAUTY_PERSONAL_CARE', 'OTHERS'];
 let pass = 0; let fail = 0;
 function check(label, yes, detail = '') { if (yes) { pass++; console.log(`  OK   ${label}`); } else { fail++; console.log(`  FAIL ${label}${detail ? ` — ${detail}` : ''}`); } }
 const list = (v) => Array.isArray(v) ? v : ((v && v.results) || []);
@@ -32,6 +32,7 @@ async function login(username) { const r = await api('POST', '/api/auth/login', 
     ['FOOD_DRINKS', 'Category Water', 'Bottled Water', 60],
     ['ACCESSORIES', 'Category Face Mask', 'Personal Accessory', 20],
     ['BEAUTY_PERSONAL_CARE', 'Category Body Cream', 'Skin Care', 30],
+    ['OTHERS', 'Category Paper Bag', 'General Retail', 15],
   ];
   const products = {};
   for (const [retailCategory, name, group, price] of definitions) {
@@ -67,7 +68,8 @@ async function login(username) { const r = await api('POST', '/api/auth/login', 
   const foodSale = await sell([['FOOD_DRINKS', 2]]);
   const beautySale = await sell([['BEAUTY_PERSONAL_CARE', 1]]);
   const mixedSale = await sell([['PHARMACEUTICALS', 1], ['ACCESSORIES', 1]]);
-  check('pharmaceutical, food, beauty and mixed-category sales all complete', [pharmacySale, foodSale, beautySale, mixedSale].every((r) => r.status === 201), [pharmacySale, foodSale, beautySale, mixedSale].map((r) => r.status).join(','));
+  const otherSale = await sell([['OTHERS', 1]]);
+  check('pharmaceutical, food, beauty, others and mixed-category sales all complete', [pharmacySale, foodSale, beautySale, mixedSale, otherSale].every((r) => r.status === 201), [pharmacySale, foodSale, beautySale, mixedSale, otherSale].map((r) => r.status).join(','));
 
   const foodHistory = await api('GET', `/api/sales?branch_id=${branch.id}&retail_category=FOOD_DRINKS`, { token: owner.token });
   check('Food & Drinks sales history returns the food sale', foodHistory.status === 200 && list(foodHistory.body).some((sale) => sale.id === foodSale.body.id) && list(foodHistory.body).every((sale) => String(sale.retail_categories).includes('FOOD_DRINKS')), JSON.stringify(foodHistory.body));
@@ -75,9 +77,10 @@ async function login(username) { const r = await api('POST', '/api/auth/login', 
   check('mixed basket appears in Accessories sales history via its saved sale line', accessoryHistory.status === 200 && list(accessoryHistory.body).some((sale) => sale.id === mixedSale.body.id), JSON.stringify(accessoryHistory.body));
   const summary = await api('GET', `/api/sales/category-summary?branch_id=${branch.id}`, { token: owner.token });
   const byCategory = Object.fromEntries(list(summary.body).map((row) => [row.retail_category, row]));
-  check('category summary separately totals all four categories', summary.status === 200 && categories.every((code) => byCategory[code])
+  check('category summary separately totals all five categories', summary.status === 200 && categories.every((code) => byCategory[code])
     && Number(byCategory.PHARMACEUTICALS.gross_sales) === 100 && Number(byCategory.FOOD_DRINKS.gross_sales) === 120
-    && Number(byCategory.ACCESSORIES.gross_sales) === 20 && Number(byCategory.BEAUTY_PERSONAL_CARE.gross_sales) === 30, JSON.stringify(byCategory));
+    && Number(byCategory.ACCESSORIES.gross_sales) === 20 && Number(byCategory.BEAUTY_PERSONAL_CARE.gross_sales) === 30
+    && Number(byCategory.OTHERS.gross_sales) === 15, JSON.stringify(byCategory));
 
   // Change the product category after the sale. Historical food sales must not
   // move into Beauty just because the product master was reclassified later.
@@ -87,6 +90,42 @@ async function login(username) { const r = await api('POST', '/api/auth/login', 
   check('past Food & Drinks totals remain in Food history after later product reclassification', foodAfterEdit.status === 200 && list(foodAfterEdit.body).length === 1 && Number(foodAfterEdit.body[0].gross_sales) === 120, JSON.stringify(foodAfterEdit.body));
   const receipt = await api('GET', `/api/sales/${foodSale.body.id}`, { token: owner.token });
   check('receipt retains the Food & Drinks sale-line category snapshot', receipt.status === 200 && list(receipt.body.items).every((item) => item.retail_category === 'FOOD_DRINKS'), JSON.stringify(receipt.body.items));
+  const categoryGl = await api('GET', `/api/gl/retail-category-summary?branch_id=${branch.id}`, { token: owner.token });
+  const glByCategory = Object.fromEntries(list(categoryGl.body).map((row) => [row.retail_category, row]));
+  check('Retail Category GL separately reflects revenue, COGS and gross profit for every category', categoryGl.status === 200 && categories.every((code) => glByCategory[code])
+    && Number(glByCategory.PHARMACEUTICALS.net_revenue) === 100 && Number(glByCategory.PHARMACEUTICALS.cost_of_goods_sold) === 50
+    && Number(glByCategory.FOOD_DRINKS.net_revenue) === 120 && Number(glByCategory.FOOD_DRINKS.gross_profit) === 60
+    && Number(glByCategory.OTHERS.net_revenue) === 15 && Number(glByCategory.OTHERS.gross_profit) === 7.5, JSON.stringify(glByCategory));
+  const foodGlAfterEdit = await api('GET', `/api/gl/retail-category-summary?branch_id=${branch.id}&retail_category=FOOD_DRINKS`, { token: owner.token });
+  check('GL category analysis also keeps the original Food category after product reclassification', foodGlAfterEdit.status === 200 && list(foodGlAfterEdit.body).length === 1 && Number(foodGlAfterEdit.body[0].net_revenue) === 120, JSON.stringify(foodGlAfterEdit.body));
+  const pharmacyJournal = await api('GET', `/api/gl/journal-entries?branch_id=${branch.id}&source_type=SALE&source_id=${pharmacySale.body.id}`, { token: owner.token });
+  check('General Journal carries the retail category on category-attributable GL lines', pharmacyJournal.status === 200 && list(pharmacyJournal.body).some((entry) => list(entry.lines).some((line) => line.retail_category === 'PHARMACEUTICALS')), JSON.stringify(pharmacyJournal.body));
+  const vatEnabled = await api('PUT', '/api/settings/vat', { token: owner.token, body: { vat_enabled: true, vat_rate_percent: 7.5 } });
+  check('Owner can enable VAT for a category allocation check', vatEnabled.status === 200, `status=${vatEnabled.status}`);
+  const vatSale = await api('POST', '/api/sales', { token: staff.token, body: {
+    branch_id: branch.id, discount: 5,
+    items: [
+      { product_id: products.PHARMACEUTICALS.id, quantity: 1, unit_type: 'BASE_UNIT' },
+      { product_id: products.OTHERS.id, quantity: 1, unit_type: 'BASE_UNIT' },
+    ],
+    payments: [{ method: 'CASH', amount: 60 }],
+  } });
+  check('mixed Pharmaceutical and Others sale with VAT/discount completes', vatSale.status === 201, JSON.stringify(vatSale.body));
+  const categoryGlVat = await api('GET', `/api/gl/retail-category-summary?branch_id=${branch.id}`, { token: owner.token });
+  const vatRows = list(categoryGlVat.body);
+  const vatTotal = vatRows.reduce((sum, row) => sum + Number(row.vat_collected || 0), 0);
+  const discountTotal = vatRows.reduce((sum, row) => sum + Number(row.discounts || 0), 0);
+  check('GL allocates mixed-sale VAT and discount across retail categories to the kobo', categoryGlVat.status === 200 && Math.abs(vatTotal - 4.19) < 0.005 && Math.abs(discountTotal - 5) < 0.005
+    && vatRows.some((row) => row.retail_category === 'PHARMACEUTICALS' && Number(row.vat_collected) > 0)
+    && vatRows.some((row) => row.retail_category === 'OTHERS' && Number(row.vat_collected) > 0), JSON.stringify(vatRows));
+  const beforeVoidOther = vatRows.find((row) => row.retail_category === 'OTHERS');
+  const voidOther = await api('POST', `/api/sales/${otherSale.body.id}/void`, { token: owner.token, body: { reason: 'Category GL reversal audit' } });
+  check('Owner can void an Others sale through the normal reversal workflow', voidOther.status === 200, JSON.stringify(voidOther.body));
+  const afterVoidRows = list((await api('GET', `/api/gl/retail-category-summary?branch_id=${branch.id}`, { token: owner.token })).body);
+  const afterVoidOther = afterVoidRows.find((row) => row.retail_category === 'OTHERS');
+  check('voiding reverses the same Others category GL revenue and COGS', beforeVoidOther && afterVoidOther
+    && Math.abs(Number(beforeVoidOther.net_revenue) - Number(afterVoidOther.net_revenue) - 15) < 0.005
+    && Math.abs(Number(beforeVoidOther.cost_of_goods_sold) - Number(afterVoidOther.cost_of_goods_sold) - 7.5) < 0.005, JSON.stringify({ beforeVoidOther, afterVoidOther }));
 
   const trial = await api('GET', '/api/gl/trial-balance', { token: owner.token });
   const totals = list(trial.body).reduce((sum, row) => ({ dr: sum.dr + Number(row.total_debits || 0), cr: sum.cr + Number(row.total_credits || 0) }), { dr: 0, cr: 0 });

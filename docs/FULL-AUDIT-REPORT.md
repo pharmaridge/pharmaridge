@@ -45,7 +45,7 @@ The re-run includes the Owner-only retention and capacity control from both dire
 - three consecutive 90-day operating terms for each continuity policy, verifying GL/branch-safe persistence, stock/product/price persistence where selected, and the final deliberate deletion path;
 - three separate staff selling from one shared batch at once, with cash, sale attribution, stock and Trial Balance re-read after the race; and
 - safe plan reduction from three active branches/four active staff to two/two, including blocked partial downgrade, branch reactivation and staff reactivation bypass attempts.
-- retail categories across product setup, receiving, branch stock, category-first POS and category sales history, including immutable sale-line snapshots after a product is reclassified.
+- retail categories (Pharmaceuticals, Food & Drinks, Accessories, Beauty & Personal Care and Others) across product setup, receiving, branch stock, category-first POS, category sales history and category GL analysis, including immutable sale-line/GL snapshots after a product is reclassified.
 
 ## Three-month operating simulation
 

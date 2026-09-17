@@ -42,6 +42,7 @@ const UI = (() => {
     { code: 'FOOD_DRINKS', label: 'Food & Drinks' },
     { code: 'ACCESSORIES', label: 'Accessories' },
     { code: 'BEAUTY_PERSONAL_CARE', label: 'Beauty & Personal Care' },
+    { code: 'OTHERS', label: 'Others' },
   ];
   function retailCategoryLabel(code) {
     const entry = RETAIL_CATEGORIES.find((item) => item.code === code);

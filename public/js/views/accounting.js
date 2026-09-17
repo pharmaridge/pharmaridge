@@ -29,6 +29,7 @@ async function renderAccounting(view, path) {
       <div class="tab ${tab === 'chart-of-accounts' ? 'active' : ''}" data-tab="chart-of-accounts">Chart of Accounts</div>
       <div class="tab ${tab === 'trial-balance' ? 'active' : ''}" data-tab="trial-balance">Trial Balance</div>
       <div class="tab ${tab === 'profit-loss' ? 'active' : ''}" data-tab="profit-loss">Profit &amp; Loss</div>
+      <div class="tab ${tab === 'retail-category-gl' ? 'active' : ''}" data-tab="retail-category-gl">Retail Category GL</div>
       <div class="tab ${tab === 'balance-sheet' ? 'active' : ''}" data-tab="balance-sheet">Balance Sheet</div>
       <div class="tab ${tab === 'journal-entries' ? 'active' : ''}" data-tab="journal-entries">Journal Entries</div>
       <div class="tab ${tab === 'withholding-tax' ? 'active' : ''}" data-tab="withholding-tax">Withholding Tax</div>
@@ -241,6 +242,61 @@ async function renderAccounting(view, path) {
     }
     UI.guardedClick(document.getElementById('pl-run'), runPL);
     await runPL();
+  } else if (tab === 'retail-category-gl') {
+    const today = new Date().toISOString().slice(0, 10);
+    const monthStart = today.slice(0, 8) + '01';
+    content.innerHTML = `
+      <div class="card">
+        <h3 style="margin-top:0;">Retail Category GL Analysis</h3>
+        <p class="page-subtitle">Revenue, discounts, VAT, cost of goods sold and gross profit from the category saved on each completed sale line. Payment-method lines remain unallocated for mixed baskets, so this is an operational profit view, not a cash-by-category statement.</p>
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+          <label>Start date<br/><input type="date" id="rcgl-start" value="${monthStart}"></label>
+          <label>End date<br/><input type="date" id="rcgl-end" value="${today}"></label>
+          <label>Retail Category<br/><select id="rcgl-category">${UI.retailCategoryOptions('ALL', true, 'All retail categories')}</select></label>
+          <button class="btn btn-primary" id="rcgl-run">Run Category GL</button>
+        </div>
+      </div>
+      <div id="rcgl-results"></div>
+    `;
+    async function runRetailCategoryGL() {
+      const start = document.getElementById('rcgl-start').value;
+      const end = document.getElementById('rcgl-end').value;
+      const category = document.getElementById('rcgl-category').value;
+      if (!start || !end) { UI.toast('Choose both dates before running the Retail Category GL report.', 'error'); return; }
+      let url = `/gl/retail-category-summary?start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}${scopeAmp}`;
+      if (category !== 'ALL') url += `&retail_category=${encodeURIComponent(category)}`;
+      const rows = await Api.get(url);
+      document.getElementById('rcgl-results').innerHTML = `
+        <div class="card" style="margin-top:16px;">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Retail Category</th><th style="text-align:right;">Revenue (net VAT)</th><th style="text-align:right;">Discounts</th><th style="text-align:right;">Net Revenue</th><th style="text-align:right;">COGS</th><th style="text-align:right;">Gross Profit</th><th style="text-align:right;">VAT</th></tr></thead>
+            <tbody>${rows.map((row) => `<tr><td>${UI.escapeHtml(row.retail_category_label || UI.retailCategoryLabel(row.retail_category))}</td><td style="text-align:right;">${UI.money(row.revenue_net_of_vat)}</td><td style="text-align:right;">${UI.money(row.discounts)}</td><td style="text-align:right;">${UI.money(row.net_revenue)}</td><td style="text-align:right;">${UI.money(row.cost_of_goods_sold)}</td><td style="text-align:right;">${UI.money(row.gross_profit)}</td><td style="text-align:right;">${UI.money(row.vat_collected)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty-state">No category-tagged sales in this period</td></tr>'}</tbody>
+          </table></div>
+          ${Exporter.toolbar('rcgl', { label: 'this retail category GL analysis' })}
+        </div>
+      `;
+      Exporter.wireTableReport('rcgl', {
+        title: 'Retail Category GL Analysis', subtitle: `${scopeSubtitle()} · ${start} to ${end}`,
+        filename: `retail-category-gl-${start}-to-${end}`,
+        columns: [
+          { key: 'retail_category_label', label: 'Retail Category' },
+          { key: 'revenue_net_of_vat', label: 'Revenue (net VAT)', align: 'right', format: (v) => UI.money(v) },
+          { key: 'discounts', label: 'Discounts', align: 'right', format: (v) => UI.money(v) },
+          { key: 'net_revenue', label: 'Net Revenue', align: 'right', format: (v) => UI.money(v) },
+          { key: 'cost_of_goods_sold', label: 'COGS', align: 'right', format: (v) => UI.money(v) },
+          { key: 'gross_profit', label: 'Gross Profit', align: 'right', format: (v) => UI.money(v) },
+          { key: 'vat_collected', label: 'VAT', align: 'right', format: (v) => UI.money(v) },
+        ], rows,
+        summary: [
+          { label: 'Net Revenue', value: UI.money(rows.reduce((sum, row) => sum + Number(row.net_revenue || 0), 0)) },
+          { label: 'Gross Profit', value: UI.money(rows.reduce((sum, row) => sum + Number(row.gross_profit || 0), 0)) },
+        ],
+        note: 'Category values are from GL sale/void lines saved at transaction time. Mixed-basket payment method lines are intentionally not allocated by category.',
+        emptyMessage: 'No category-tagged sales in this period.',
+      });
+    }
+    UI.guardedClick(document.getElementById('rcgl-run'), runRetailCategoryGL);
+    await runRetailCategoryGL();
   } else if (tab === 'balance-sheet') {
     const today = new Date().toISOString().slice(0, 10);
     content.innerHTML = `
@@ -387,7 +443,7 @@ async function renderAccounting(view, path) {
                     <td>${UI.escapeHtml(e.description || '—')}</td>
                     <td>${UI.escapeHtml(e.posted_by_name || 'System')}</td>
                     <td>
-                      ${e.lines.map((l) => `<div style="font-size:12px;"><code>${UI.escapeHtml(l.account_code)}</code> ${l.debit > 0 ? `Dr ${UI.money(l.debit)}` : `Cr ${UI.money(l.credit)}`}</div>`).join('')}
+                      ${e.lines.map((l) => `<div style="font-size:12px;"><code>${UI.escapeHtml(l.account_code)}</code> ${l.debit > 0 ? `Dr ${UI.money(l.debit)}` : `Cr ${UI.money(l.credit)}`}${l.retail_category ? ` <span class="muted">· ${UI.escapeHtml(UI.retailCategoryLabel(l.retail_category))}</span>` : ''}</div>`).join('')}
                     </td>
                   </tr>
                 `).join('') || `<tr><td colspan="5" class="empty-state">No journal entries match this filter</td></tr>`}
@@ -409,6 +465,7 @@ async function renderAccounting(view, path) {
         account_name: l.account_name || '',
         debit: l.debit || 0,
         credit: l.credit || 0,
+        retail_category: l.retail_category ? UI.retailCategoryLabel(l.retail_category) : '',
         memo: l.memo || '',
       })));
       Exporter.wireTableReport('je', {

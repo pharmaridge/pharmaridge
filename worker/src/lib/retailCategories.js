@@ -7,6 +7,7 @@ const RETAIL_CATEGORIES = Object.freeze([
   { code: 'FOOD_DRINKS', label: 'Food & Drinks' },
   { code: 'ACCESSORIES', label: 'Accessories' },
   { code: 'BEAUTY_PERSONAL_CARE', label: 'Beauty & Personal Care' },
+  { code: 'OTHERS', label: 'Others' },
 ]);
 const DEFAULT_RETAIL_CATEGORY = 'PHARMACEUTICALS';
 const RETAIL_CATEGORY_CODES = new Set(RETAIL_CATEGORIES.map((entry) => entry.code));

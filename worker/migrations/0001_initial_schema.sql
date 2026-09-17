@@ -519,7 +519,7 @@ CREATE TABLE products (
     generic_name      TEXT,
     -- Commercial category for POS/stock/sales reporting. Keep this separate
     -- from `category` below, which remains the therapeutic/item group.
-    retail_category   TEXT NOT NULL DEFAULT 'PHARMACEUTICALS' CHECK (retail_category IN ('PHARMACEUTICALS','FOOD_DRINKS','ACCESSORIES','BEAUTY_PERSONAL_CARE')),
+    retail_category   TEXT NOT NULL DEFAULT 'PHARMACEUTICALS' CHECK (retail_category IN ('PHARMACEUTICALS','FOOD_DRINKS','ACCESSORIES','BEAUTY_PERSONAL_CARE','OTHERS')),
     category          TEXT,
     nafdac_reg_no     TEXT,
     is_controlled     INTEGER NOT NULL DEFAULT 0,
@@ -772,7 +772,7 @@ CREATE TABLE sale_items (
     line_total         REAL NOT NULL,
     -- Immutable commercial-category snapshot for sales history. A later
     -- product reclassification must never rewrite a completed sale report.
-    retail_category   TEXT NOT NULL DEFAULT 'PHARMACEUTICALS' CHECK (retail_category IN ('PHARMACEUTICALS','FOOD_DRINKS','ACCESSORIES','BEAUTY_PERSONAL_CARE')),
+    retail_category   TEXT NOT NULL DEFAULT 'PHARMACEUTICALS' CHECK (retail_category IN ('PHARMACEUTICALS','FOOD_DRINKS','ACCESSORIES','BEAUTY_PERSONAL_CARE','OTHERS')),
     updated_at         TEXT NOT NULL DEFAULT (datetime('now')),
     is_deleted         INTEGER NOT NULL DEFAULT 0
 );
@@ -1744,6 +1744,10 @@ CREATE TABLE gl_journal_lines (
     account_id         TEXT NOT NULL REFERENCES gl_accounts(id),
     debit              REAL NOT NULL DEFAULT 0 CHECK (debit >= 0),
     credit             REAL NOT NULL DEFAULT 0 CHECK (credit >= 0),
+    -- Retail-category dimension is populated for category-attributable sale
+    -- revenue, VAT, discounts, COGS and inventory lines. It stays NULL for
+    -- cash settlement and non-sale events that cannot truthfully be split.
+    retail_category   TEXT CHECK (retail_category IS NULL OR retail_category IN ('PHARMACEUTICALS','FOOD_DRINKS','ACCESSORIES','BEAUTY_PERSONAL_CARE','OTHERS')),
     memo               TEXT,
     created_at         TEXT NOT NULL DEFAULT (datetime('now')),
     CHECK ((debit > 0 AND credit = 0) OR (credit > 0 AND debit = 0))
@@ -1770,6 +1774,8 @@ CREATE TABLE gl_journal_lines (
 -- applied, since every posting call site wraps the source event's own
 -- writes and this GL posting in the SAME transaction (see
 -- glService.js).
+CREATE INDEX idx_gl_journal_lines_retail_category ON gl_journal_lines(retail_category, journal_entry_id) WHERE retail_category IS NOT NULL;
+
 CREATE TRIGGER trg_gl_journal_entry_must_balance_before_posting
 BEFORE UPDATE OF status ON gl_journal_entries
 WHEN NEW.status = 'POSTED' AND OLD.status = 'DRAFT'

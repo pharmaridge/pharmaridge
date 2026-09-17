@@ -170,6 +170,7 @@ async function shot(page, file, caption, { hash, wait = 2600, action, focus, mob
           await sl(900);
         } });
       await shot(page, '12-owner-accounting.png', 'Accounting — the books, kept automatically', { hash: '#/accounting', wait: 3600 });
+      await shot(page, '12a-owner-retail-category-gl.png', 'Retail Category GL — revenue, discounts, VAT, cost and gross profit by shelf category', { hash: '#/accounting/retail-category-gl', wait: 3600 });
       await shot(page, '13-owner-users.png', 'Users & Branches — everyone who can sign in', { hash: '#/users', wait: 3200 });
       await shot(page, '13a-owner-retail-categories.png', 'Products — retail category and product group', { hash: '#/products', wait: 3200 });
       await shot(page, '14-owner-transfer-modal.png', 'Transfer & Promote — moving a person, keeping one account', {

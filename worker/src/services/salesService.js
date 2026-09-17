@@ -341,6 +341,7 @@ async function createSale(db, { branchId, servedBy, servedByRole = null, custome
   const statements = [];
   let subtotal = 0;
   let costOfGoodsSold = 0;
+  const categoryTotals = new Map();
 
   const prescriptionRows = [];
   const controlledEntries = [];
@@ -472,7 +473,13 @@ async function createSale(db, { branchId, servedBy, servedByRole = null, custome
       }
       const lineTotal = round2(unitPrice * takeInUnitType);
       subtotal += lineTotal;
-      costOfGoodsSold += pick.take * pick.batch.cost_price_per_unit;
+      const lineCost = pick.take * pick.batch.cost_price_per_unit;
+      costOfGoodsSold += lineCost;
+      const retailCategory = product.retail_category || DEFAULT_RETAIL_CATEGORY;
+      const categoryTotal = categoryTotals.get(retailCategory) || { retailCategory, subtotal: 0, costOfGoodsSold: 0 };
+      categoryTotal.subtotal = round2(categoryTotal.subtotal + lineTotal);
+      categoryTotal.costOfGoodsSold = round2(categoryTotal.costOfGoodsSold + lineCost);
+      categoryTotals.set(retailCategory, categoryTotal);
 
       const saleItemId = uuid();
       itemSummaries.push(`${takeInUnitType} x ${product.name} @ N${unitPrice}`);
@@ -766,6 +773,7 @@ async function createSale(db, { branchId, servedBy, servedByRole = null, custome
     // actually withheld and will issue a credit note for. They differ by at
     // most one kobo and each is right for its own purpose.
     whtAmount: whtPosted,
+    categoryTotals: [...categoryTotals.values()],
   });
   if (glResult) statements.push(...glResult.statements);
 

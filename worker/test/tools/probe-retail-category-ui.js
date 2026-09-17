@@ -52,7 +52,7 @@ async function loginPage(page, username) {
     await staffPage.evaluate(() => { location.hash = '#/pos'; });
     await staffPage.waitForSelector('#pos-retail-category');
     const posCategories = await staffPage.$$eval('#pos-retail-category option', (options) => options.map((option) => ({ value: option.value, text: option.textContent.trim() })));
-    check('mobile POS lists all four retail selling categories', ['PHARMACEUTICALS', 'FOOD_DRINKS', 'ACCESSORIES', 'BEAUTY_PERSONAL_CARE'].every((code) => posCategories.some((option) => option.value === code)), JSON.stringify(posCategories));
+    check('mobile POS lists all five retail selling categories', ['PHARMACEUTICALS', 'FOOD_DRINKS', 'ACCESSORIES', 'BEAUTY_PERSONAL_CARE', 'OTHERS'].every((code) => posCategories.some((option) => option.value === code)), JSON.stringify(posCategories));
     await staffPage.select('#pos-retail-category', 'FOOD_DRINKS');
     const productSelector = `[data-product-id="${product.body.id}"]`;
     await staffPage.waitForSelector(productSelector, { timeout: 15000 });
@@ -72,7 +72,7 @@ async function loginPage(page, username) {
       labels: [...document.querySelectorAll('#p-retail-category option')].map((option) => option.textContent.trim()),
       labelsOnForm: [...document.querySelectorAll('.form-row label')].map((label) => label.textContent.trim()),
     }));
-    check('Product form provides the professional retail-category selector', ['Pharmaceuticals', 'Food & Drinks', 'Accessories', 'Beauty & Personal Care'].every((label) => productForm.labels.includes(label)), JSON.stringify(productForm));
+    check('Product form provides the professional retail-category selector', ['Pharmaceuticals', 'Food & Drinks', 'Accessories', 'Beauty & Personal Care', 'Others'].every((label) => productForm.labels.includes(label)), JSON.stringify(productForm));
     check('Product form keeps the optional therapeutic/item group distinct from retail category', productForm.labelsOnForm.some((label) => /Product Group/.test(label)), JSON.stringify(productForm));
     await ownerPage.evaluate(() => { location.hash = '#/sales'; });
     await ownerPage.waitForSelector('#sales-retail-category');
@@ -84,6 +84,14 @@ async function loginPage(page, username) {
     }, { timeout: 15000 });
     const salesView = await ownerPage.$eval('#view', (el) => el.innerText);
     check('Sales History category filter and category summary show the Food & Drinks sale', /Category Sales Summary/.test(salesView) && /Food & Drinks/.test(salesView) && /N100\.00/.test(salesView), salesView.slice(0, 800));
+    await ownerPage.evaluate(() => { location.hash = '#/accounting/retail-category-gl'; });
+    await ownerPage.waitForSelector('#rcgl-run');
+    await ownerPage.$eval('#rcgl-start', (input) => { input.value = '2000-01-01'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+    await ownerPage.$eval('#rcgl-end', (input) => { input.value = '2999-12-31'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+    await ownerPage.click('#rcgl-run');
+    await ownerPage.waitForFunction(() => [...document.querySelectorAll('#rcgl-results tbody tr')].some((row) => /Food & Drinks/.test(row.innerText)), { timeout: 15000 });
+    const glView = await ownerPage.$eval('#view', (el) => el.innerText);
+    check('Accounting shows category-tagged GL revenue, COGS and gross profit', /Retail Category GL Analysis/.test(glView) && /Revenue \(net VAT\)/i.test(glView) && /Gross Profit/i.test(glView) && /Food & Drinks/.test(glView), glView.slice(0, 1200));
     const liveOwnerToken = await ownerPage.evaluate(() => JSON.parse(localStorage.getItem('gl_pms_session')).token);
     const history = await api('GET', `/api/sales?branch_id=${branch.id}&retail_category=FOOD_DRINKS`, { token: liveOwnerToken });
     check('browser category result agrees with server category history', history.status === 200 && list(history.body).some((sale) => sale.id === foodSale.body.id), JSON.stringify(history.body));

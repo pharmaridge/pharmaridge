@@ -142,9 +142,9 @@ async function buildJournalEntryStatements(db, { branchId, sourceType, sourceId,
     const acctId = (accountOverrides && accountOverrides[line.accountCode])
       || await accountId(db, line.accountCode);
     statements.push(db.prepare(`
-      INSERT INTO gl_journal_lines (id, journal_entry_id, account_id, debit, credit, memo)
-      VALUES (?,?,?,?,?,?)
-    `).bind(uuid(), entryId, acctId, debit, credit, line.memo || null));
+      INSERT INTO gl_journal_lines (id, journal_entry_id, account_id, debit, credit, retail_category, memo)
+      VALUES (?,?,?,?,?,?,?)
+    `).bind(uuid(), entryId, acctId, debit, credit, line.retailCategory || null, line.memo || null));
   }
 
   // This UPDATE is the exact statement schema.sql's
@@ -176,50 +176,69 @@ async function alreadyPosted(db, sourceType, sourceId) {
 // own batch array.
 // ---------------------------------------------------------------------
 
-async function postSale(db, { branchId, saleId, servedBy, subtotal, discount, payments, costOfGoodsSold, vatAmount = 0, whtAmount = 0 }) {
+function allocateRounded(total, buckets, key) {
+  const values = (buckets || []).filter((bucket) => Number(bucket[key] || 0) > 0);
+  const denominator = values.reduce((sum, bucket) => sum + Number(bucket[key] || 0), 0);
+  const target = round2(total || 0);
+  if (!values.length || target === 0 || denominator <= 0) return new Map(values.map((bucket) => [bucket.retailCategory, 0]));
+  let assigned = 0;
+  const result = new Map();
+  values.forEach((bucket, index) => {
+    const amount = index === values.length - 1
+      ? round2(target - assigned)
+      : round2(target * Number(bucket[key] || 0) / denominator);
+    result.set(bucket.retailCategory, amount);
+    assigned = round2(assigned + amount);
+  });
+  return result;
+}
+
+async function postSale(db, { branchId, saleId, servedBy, subtotal, discount, payments, costOfGoodsSold, vatAmount = 0, whtAmount = 0, categoryTotals = [] }) {
   if (await alreadyPosted(db, 'SALE', saleId)) return null;
-  // VAT (Value Added Tax) — mirrors the identical fix + full design
-  // rationale in the original design: vatAmount is RECLASSIFIED out of what
-  // would otherwise be pure Sales Revenue into VAT_PAYABLE — the combined
-  // credit still sums to exactly `subtotal`, so this never changes what the
-  // customer paid or the entry's balance.
-  const lines = [
-    { accountCode: 'SALES_REVENUE', credit: round2(subtotal - vatAmount), memo: 'Gross sale revenue (net of VAT)' },
-  ];
-  if (vatAmount > 0) {
-    lines.push({ accountCode: 'VAT_PAYABLE', credit: vatAmount, memo: 'VAT collected, owed to FIRS' });
+  // Category totals are calculated directly from the sold sale lines before
+  // the journal is built. This preserves the category as at the transaction;
+  // editing a product category tomorrow cannot rewrite the books.
+  const categories = (categoryTotals || []).filter((entry) => Number(entry.subtotal || 0) > 0);
+  const useCategories = categories.length > 0;
+  const vatByCategory = allocateRounded(vatAmount, categories, 'subtotal');
+  const discountByCategory = allocateRounded(discount, categories, 'subtotal');
+  const lines = [];
+  if (useCategories) {
+    for (const category of categories) {
+      const retailCategory = category.retailCategory;
+      const categorySubtotal = round2(category.subtotal);
+      const categoryVat = vatByCategory.get(retailCategory) || 0;
+      const categoryDiscount = discountByCategory.get(retailCategory) || 0;
+      lines.push({ accountCode: 'SALES_REVENUE', credit: round2(categorySubtotal - categoryVat), retailCategory,
+        memo: `Sale revenue — ${retailCategory} (net of VAT)` });
+      if (categoryVat > 0) lines.push({ accountCode: 'VAT_PAYABLE', credit: categoryVat, retailCategory,
+        memo: `VAT collected — ${retailCategory}` });
+      if (categoryDiscount > 0) lines.push({ accountCode: 'SALES_DISCOUNTS', debit: categoryDiscount, retailCategory,
+        memo: `Discount given — ${retailCategory}` });
+      const categoryCogs = round2(category.costOfGoodsSold || 0);
+      if (categoryCogs > 0) {
+        lines.push({ accountCode: 'COST_OF_GOODS_SOLD', debit: categoryCogs, retailCategory, memo: `Cost of goods sold — ${retailCategory}` });
+        lines.push({ accountCode: 'INVENTORY_ASSET', credit: categoryCogs, retailCategory, memo: `Inventory reduced — ${retailCategory}` });
+      }
+    }
+  } else {
+    lines.push({ accountCode: 'SALES_REVENUE', credit: round2(subtotal - vatAmount), memo: 'Gross sale revenue (net of VAT)' });
+    if (vatAmount > 0) lines.push({ accountCode: 'VAT_PAYABLE', credit: vatAmount, memo: 'VAT collected, owed to FIRS' });
+    if (discount > 0) lines.push({ accountCode: 'SALES_DISCOUNTS', debit: discount, memo: 'Discount given on sale' });
+    if (costOfGoodsSold > 0) {
+      lines.push({ accountCode: 'COST_OF_GOODS_SOLD', debit: costOfGoodsSold, memo: 'Cost of goods sold' });
+      lines.push({ accountCode: 'INVENTORY_ASSET', credit: costOfGoodsSold, memo: 'Inventory reduced by cost of goods sold' });
+    }
   }
-  if (discount > 0) {
-    lines.push({ accountCode: 'SALES_DISCOUNTS', debit: discount, memo: 'Discount given on sale' });
-  }
+  // Payment method and WHT lines stay untagged: a mixed tender settles one
+  // basket and cannot be truthfully assigned to an individual shelf category.
   for (const p of payments) {
     if (p.amount <= 0) continue;
     if (p.method === 'CASH') lines.push({ accountCode: 'CASH', debit: p.amount, memo: 'Cash payment received' });
     else if (p.method === 'CREDIT') lines.push({ accountCode: 'ACCOUNTS_RECEIVABLE', debit: p.amount, memo: 'Credit sale — customer owes this amount' });
     else lines.push({ accountCode: 'BANK_POS_CLEARING', debit: p.amount, memo: `${p.method} payment received (pending bank reconciliation)` });
   }
-  // WITHHOLDING TAX SUFFERED ON THIS SALE (the RECEIVABLE direction).
-  //
-  // A corporate customer — a hospital, NGO or government buyer on contract
-  // — is itself a tax agent and withholds 2% of the invoice, paying the
-  // pharmacy less cash. The pharmacy's REVENUE is unchanged: it earned the
-  // gross invoice value. The withheld slice is an ASSET, a prepaid
-  // income-tax credit to be offset against the pharmacy's own CIT bill
-  // once the customer issues a credit note:
-  //
-  //     DR Cash / Receivable       net
-  //     DR WHT Receivable          wht      <- an asset, NOT an expense
-  //       CR Sales Revenue         gross
-  //
-  // Treating the shortfall as a discount or a bad debt would understate
-  // revenue and quietly throw away a reclaimable tax credit.
-  if (whtAmount > 0) {
-    lines.push({ accountCode: 'WHT_RECEIVABLE', debit: round2(whtAmount), memo: 'Withholding tax deducted by the customer — prepaid income-tax credit' });
-  }
-  if (costOfGoodsSold > 0) {
-    lines.push({ accountCode: 'COST_OF_GOODS_SOLD', debit: costOfGoodsSold, memo: 'Cost of goods sold' });
-    lines.push({ accountCode: 'INVENTORY_ASSET', credit: costOfGoodsSold, memo: 'Inventory reduced by cost of goods sold' });
-  }
+  if (whtAmount > 0) lines.push({ accountCode: 'WHT_RECEIVABLE', debit: round2(whtAmount), memo: 'Withholding tax deducted by the customer — prepaid income-tax credit' });
   return buildJournalEntryStatements(db, { branchId, sourceType: 'SALE', sourceId: saleId, description: 'Sale completed', postedBy: servedBy, lines });
 }
 
@@ -229,13 +248,14 @@ async function postSaleVoid(db, { branchId, saleId, voidedBy }) {
     SELECT id FROM gl_journal_entries WHERE source_type = 'SALE' AND source_id = ? AND status = 'POSTED' AND is_deleted = 0
   `).bind(saleId).first();
   if (!originalEntry) return null;
-  const { results: originalLines } = await db.prepare('SELECT account_id, debit, credit, memo FROM gl_journal_lines WHERE journal_entry_id = ?').bind(originalEntry.id).all();
+  const { results: originalLines } = await db.prepare('SELECT account_id, debit, credit, retail_category, memo FROM gl_journal_lines WHERE journal_entry_id = ?').bind(originalEntry.id).all();
   const { results: allAccounts } = await db.prepare('SELECT id, code FROM gl_accounts').all();
   const accountCodeById = new Map(allAccounts.map((r) => [r.id, r.code]));
   const lines = originalLines.map((l) => ({
     accountCode: accountCodeById.get(l.account_id),
     debit: l.credit,
     credit: l.debit,
+    retailCategory: l.retail_category || null,
     memo: `Reversal: ${l.memo || ''}`.trim(),
   }));
   return buildJournalEntryStatements(db, { branchId, sourceType: 'SALE_VOID', sourceId: saleId, description: 'Sale voided — reversing original entry', postedBy: voidedBy, lines });

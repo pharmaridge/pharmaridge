@@ -570,7 +570,7 @@ Counter PINs must be at least four characters; use a stronger unique secret for 
   <div class="note"><b>Input discipline protects the report.</b> A correct sale cannot repair a wrong batch cost; a correct Profit &amp; Loss cannot repair an unrecorded expense. The field guidance is there so the first record is useful without guessing.</div>
   <h3>Retail category is not the medicine group</h3>
   <p>Use <b>Retail Category</b> to decide where an item is sold and reported: <b>Pharmaceuticals</b>,
-  <b>Food &amp; Drinks</b>, <b>Accessories</b>, or <b>Beauty &amp; Personal Care</b>. Use the separate
+  <b>Food &amp; Drinks</b>, <b>Accessories</b>, <b>Beauty &amp; Personal Care</b>, or <b>Others</b>. Use the separate
   optional <b>Product Group</b> field for a useful detail such as Analgesic, Water, Soap or Cream.</p>
   <ul>
     <li>Choosing a NAFDAC medicine starts it in <b>Pharmaceuticals</b>; its prescription and controlled-drug rules remain separate and unchanged.</li>
@@ -670,15 +670,18 @@ reclaim.</p>`)}
   <p>Hire, promote, move and retire staff from one screen. When somebody changes branch or role, use
   <b>Transfer &amp; Promote</b> rather than creating a second account — one person keeps one account,
   and their history stays attached to the branch where it happened.</p>
+  ${fig('12a-owner-retail-category-gl.png', 'Retail Category GL: category-attributable revenue, discounts, VAT, cost and gross profit', `<p>This is the accounting view of the same shelf categories. It reads the retail-category value saved on each sale line and its associated revenue, VAT, discount, cost-of-goods-sold and inventory journal lines.</p>
+<p>Use a date range and, if useful, one category. The report shows <b>Revenue (net VAT)</b>, Discounts, Net Revenue, COGS, Gross Profit and VAT. Payment method lines are deliberately not split between categories for a mixed basket; cash, transfer or credit settles the basket as a whole.</p>
+<p>Because the category lives on the completed sale and GL line, changing a product from Food &amp; Drinks to Others later changes future sales only. Earlier Sales History and Category GL reports remain exactly where they were recorded.</p>`)}
   ${fig('13-owner-users.png', 'Users &amp; Branches: everyone who can sign in, their role, their branch and their status', `<p>Everyone who can sign in, what they are allowed to do, and which branch they belong to.</p>
 <p>The red banner at the top highlights any account still using a provisional PIN. It will not go away until
 every one has been changed, because an account on a default PIN is an account anybody can use.</p>
 <p><b>Roles in one line:</b> an <b>Owner</b> sees everything and controls tax and permissions. A <b>General
 Manager</b> runs every branch. A <b>Branch Manager</b> runs exactly one. <b>Staff</b> serve customers at one
 branch.</p>`)}
-  ${fig('13a-owner-retail-categories.png', 'Products: choose the retail category separately from the product group', `<p>Use this screen before receiving stock. The <b>Retail Category</b> drop-down controls the POS and category sales history; the optional <b>Product Group</b> is the practical detail that helps a pharmacist or counter worker find the item.</p>
+  ${fig('13a-owner-retail-categories.png', 'Products: choose the retail category separately from the product group', `<p>Use this screen before receiving stock. The <b>Retail Category</b> drop-down controls the POS and category sales history and Category GL analysis; the optional <b>Product Group</b> is the practical detail that helps a pharmacist or counter worker find the item.</p>
 <p>NAFDAC selections are medicines and begin as Pharmaceuticals. Drinks, water, accessories, soap, creams and similar shop goods are entered manually, then received with the same quantity, batch, cost and selling-price discipline as medicines.</p>
-<p>The category saved here is copied into every completed sale line. That preserves historical category reporting if an item is moved to a different category later.</p>`)}
+<p>The category saved here is copied into every completed sale line and its category-attributable GL lines. That preserves historical sales and GL category reporting if an item is moved to a different category later.</p>`)}
   ${fig('14-owner-transfer-modal.png', 'Transfer &amp; Promote: a move is recorded with a reason and a date, never by inventing a second account', `<p>When somebody changes branch or is promoted, use <b>Transfer &amp; Promote</b> — never
 create a second account for the same person.</p>
 <p>PharmaRidge asks for a reason and records the date, so the change is auditable. The person keeps <b>one
@@ -1417,7 +1420,7 @@ settings they are changing.</p>`)}
   its own batch numbers and its own invoice figure. You are never forced to pretend a
   delivery was complete to close the paperwork.</p>
   <div class="note"><b>Retail category stays with the product, not the invoice.</b> Select Pharmaceuticals,
-  Food &amp; Drinks, Accessories or Beauty &amp; Personal Care while creating/editing the product. The same
+  Food &amp; Drinks, Accessories, Beauty &amp; Personal Care or Others while creating/editing the product. The same
   receiving controls protect every category: record the quantity, batch, cost and selling price that
   actually arrived.</div>
 </section>
