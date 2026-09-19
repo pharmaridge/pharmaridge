@@ -32,10 +32,14 @@ async function login(username) { const r = await api('POST', '/api/auth/login', 
   check('a product can register a separate pack barcode', pack.status === 201 && pack.body.unit_type === 'PACK', JSON.stringify(pack.body));
   const duplicate = await api('POST', `/api/products/${product.body.id}/barcodes`, { token: owner.token, body: { barcode: PACK_BARCODE, unit_type: 'PACK' } });
   check('duplicate active barcode is refused', duplicate.status === 409 && duplicate.body.code === 'BARCODE_ALREADY_REGISTERED', JSON.stringify(duplicate.body));
+  const generated = await api('POST', `/api/products/${product.body.id}/barcodes/generate`, { token: owner.token, body: { unit_type: 'CARTON', label: 'Internal carton label' } });
+  check('the app generates and persists a unique Code-128-printable internal barcode', generated.status === 201 && /^PRD-[A-F0-9]{16}$/.test(generated.body.barcode || '') && generated.body.unit_type === 'CARTON', JSON.stringify(generated.body));
+  const generatedDuplicate = await api('POST', `/api/products/${product.body.id}/barcodes`, { token: owner.token, body: { barcode: generated.body && generated.body.barcode, unit_type: 'CARTON' } });
+  check('database-unique generated barcode cannot be registered a second time', generatedDuplicate.status === 409 && generatedDuplicate.body.code === 'BARCODE_ALREADY_REGISTERED', JSON.stringify(generatedDuplicate.body));
   const invalid = await api('POST', `/api/products/${product.body.id}/barcodes`, { token: owner.token, body: { barcode: '4006381333932', unit_type: 'BASE_UNIT' } });
   check('invalid numeric GS1 check digit is refused', invalid.status === 400 && invalid.body.code === 'INVALID_BARCODE', JSON.stringify(invalid.body));
   const details = await api('GET', `/api/products/${product.body.id}`, { token: owner.token });
-  check('product detail lists both registered barcode units', details.status === 200 && list(details.body.barcodes).length === 2 && list(details.body.barcodes).some((b) => b.is_primary), JSON.stringify(details.body.barcodes));
+  check('product detail lists manually registered and generated barcode units', details.status === 200 && list(details.body.barcodes).length === 3 && list(details.body.barcodes).some((b) => b.is_primary), JSON.stringify(details.body.barcodes));
   const baseLookup = await api('GET', `/api/products/barcode/${BASE_BARCODE}`, { token: staff.token });
   const packLookup = await api('GET', `/api/products/barcode/${PACK_BARCODE}`, { token: staff.token });
   check('base barcode lookup returns the product and BASE_UNIT', baseLookup.status === 200 && baseLookup.body.id === product.body.id && baseLookup.body.barcode_unit_type === 'BASE_UNIT', JSON.stringify(baseLookup.body));

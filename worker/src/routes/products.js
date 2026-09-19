@@ -59,6 +59,26 @@ products.get('/:id/barcodes', async (c) => {
   return c.json(results);
 });
 
+function barcodeUnitError(product, unitType) {
+  if (!['BASE_UNIT', 'PACK', 'CARTON'].includes(unitType)) return { error: 'unit_type must be BASE_UNIT, PACK or CARTON.', code: 'INVALID_BARCODE_UNIT' };
+  if (unitType === 'PACK' && Number(product.units_per_pack) <= 1) return { error: 'Set units per pack above one before registering a pack barcode.', code: 'BARCODE_PACKAGING_REQUIRED' };
+  if (unitType === 'CARTON' && Number(product.packs_per_carton) <= 1) return { error: 'Set packs per carton above one before registering a carton barcode.', code: 'BARCODE_PACKAGING_REQUIRED' };
+  return null;
+}
+
+function barcodeConflict(error) {
+  return /(?:product_barcodes\.barcode|UNIQUE constraint failed: product_barcodes\.barcode)/i.test(String(error && error.message));
+}
+
+async function saveBarcode(c, product, { barcode, unitType, label, primary }) {
+  const id = uuid();
+  const statements = [];
+  if (primary) statements.push(c.env.DB.prepare("UPDATE product_barcodes SET is_primary = 0, updated_at = datetime('now') WHERE product_id = ? AND is_deleted = 0").bind(product.id));
+  statements.push(c.env.DB.prepare(`INSERT INTO product_barcodes (id, product_id, barcode, unit_type, label, is_primary) VALUES (?,?,?,?,?,?)`).bind(id, product.id, barcode, unitType, label || null, primary ? 1 : 0));
+  await c.env.DB.batch(statements);
+  return c.env.DB.prepare('SELECT * FROM product_barcodes WHERE id = ?').bind(id).first();
+}
+
 products.post('/:id/barcodes', managerOnly, async (c) => {
   const product = await c.env.DB.prepare('SELECT * FROM products WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
   if (!product) return c.json({ error: 'Product not found' }, 404);
@@ -66,18 +86,49 @@ products.post('/:id/barcodes', managerOnly, async (c) => {
   const checked = validateBarcode(body.barcode);
   if (checked.error) return c.json({ error: checked.error, code: 'INVALID_BARCODE' }, 400);
   const unitType = body.unit_type || 'BASE_UNIT';
-  if (!['BASE_UNIT', 'PACK', 'CARTON'].includes(unitType)) return c.json({ error: 'unit_type must be BASE_UNIT, PACK or CARTON.', code: 'INVALID_BARCODE_UNIT' }, 400);
-  if (unitType === 'PACK' && Number(product.units_per_pack) <= 1) return c.json({ error: 'Set units per pack above one before registering a pack barcode.', code: 'BARCODE_PACKAGING_REQUIRED' }, 400);
-  if (unitType === 'CARTON' && Number(product.packs_per_carton) <= 1) return c.json({ error: 'Set packs per carton above one before registering a carton barcode.', code: 'BARCODE_PACKAGING_REQUIRED' }, 400);
+  const unitError = barcodeUnitError(product, unitType);
+  if (unitError) return c.json(unitError, 400);
+  // `barcode` has a database UNIQUE constraint across every row, including
+  // retired labels. This prevents a historic receipt from ever becoming
+  // ambiguous if an old sticker is scanned or re-used on another product.
+  const existing = await c.env.DB.prepare('SELECT id FROM product_barcodes WHERE barcode = ?').bind(checked.barcode).first();
+  if (existing) return c.json({ error: 'This barcode has already been registered and cannot be reused. Create a new barcode label instead.', code: 'BARCODE_ALREADY_REGISTERED' }, 409);
+  try {
+    return c.json(await saveBarcode(c, product, {
+      barcode: checked.barcode, unitType, label: body.label ? String(body.label).trim() : null, primary: body.is_primary === true,
+    }), 201);
+  } catch (error) {
+    // The database is the final authority: this covers two users submitting
+    // the same code at the same time after both passed the pre-check above.
+    if (barcodeConflict(error)) return c.json({ error: 'This barcode has already been registered and cannot be reused. Create a new barcode label instead.', code: 'BARCODE_ALREADY_REGISTERED' }, 409);
+    throw error;
+  }
+});
+
+// Generates a non-GS1, in-house code and persists it in the same request.
+// We intentionally do not manufacture EAN/GTIN numbers: those must come from
+// their legitimate GS1 allocation. The generated `PRD-…` code is printable as
+// Code 128 and scans through the same POS lookup as a supplier barcode.
+products.post('/:id/barcodes/generate', managerOnly, async (c) => {
+  const product = await c.env.DB.prepare('SELECT * FROM products WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
+  if (!product) return c.json({ error: 'Product not found' }, 404);
+  const body = await readJsonBody(c);
+  const unitType = body.unit_type || 'BASE_UNIT';
+  const unitError = barcodeUnitError(product, unitType);
+  if (unitError) return c.json(unitError, 400);
   const primary = body.is_primary === true;
-  const existing = await c.env.DB.prepare('SELECT id FROM product_barcodes WHERE barcode = ? AND is_deleted = 0').bind(checked.barcode).first();
-  if (existing) return c.json({ error: 'This barcode is already registered to another active product/unit. Scan or search it to review the existing product instead.', code: 'BARCODE_ALREADY_REGISTERED' }, 409);
-  const id = uuid();
-  const statements = [];
-  if (primary) statements.push(c.env.DB.prepare("UPDATE product_barcodes SET is_primary = 0, updated_at = datetime('now') WHERE product_id = ? AND is_deleted = 0").bind(product.id));
-  statements.push(c.env.DB.prepare(`INSERT INTO product_barcodes (id, product_id, barcode, unit_type, label, is_primary) VALUES (?,?,?,?,?,?)`).bind(id, product.id, checked.barcode, unitType, body.label ? String(body.label).trim() : null, primary ? 1 : 0));
-  await c.env.DB.batch(statements);
-  return c.json(await c.env.DB.prepare('SELECT * FROM product_barcodes WHERE id = ?').bind(id).first(), 201);
+  const label = body.label ? String(body.label).trim() : null;
+  // 64 random bits per attempt makes a collision extraordinarily unlikely;
+  // the UNIQUE database constraint and retry are still mandatory safeguards.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const barcode = `PRD-${uuid().slice(0, 16).toUpperCase()}`;
+    try {
+      return c.json(await saveBarcode(c, product, { barcode, unitType, label, primary }), 201);
+    } catch (error) {
+      if (!barcodeConflict(error)) throw error;
+    }
+  }
+  return c.json({ error: 'A unique internal barcode could not be reserved. Please try again.', code: 'BARCODE_GENERATION_RETRY' }, 503);
 });
 
 products.delete('/:id/barcodes/:barcodeId', managerOnly, async (c) => {

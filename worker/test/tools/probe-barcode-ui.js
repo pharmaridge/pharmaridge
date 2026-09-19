@@ -54,7 +54,18 @@ async function loginPage(page, username) { await page.goto(BASE, { waitUntil: 'n
       text: (document.querySelector('.modal') || {}).innerText || '',
       toasts: [...document.querySelectorAll('.toast')].map((el) => el.innerText),
     }));
-    check('Products screen exposes professional barcode registry management', /Barcodes/.test(barcodeModal.text) && /Single \/ base unit/.test(barcodeModal.text) && /Pack/.test(barcodeModal.text) && barcodeModal.text.includes(PACK_BARCODE) && browserErrors.length === 0, JSON.stringify({ barcodeModal, browserErrors }));
+    check('Products screen exposes professional barcode registry management', /Barcodes/.test(barcodeModal.text) && /Single \/ base unit/.test(barcodeModal.text) && /Pack/.test(barcodeModal.text) && barcodeModal.text.includes(PACK_BARCODE) && barcodeModal.text.includes('Generate Internal Barcode') && browserErrors.length === 0, JSON.stringify({ barcodeModal, browserErrors }));
+    await ownerPage.click('#pb-generate');
+    await ownerPage.waitForFunction(() => /PRD-[A-F0-9]{16}/.test((document.querySelector('.modal') || {}).innerText || ''), { timeout: 15000 });
+    const generatedUiBarcode = await ownerPage.$eval('.modal', (el) => (el.innerText.match(/PRD-[A-F0-9]{16}/) || [])[0]);
+    check('Generate Internal Barcode saves a unique internal label through the live UI', /^PRD-[A-F0-9]{16}$/.test(generatedUiBarcode || ''), generatedUiBarcode || 'not found');
+    await ownerPage.evaluate(() => {
+      window.__barcodePrintHtml = '';
+      window.open = () => ({ document: { open() {}, write(html) { window.__barcodePrintHtml = html; }, close() {} }, set opener(_) {} });
+    });
+    await ownerPage.click('[data-print-barcode]');
+    const printHtml = await ownerPage.evaluate(() => window.__barcodePrintHtml);
+    check('Print sticker opens the external-printer print layout for a registered barcode', /@page \{ size: 58mm 40mm;/.test(printHtml) && printHtml.includes('window.print()'), printHtml ? printHtml.slice(0, 100) : 'no print output');
     await ownerCtx.close();
   } finally { await browser.close(); }
   console.log(`\nBARCODE UI PROBE: ${pass} passed, ${fail} failed`);

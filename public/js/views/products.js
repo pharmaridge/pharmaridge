@@ -50,7 +50,7 @@ async function renderProducts(view) {
         <div class="form-row"><label>Retail Category</label><select id="p-retail-category">${UI.retailCategoryOptions('PHARMACEUTICALS')}</select><small class="muted">Choose where it sells: medicines, food/drinks, accessories or beauty/personal care.</small></div>
         <div class="form-row"><label>Product Group (optional)</label><input id="p-category" placeholder="e.g. Analgesic, Water, Soap or Cream" /></div>
         <div class="form-row"><label>NAFDAC Reg. No.</label><input id="p-nafdac" /></div>
-        <div class="form-row"><label>Primary Barcode (optional)</label><input id="p-barcode" inputmode="numeric" placeholder="EAN/UPC/GTIN or internal code" /><small class="muted">Numeric codes are validated; leave blank if this product has no barcode.</small></div>
+        <div class="form-row"><label>Primary Barcode (optional)</label><input id="p-barcode" inputmode="text" autocapitalize="characters" placeholder="EAN/UPC/GTIN or internal code" /><small class="muted">Numeric codes are validated; leave blank if this product has no barcode.</small></div>
         <div class="form-row">
           <label>Dispensing Type</label>
           <select id="p-dispensing">
@@ -514,23 +514,32 @@ async function openBarcodeModal(productId, productName) {
   catch (e) { UI.toast(e.message || 'Could not load product barcodes.', 'error'); return; }
   const modal = UI.openModal(`
     <h3>Barcodes — ${UI.escapeHtml(productName)}</h3>
-    <p class="page-subtitle">Register the exact code printed on each single item, pack or carton. A scanner will add that selling unit at POS. Numeric EAN/UPC/GTIN codes are check-digit validated; internal codes must be clear and unique.</p>
-    <div class="table-wrap"><table><thead><tr><th>Barcode</th><th>Unit</th><th>Label</th><th></th></tr></thead><tbody id="barcode-list">
-      ${barcodes.map((barcode) => `<tr><td><code>${UI.escapeHtml(barcode.barcode)}</code>${barcode.is_primary ? ' ' + UI.badge('PRIMARY', 'green') : ''}</td><td>${UI.escapeHtml(barcode.unit_type)}</td><td>${UI.escapeHtml(barcode.label || '—')}</td><td><button class="btn btn-danger btn-sm" data-remove-barcode="${barcode.id}">Remove</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty-state">No barcode registered yet</td></tr>'}
+    <p class="page-subtitle">Register the exact code printed on each single item, pack or carton. A scanner adds that selling unit at POS. Every barcode is unique across the database, including retired labels, so a historical sale can never become ambiguous.</p>
+    <div class="table-wrap"><table><thead><tr><th>Barcode</th><th>Unit</th><th>Label</th><th>Sticker</th><th></th></tr></thead><tbody id="barcode-list">
+      ${barcodes.map((barcode) => `<tr><td><code>${UI.escapeHtml(barcode.barcode)}</code>${barcode.is_primary ? ' ' + UI.badge('PRIMARY', 'green') : ''}</td><td>${UI.escapeHtml(barcode.unit_type)}</td><td>${UI.escapeHtml(barcode.label || '—')}</td><td><button class="btn btn-secondary btn-sm" data-print-barcode="${barcode.id}">Print sticker</button></td><td><button class="btn btn-danger btn-sm" data-remove-barcode="${barcode.id}">Remove</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty-state">No barcode registered yet</td></tr>'}
     </tbody></table></div>
     <div class="form-inline" style="margin-top:14px;">
-      <div class="form-row"><label>Barcode</label><input id="pb-value" inputmode="numeric" placeholder="Scan or type code" /></div>
+      <div class="form-row"><label>Barcode</label><input id="pb-value" inputmode="text" autocapitalize="characters" placeholder="Scan or type code" /><small class="muted">Use the supplier's GS1 code when one is printed on the product.</small></div>
       <div class="form-row"><label>Selling Unit</label><select id="pb-unit"><option value="BASE_UNIT">Single / base unit</option><option value="PACK">Pack</option><option value="CARTON">Carton</option></select></div>
       <div class="form-row"><label>Label (optional)</label><input id="pb-label" placeholder="e.g. 500ml bottle" /></div>
       <label style="display:flex;gap:6px;align-items:center;margin-bottom:16px;"><input type="checkbox" id="pb-primary" /> Primary</label>
       <button class="btn btn-primary" id="pb-add" type="button">Add Barcode</button>
+      <button class="btn btn-secondary" id="pb-generate" type="button">Generate Internal Barcode</button>
     </div>
+    <p class="muted" style="font-size:12px;margin:8px 0 0;">Generated PRD codes are stored immediately, then printed as Code 128 labels. Select your connected USB, Bluetooth, network, thermal, or label printer in the browser's print dialog.</p>
     <div class="modal-actions"><button class="btn btn-ghost" id="pb-close">Close</button></div>
   `);
   modal.querySelector('#pb-close').addEventListener('click', () => UI.closeModal(modal));
   modal.querySelectorAll('[data-remove-barcode]').forEach((button) => UI.guardedClick(button, async () => {
     try { await Api.del(`/products/${productId}/barcodes/${button.dataset.removeBarcode}`, undefined, { allowOfflineQueue: false }); UI.closeModal(modal); openBarcodeModal(productId, productName); }
     catch (e) { UI.toast(e.message || 'Could not remove barcode.', 'error'); }
+  }));
+  modal.querySelectorAll('[data-print-barcode]').forEach((button) => button.addEventListener('click', () => {
+    const barcode = barcodes.find((entry) => entry.id === button.dataset.printBarcode);
+    if (!barcode) { UI.toast('This barcode is no longer available. Reopen the barcode list and try again.', 'error'); return; }
+    try {
+      BarcodeLabel.printSticker({ barcode: barcode.barcode, productName, unitType: barcode.unit_type, label: barcode.label });
+    } catch (e) { UI.toast(e.message || 'Could not open the printer dialog.', 'error'); }
   }));
   UI.guardedClick(modal.querySelector('#pb-add'), async () => {
     const barcode = modal.querySelector('#pb-value').value.trim();
@@ -539,6 +548,18 @@ async function openBarcodeModal(productId, productName) {
       await Api.post(`/products/${productId}/barcodes`, { barcode, unit_type: modal.querySelector('#pb-unit').value, label: modal.querySelector('#pb-label').value.trim() || undefined, is_primary: modal.querySelector('#pb-primary').checked }, { allowOfflineQueue: false });
       UI.closeModal(modal); openBarcodeModal(productId, productName);
     } catch (e) { UI.toast(e.message || 'Could not add barcode.', 'error'); }
+  });
+  UI.guardedClick(modal.querySelector('#pb-generate'), async () => {
+    try {
+      const created = await Api.post(`/products/${productId}/barcodes/generate`, {
+        unit_type: modal.querySelector('#pb-unit').value,
+        label: modal.querySelector('#pb-label').value.trim() || undefined,
+        is_primary: modal.querySelector('#pb-primary').checked,
+      }, { allowOfflineQueue: false });
+      UI.closeModal(modal);
+      UI.toast(`Internal barcode ${created.barcode} generated. Select Print sticker to send its label to an external printer.`, 'success', 7000);
+      openBarcodeModal(productId, productName);
+    } catch (e) { UI.toast(e.message || 'Could not generate a unique barcode.', 'error'); }
   });
 }
 

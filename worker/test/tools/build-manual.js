@@ -565,7 +565,7 @@ Counter PINs must be at least four characters; use a stronger unique secret for 
       <tr><td><b>Selling price per piece</b></td><td>What the customer pays for one base unit. Pack/carton prices are optional separate customer prices.</td><td>Feeds POS pricing; it never changes the supplier invoice cost.</td></tr>
       <tr><td><b>Reason / note</b></td><td>A short factual explanation: what happened, why, and who verified it where relevant.</td><td>Creates the audit trail for a void, adjustment, transfer, override or cash movement.</td></tr>
       <tr><td><b>Dates, batch and licence IDs</b></td><td>Copy the date/number exactly from the pack, supplier document or licence.</td><td>Supports expiry alerts, traceability, compliance and report accuracy.</td></tr>
-      <tr><td><b>Barcode</b></td><td>Scan/type the exact EAN/UPC/GTIN printed on the single, pack or carton. Internal codes must be deliberate and unique.</td><td>Finds the correct product and selling unit at POS, then stores the scanned value with the completed sale for audit/reprint.</td></tr>
+      <tr><td><b>Barcode</b></td><td>Scan/type the exact EAN/UPC/GTIN printed on the single, pack or carton. For an in-house label, use Generate Internal Barcode and then Print sticker; do not invent a GS1 number.</td><td>Each value is database-unique. It finds the correct product and selling unit at POS, stores the scanned value with the completed sale for audit/reprint, and prints through the browser to a selected label/thermal printer.</td></tr>
     </tbody>
   </table>
   <div class="note"><b>Input discipline protects the report.</b> A correct sale cannot repair a wrong batch cost; a correct Profit &amp; Loss cannot repair an unrecorded expense. The field guidance is there so the first record is useful without guessing.</div>
@@ -681,7 +681,7 @@ every one has been changed, because an account on a default PIN is an account an
 Manager</b> runs every branch. A <b>Branch Manager</b> runs exactly one. <b>Staff</b> serve customers at one
 branch.</p>`)}
   ${fig('13a-owner-retail-categories.png', 'Products: choose the retail category separately from the product group', `<p>Use this screen before receiving stock. The <b>Retail Category</b> drop-down controls the POS and category sales history and Category GL analysis; the optional <b>Product Group</b> is the practical detail that helps a pharmacist or counter worker find the item.</p>
-<p>NAFDAC selections are medicines and begin as Pharmaceuticals. Drinks, water, accessories, soap, creams and similar shop goods are entered manually, then received with the same quantity, batch, cost and selling-price discipline as medicines. Register the barcode printed on a single item, pack or carton here; POS scans it into the matching selling unit.</p>
+<p>NAFDAC selections are medicines and begin as Pharmaceuticals. Drinks, water, accessories, soap, creams and similar shop goods are entered manually, then received with the same quantity, batch, cost and selling-price discipline as medicines. Register the barcode printed on a single item, pack or carton here; POS scans it into the matching selling unit. For an unbarcoded in-house label, choose <b>Generate Internal Barcode</b>, then choose <b>Print sticker</b> and select the connected label, thermal, USB, Bluetooth or network printer in the browser dialog. PharmaRidge generates a unique internal Code 128 label; it never invents a GS1/EAN number.</p>
 <p>The category saved here is copied into every completed sale line and its category-attributable GL lines. That preserves historical sales and GL category reporting if an item is moved to a different category later.</p>`)}
   ${fig('14-owner-transfer-modal.png', 'Transfer &amp; Promote: a move is recorded with a reason and a date, never by inventing a second account', `<p>When somebody changes branch or is promoted, use <b>Transfer &amp; Promote</b> — never
 create a second account for the same person.</p>
@@ -946,7 +946,7 @@ money at the bottom. There is no navigation to learn between customers.</p>
 the signal returns.</p>`)}
   <h3>Making a sale</h3>
   <ol>
-    <li><b>Find or scan the product.</b> Type any part of the name — brand or generic — or scan a registered EAN/UPC/GTIN/internal barcode and press Enter.</li>
+    <li><b>Find or scan the product.</b> Type any part of the name — brand or generic — or scan a registered supplier EAN/UPC/GTIN barcode or PharmaRidge-generated internal barcode and press Enter.</li>
     <li><b>Add it.</b> PharmaRidge picks the nearest-expiry batch automatically, so old stock always
       leaves first. You do not have to think about batches.</li>
     <li><b>Choose the unit</b> — single, pack or carton — and the price follows.</li>
