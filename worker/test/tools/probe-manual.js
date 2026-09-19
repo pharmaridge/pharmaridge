@@ -207,6 +207,10 @@ function pngGrey(file) {
     check('it explains barcode scan, exact selling unit and receipt audit trace',
       /EAN\/UPC\/GTIN/i.test(text) && /registered barcode/i.test(text)
       && source.includes('scanned value with the completed sale'));
+    check('it explains internal-code generation and external-printer sticker printing',
+      /Generate Internal Barcode, then choose Print sticker/i.test(text)
+      && source.includes('select the connected label, thermal, USB, Bluetooth or network printer')
+      && source.includes('never invents a GS1/EAN number'));
     check('no shared Admin username/PIN or password is printed',
       !/admin\s*\/\s*(?:PIN|password|\d)/i.test(text) && !/administrator credential/i.test(text),
       'shared credential wording found');
