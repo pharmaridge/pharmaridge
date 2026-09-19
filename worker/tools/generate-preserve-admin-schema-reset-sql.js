@@ -45,6 +45,10 @@ WHERE role = 'ADMIN' AND is_active = 1 AND is_deleted = 0;
 
 -- gl_accounts has a self-reference. Clear it before deleting the empty chart.
 UPDATE gl_accounts SET parent_id = NULL;
+-- A pre-barcode deployment does not yet have this table. Create an empty
+-- compatibility shell so the same full-format procedure can reset either
+-- baseline, then drop it with the rest of the schema in step 2.
+CREATE TABLE IF NOT EXISTS product_barcodes (id TEXT PRIMARY KEY);
 ${tables.map((name) => `DELETE FROM ${name};`).join('\n')}
 `;
 
