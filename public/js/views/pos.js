@@ -37,7 +37,12 @@ async function renderPos(view) {
             <select id="pos-retail-category">${UI.retailCategoryOptions('ALL', true, 'All sellable categories')}</select>
             <small class="muted">Choose Pharmaceuticals, Food &amp; Drinks, Accessories or Beauty &amp; Personal Care to limit the product list.</small>
           </div>
-          <input type="text" id="pos-search" placeholder="Search by name, generic name, or NAFDAC no..." autocomplete="off" />
+          <div class="form-inline" style="align-items:flex-end;gap:8px;">
+            <div class="form-row" style="flex:1;margin-bottom:0;"><label for="pos-barcode">Scan or enter barcode</label><input type="text" id="pos-barcode" inputmode="numeric" autocomplete="off" placeholder="Scan EAN/UPC/GTIN then Enter" /></div>
+            <button id="pos-barcode-add" class="btn btn-secondary" type="button">Add barcode</button>
+          </div>
+          <small class="muted" style="display:block;margin:6px 0 8px;font-size:12px;">USB/Bluetooth scanners usually type the code then send Enter. Product, pack and carton barcodes can each add the correct selling unit.</small>
+          <input type="text" id="pos-search" placeholder="Search by name, generic name, NAFDAC no. or barcode..." autocomplete="off" />
           <div id="pos-search-results" class="product-search-results hidden"></div>
         </div>
       </div>
@@ -266,6 +271,21 @@ async function renderPos(view) {
   }
   document.getElementById('pos-search').addEventListener('input', () => scheduleProductSearch());
   document.getElementById('pos-retail-category').addEventListener('change', () => scheduleProductSearch(0));
+  async function addScannedBarcode() {
+    const input = document.getElementById('pos-barcode');
+    const raw = input.value.trim();
+    if (!raw) { UI.toast('Scan a barcode or enter the product code, then choose Add barcode.', 'error'); return; }
+    try {
+      const scanned = await Api.get(`/products/barcode/${encodeURIComponent(raw)}`);
+      input.value = '';
+      await addProductToCart(scanned, branchId, renderCart, scanned.barcode_unit_type, scanned.barcode);
+      input.focus();
+    } catch (e) { UI.toast(e.message || 'Barcode could not be added.', 'error'); }
+  }
+  UI.guardedClick(document.getElementById('pos-barcode-add'), addScannedBarcode);
+  document.getElementById('pos-barcode').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') { event.preventDefault(); addScannedBarcode(); }
+  });
   document.addEventListener('click', outsideClickHandler);
   Router.onCleanup(() => { document.removeEventListener('click', outsideClickHandler); clearTimeout(searchTimer); });
 
@@ -298,13 +318,17 @@ async function renderPos(view) {
   renderCart();
 }
 
-async function addProductToCart(product, branchId, rerenderCart) {
+async function addProductToCart(product, branchId, rerenderCart, scannedUnitType, scannedBarcode) {
   const unitOptions = ['BASE_UNIT'];
   if (product.units_per_pack > 1) unitOptions.push('PACK');
   if (product.packs_per_carton > 1) unitOptions.push('CARTON');
 
-  let unitType = 'BASE_UNIT';
-  if (unitOptions.length > 1) {
+  let unitType = scannedUnitType || 'BASE_UNIT';
+  if (scannedUnitType && !unitOptions.includes(scannedUnitType)) {
+    UI.toast(`This barcode is registered as ${scannedUnitType}, but this product's pack/carton setup is incomplete. Ask a manager to correct the product barcode setup.`, 'error');
+    return;
+  }
+  if (!scannedUnitType && unitOptions.length > 1) {
     unitType = await pickUnitType(product, unitOptions);
     if (!unitType) return;
   }
@@ -332,11 +356,11 @@ async function addProductToCart(product, branchId, rerenderCart) {
     if (!controlled_kyc) return;
   }
 
-  const existingLine = posCart.find(l => l.product.id === product.id && l.unitType === unitType && !prescription && !controlled_kyc);
+  const existingLine = posCart.find(l => l.product.id === product.id && l.unitType === unitType && l.scannedBarcode === (scannedBarcode || null) && !prescription && !controlled_kyc);
   if (existingLine) {
     existingLine.quantity += 1;
   } else {
-    posCart.push({ product, unitType, quantity: 1, unitPrice, prescription, controlled_kyc });
+    posCart.push({ product, unitType, quantity: 1, unitPrice, prescription, controlled_kyc, scannedBarcode: scannedBarcode || null });
   }
   rerenderCart();
   UI.toast(`${product.name} added to cart`, 'success', 1800);
@@ -523,6 +547,7 @@ async function checkout(branchId, till, rerenderCart) {
     product_id: l.product.id,
     unit_type: l.unitType,
     quantity: l.quantity,
+    barcode_value: l.scannedBarcode || undefined,
     prescription: l.prescription || undefined,
     controlled_kyc: l.controlled_kyc || undefined,
   }));

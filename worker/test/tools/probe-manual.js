@@ -204,6 +204,9 @@ function pngGrey(file) {
       && /category is saved with each sale line/i.test(text) && /Category GL analysis/i.test(text));
     check('it keeps retail category separate from medicine compliance decisions',
       /Do not use a retail category as a regulatory decision/i.test(text));
+    check('it explains barcode scan, exact selling unit and receipt audit trace',
+      /EAN\/UPC\/GTIN/i.test(text) && /registered barcode/i.test(text)
+      && source.includes('scanned value with the completed sale'));
     check('no shared Admin username/PIN or password is printed',
       !/admin\s*\/\s*(?:PIN|password|\d)/i.test(text) && !/administrator credential/i.test(text),
       'shared credential wording found');

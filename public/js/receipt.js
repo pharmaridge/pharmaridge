@@ -49,10 +49,15 @@ const Receipt = (() => {
     const items = sale.items.map((i) => {
       const unit = i.unit_type && i.unit_type !== 'BASE_UNIT' ? ` (${esc(i.unit_type)})` : '';
       const label = `${esc(i.product_name)} x${i.quantity}${unit}`;
+      const trace = [
+        i.retail_category ? UI.retailCategoryLabel(i.retail_category) : '',
+        i.barcode_value ? `barcode ${esc(i.barcode_value)}` : '',
+        i.batch_no ? `batch ${esc(i.batch_no)}` : '',
+      ].filter(Boolean).join(' · ');
       return thermal
         ? `<div class="r-line"><span>${label}</span><span>${money(i.line_total)}</span></div>
-           <div class="r-small" style="margin-left:6px;color:#333;">@ ${money(i.unit_price)}${i.batch_no ? ` · batch ${esc(i.batch_no)}` : ''}</div>`
-        : `<tr><td>${esc(i.product_name)}${unit}</td><td style="text-align:right">${i.quantity}</td>
+           <div class="r-small" style="margin-left:6px;color:#333;">@ ${money(i.unit_price)}${trace ? ` · ${trace}` : ''}</div>`
+        : `<tr><td>${esc(i.product_name)}${unit}${trace ? `<div class="r-small">${trace}</div>` : ''}</td><td style="text-align:right">${i.quantity}</td>
              <td style="text-align:right">${money(i.unit_price)}</td>
              <td style="text-align:right">${money(i.line_total)}</td></tr>`;
     }).join('');

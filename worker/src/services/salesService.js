@@ -45,6 +45,7 @@ const { getClientSettings } = require('../lib/planLimits');
 const whtLib = require('../lib/wht');
 const changeOwedService = require('./changeOwedService');
 const { DEFAULT_RETAIL_CATEGORY } = require('../lib/retailCategories');
+const { validateBarcode } = require('../lib/barcodes');
 
 
 const VALID_UNIT_TYPES = ['BASE_UNIT', 'PACK', 'CARTON'];
@@ -370,6 +371,13 @@ async function createSale(db, { branchId, servedBy, servedByRole = null, custome
     ).bind(...distinctProductIds).all();
     for (const p of productRows) productMap.set(p.id, p);
   }
+  const suppliedBarcodeValues = [...new Set(items.map((item) => item.barcode_value).filter((value) => value != null && value !== '').map((value) => validateBarcode(value).barcode))];
+  const barcodeMap = new Map();
+  if (suppliedBarcodeValues.length) {
+    const barcodePlaceholders = suppliedBarcodeValues.map(() => '?').join(',');
+    const { results: barcodeRows } = await db.prepare(`SELECT barcode, product_id, unit_type FROM product_barcodes WHERE barcode IN (${barcodePlaceholders}) AND is_deleted = 0`).bind(...suppliedBarcodeValues).all();
+    for (const row of barcodeRows) barcodeMap.set(row.barcode, row);
+  }
   const { pools: stockPools, expiredProductIds } = await loadStockPools(db, branchId, distinctProductIds);
 
   // DATA-INTEGRITY: see the full explanation below — a nonexistent
@@ -430,6 +438,16 @@ async function createSale(db, { branchId, servedBy, servedByRole = null, custome
     if (!product) throw Object.assign(new Error(`Unknown product ${item.product_id}`), { status: 400 });
 
     const unitType = item.unit_type || 'BASE_UNIT';
+    let scannedBarcode = null;
+    if (item.barcode_value != null && item.barcode_value !== '') {
+      const checkedBarcode = validateBarcode(item.barcode_value);
+      if (checkedBarcode.error) throw Object.assign(new Error(checkedBarcode.error), { status: 400, code: 'INVALID_BARCODE' });
+      const barcode = barcodeMap.get(checkedBarcode.barcode);
+      if (!barcode || barcode.product_id !== item.product_id || barcode.unit_type !== unitType) {
+        throw Object.assign(new Error('The scanned barcode does not match this product and selling unit. Scan again or select the product/unit manually.'), { status: 400, code: 'BARCODE_PRODUCT_UNIT_MISMATCH' });
+      }
+      scannedBarcode = checkedBarcode.barcode;
+    }
 
     // BUG 113 — resolve the pack size from the BATCH THAT WILL BE SOLD, not
     // from the product's default. Pricing already read the batch, so taking
@@ -484,9 +502,9 @@ async function createSale(db, { branchId, servedBy, servedByRole = null, custome
       const saleItemId = uuid();
       itemSummaries.push(`${takeInUnitType} x ${product.name} @ N${unitPrice}`);
       statements.push(db.prepare(`
-        INSERT INTO sale_items (id, sale_id, stock_batch_id, product_id, unit_type, quantity, quantity_base_units, unit_price, line_total, retail_category)
-        VALUES (?,?,?,?,?,?,?,?,?,?)
-      `).bind(saleItemId, saleId, pick.batch.id, item.product_id, unitType, takeInUnitType, pick.take, unitPrice, lineTotal, product.retail_category || DEFAULT_RETAIL_CATEGORY));
+        INSERT INTO sale_items (id, sale_id, stock_batch_id, product_id, unit_type, quantity, quantity_base_units, unit_price, line_total, retail_category, barcode_value)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+      `).bind(saleItemId, saleId, pick.batch.id, item.product_id, unitType, takeInUnitType, pick.take, unitPrice, lineTotal, product.retail_category || DEFAULT_RETAIL_CATEGORY, scannedBarcode));
 
       // UNGUARDED decrement — this is deliberate, not an oversight. It
       // may look safer to add "AND quantity_remaining >= ?" here, but

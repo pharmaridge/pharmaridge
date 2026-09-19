@@ -50,6 +50,7 @@ async function renderProducts(view) {
         <div class="form-row"><label>Retail Category</label><select id="p-retail-category">${UI.retailCategoryOptions('PHARMACEUTICALS')}</select><small class="muted">Choose where it sells: medicines, food/drinks, accessories or beauty/personal care.</small></div>
         <div class="form-row"><label>Product Group (optional)</label><input id="p-category" placeholder="e.g. Analgesic, Water, Soap or Cream" /></div>
         <div class="form-row"><label>NAFDAC Reg. No.</label><input id="p-nafdac" /></div>
+        <div class="form-row"><label>Primary Barcode (optional)</label><input id="p-barcode" inputmode="numeric" placeholder="EAN/UPC/GTIN or internal code" /><small class="muted">Numeric codes are validated; leave blank if this product has no barcode.</small></div>
         <div class="form-row">
           <label>Dispensing Type</label>
           <select id="p-dispensing">
@@ -90,6 +91,7 @@ async function renderProducts(view) {
                 <td>
                   <button class="btn btn-secondary btn-sm" data-edit-product="${p.id}">Edit</button>
                   <button class="btn btn-secondary btn-sm" data-price-product="${p.id}" data-name="${UI.escapeHtml(p.name)}">Branch Prices</button>
+                  <button class="btn btn-secondary btn-sm" data-barcodes-product="${p.id}" data-name="${UI.escapeHtml(p.name)}">Barcodes</button>
                   <button class="btn btn-danger btn-sm" data-delete-product="${p.id}" data-name="${UI.escapeHtml(p.name)}">Delete</button>
                 </td>
               </tr>
@@ -141,6 +143,7 @@ async function renderProducts(view) {
         retail_category: document.getElementById('p-retail-category').value,
         category: document.getElementById('p-category').value.trim() || undefined,
         nafdac_reg_no: document.getElementById('p-nafdac').value.trim() || undefined,
+        primary_barcode: document.getElementById('p-barcode').value.trim() || undefined,
         dispensing_type: document.getElementById('p-dispensing').value,
         is_controlled: document.getElementById('p-controlled').value === '1',
         base_unit: document.getElementById('p-base-unit').value.trim() || 'tablet',
@@ -165,6 +168,9 @@ async function renderProducts(view) {
   view.querySelectorAll('[data-price-product]').forEach((btn) => btn.addEventListener('click', () => {
     openPriceOverrideModal(btn.dataset.priceProduct, btn.dataset.name, branches);
   }));
+  view.querySelectorAll('[data-barcodes-product]').forEach((btn) => {
+    btn.addEventListener('click', () => openBarcodeModal(btn.dataset.barcodesProduct, btn.dataset.name));
+  });
 
   view.querySelectorAll('[data-delete-product]').forEach((btn) => UI.guardedClick(btn, async () => {
     // FUNCTIONAL/DATA-INTEGRITY FIX (found during a production audit): this
@@ -499,6 +505,40 @@ function openEditProductModal(p) {
       UI.closeModal(modal);
       Router.navigate();
     } catch (e) { UI.toast(e.message, 'error'); }
+  });
+}
+
+async function openBarcodeModal(productId, productName) {
+  let barcodes;
+  try { barcodes = await Api.get(`/products/${productId}/barcodes`); }
+  catch (e) { UI.toast(e.message || 'Could not load product barcodes.', 'error'); return; }
+  const modal = UI.openModal(`
+    <h3>Barcodes — ${UI.escapeHtml(productName)}</h3>
+    <p class="page-subtitle">Register the exact code printed on each single item, pack or carton. A scanner will add that selling unit at POS. Numeric EAN/UPC/GTIN codes are check-digit validated; internal codes must be clear and unique.</p>
+    <div class="table-wrap"><table><thead><tr><th>Barcode</th><th>Unit</th><th>Label</th><th></th></tr></thead><tbody id="barcode-list">
+      ${barcodes.map((barcode) => `<tr><td><code>${UI.escapeHtml(barcode.barcode)}</code>${barcode.is_primary ? ' ' + UI.badge('PRIMARY', 'green') : ''}</td><td>${UI.escapeHtml(barcode.unit_type)}</td><td>${UI.escapeHtml(barcode.label || '—')}</td><td><button class="btn btn-danger btn-sm" data-remove-barcode="${barcode.id}">Remove</button></td></tr>`).join('') || '<tr><td colspan="4" class="empty-state">No barcode registered yet</td></tr>'}
+    </tbody></table></div>
+    <div class="form-inline" style="margin-top:14px;">
+      <div class="form-row"><label>Barcode</label><input id="pb-value" inputmode="numeric" placeholder="Scan or type code" /></div>
+      <div class="form-row"><label>Selling Unit</label><select id="pb-unit"><option value="BASE_UNIT">Single / base unit</option><option value="PACK">Pack</option><option value="CARTON">Carton</option></select></div>
+      <div class="form-row"><label>Label (optional)</label><input id="pb-label" placeholder="e.g. 500ml bottle" /></div>
+      <label style="display:flex;gap:6px;align-items:center;margin-bottom:16px;"><input type="checkbox" id="pb-primary" /> Primary</label>
+      <button class="btn btn-primary" id="pb-add" type="button">Add Barcode</button>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="pb-close">Close</button></div>
+  `);
+  modal.querySelector('#pb-close').addEventListener('click', () => UI.closeModal(modal));
+  modal.querySelectorAll('[data-remove-barcode]').forEach((button) => UI.guardedClick(button, async () => {
+    try { await Api.del(`/products/${productId}/barcodes/${button.dataset.removeBarcode}`, undefined, { allowOfflineQueue: false }); UI.closeModal(modal); openBarcodeModal(productId, productName); }
+    catch (e) { UI.toast(e.message || 'Could not remove barcode.', 'error'); }
+  }));
+  UI.guardedClick(modal.querySelector('#pb-add'), async () => {
+    const barcode = modal.querySelector('#pb-value').value.trim();
+    if (!barcode) { UI.toast('Scan or enter the barcode before adding it.', 'error'); return; }
+    try {
+      await Api.post(`/products/${productId}/barcodes`, { barcode, unit_type: modal.querySelector('#pb-unit').value, label: modal.querySelector('#pb-label').value.trim() || undefined, is_primary: modal.querySelector('#pb-primary').checked }, { allowOfflineQueue: false });
+      UI.closeModal(modal); openBarcodeModal(productId, productName);
+    } catch (e) { UI.toast(e.message || 'Could not add barcode.', 'error'); }
   });
 }
 

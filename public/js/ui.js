@@ -213,6 +213,7 @@ const UI = (() => {
     ['[data-b-pack]', 'Optional selling price for one complete pack'],
     ['[data-b-carton]', 'Optional selling price for one complete carton'],
     ['#p-category, #ep-category', 'e.g. Analgesic, Water, Soap or Body Cream — product group within its retail category'],
+    ['#p-barcode', 'Scan or enter a valid EAN/UPC/GTIN code; leave blank only when the item has no barcode'],
     ['#p-nafdac, #ep-nafdac', 'e.g. 04-1234 — registration number on the pack'],
     ['#p-units-per-pack, #ep-units-per-pack', 'e.g. 10 — base units inside ONE pack'],
     ['#p-packs-per-carton, #ep-packs-per-carton', 'e.g. 10 — packs inside ONE carton'],

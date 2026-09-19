@@ -382,7 +382,7 @@ npx wrangler d1 migrations list pharmaridge-db --remote
 npm run db:migrate:remote
 ```
 
-**Updating the app.** Bump `CACHE_NAME` in `public/sw.js` (currently `pharmaridge-v86`) whenever you change cached assets, or field devices keep the stale shell.
+**Updating the app.** Bump `CACHE_NAME` in `public/sw.js` (currently `pharmaridge-v87`) whenever you change cached assets, or field devices keep the stale shell.
 
 ---
 

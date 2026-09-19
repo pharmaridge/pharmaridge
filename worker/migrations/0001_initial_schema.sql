@@ -534,6 +534,22 @@ CREATE TABLE products (
 );
 CREATE INDEX idx_products_retail_category ON products(retail_category) WHERE is_deleted = 0;
 
+-- Product barcode registry. One product may carry a barcode for a single
+-- piece, pack and/or carton; scanning selects the stored selling unit.
+CREATE TABLE product_barcodes (
+    id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    product_id    TEXT NOT NULL REFERENCES products(id),
+    barcode       TEXT NOT NULL UNIQUE,
+    unit_type     TEXT NOT NULL CHECK (unit_type IN ('BASE_UNIT','PACK','CARTON')) DEFAULT 'BASE_UNIT',
+    label         TEXT,
+    is_primary    INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    is_deleted    INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_product_barcodes_product ON product_barcodes(product_id) WHERE is_deleted = 0;
+CREATE UNIQUE INDEX idx_product_barcodes_primary ON product_barcodes(product_id) WHERE is_primary = 1 AND is_deleted = 0;
+
 -- Per-branch default selling price override for a product. Used to
 -- pre-fill the selling price when a branch receives a new stock_batch,
 -- so Lagos and Minna can each carry a different default price for the
@@ -773,6 +789,9 @@ CREATE TABLE sale_items (
     -- Immutable commercial-category snapshot for sales history. A later
     -- product reclassification must never rewrite a completed sale report.
     retail_category   TEXT NOT NULL DEFAULT 'PHARMACEUTICALS' CHECK (retail_category IN ('PHARMACEUTICALS','FOOD_DRINKS','ACCESSORIES','BEAUTY_PERSONAL_CARE','OTHERS')),
+    -- Snapshot of the exact code used at POS. A barcode can later be retired
+    -- without losing the audit trail for a receipt printed today.
+    barcode_value      TEXT,
     updated_at         TEXT NOT NULL DEFAULT (datetime('now')),
     is_deleted         INTEGER NOT NULL DEFAULT 0
 );

@@ -26,7 +26,7 @@ const tables = [
   'expenses', 'wht_entries', 'gl_journal_lines', 'gl_journal_entries',
   'stocktake_lines', 'stocktake_sessions', 'stock_adjustments', 'stock_transfers',
   'staff_attendance', 'till_sessions', 'stock_batches', 'purchase_order_receipts',
-  'purchase_order_items', 'purchase_orders', 'product_price_overrides', 'customers',
+  'purchase_order_items', 'purchase_orders', 'product_price_overrides', 'product_barcodes', 'customers',
   'suppliers', 'branch_devices', 'pending_user_transfers', 'user_assignment_history',
   'user_sessions', 'idempotency_keys', 'login_attempts', 'sync_conflicts',
   'sync_change_log', 'branch_sync_status', 'data_cleanup_log', 'wht_rates',

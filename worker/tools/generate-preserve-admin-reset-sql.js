@@ -65,6 +65,7 @@ DELETE FROM purchase_order_receipts;
 DELETE FROM purchase_order_items;
 DELETE FROM purchase_orders;
 DELETE FROM product_price_overrides;
+DELETE FROM product_barcodes;
 DELETE FROM customers;
 DELETE FROM suppliers;
 DELETE FROM branch_devices;

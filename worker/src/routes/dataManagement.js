@@ -70,7 +70,7 @@ const BUSINESS_COUNT_TABLES = [
   'till_sessions', 'wht_entries', 'gl_journal_entries', 'gl_journal_lines',
   'purchase_orders', 'purchase_order_items', 'purchase_order_receipts',
   'stock_batches', 'stock_adjustments', 'stock_transfers', 'stocktake_sessions', 'stocktake_lines',
-  'product_price_overrides', 'products', 'suppliers', 'customers',
+  'product_price_overrides', 'product_barcodes', 'products', 'suppliers', 'customers',
   'branch_sync_status', 'sync_change_log', 'sync_conflicts', 'idempotency_keys',
   'login_attempts', 'user_assignment_history', 'pending_user_transfers',
 ];
@@ -214,6 +214,7 @@ function allBusinessDeletions() {
     deletion('purchase_order_items', '1 = 1'),
     deletion('purchase_orders', '1 = 1'),
     deletion('product_price_overrides', '1 = 1'),
+    deletion('product_barcodes', '1 = 1'),
     deletion('customers', '1 = 1'),
     deletion('suppliers', '1 = 1'),
     deletion('products', '1 = 1'),
@@ -263,6 +264,7 @@ function operationalDeletionsKeepAccountingAndCurrentStock() {
     if (op.table === 'stock_batches') return deletion('stock_batches', `NOT (${currentStockCondition()})`);
     if (op.table === 'products') return deletion('products', `id NOT IN (${activeProducts})`);
     if (op.table === 'product_price_overrides') return deletion('product_price_overrides', `product_id NOT IN (${activeProducts})`);
+    if (op.table === 'product_barcodes') return deletion('product_barcodes', `product_id NOT IN (${activeProducts})`);
     return op;
   }).filter(Boolean);
 }

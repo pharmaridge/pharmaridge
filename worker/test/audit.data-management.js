@@ -74,6 +74,7 @@ const ENV = { DB, JWT_SECRET: SECRET, ENVIRONMENT: 'test' };
   sqlite.prepare("INSERT INTO customers (id,branch_id,name) VALUES ('cust1','b1','Customer')").run();
   sqlite.prepare("INSERT INTO stock_batches (id,branch_id,product_id,quantity_received,quantity_remaining,cost_price_per_unit,selling_price_per_unit,supplier_id,purchase_order_id) VALUES ('batch1','b1','prod1',10,8,10,15,'sup1','po1'),('batch-empty','b1','prod-empty',2,0,10,15,'sup1','po1')").run();
   sqlite.prepare("INSERT INTO product_price_overrides (id,branch_id,product_id,default_selling_price) VALUES ('price-current','b1','prod1',16),('price-empty','b1','prod-empty',16)").run();
+  sqlite.prepare("INSERT INTO product_barcodes (id,product_id,barcode,unit_type,is_primary) VALUES ('barcode-current','prod1','INT-CURRENT','BASE_UNIT',1),('barcode-empty','prod-empty','INT-EMPTY','BASE_UNIT',1)").run();
   sqlite.prepare("INSERT INTO till_sessions (id,branch_id,opened_by,opening_cash,opened_at,status) VALUES ('t-old','b1','owner1',0,'2025-01-10 08:00:00','CLOSED'),('t-new','b1','owner1',0,'2025-02-10 08:00:00','CLOSED')").run();
   sqlite.prepare("INSERT INTO sales (id,branch_id,served_by,customer_id,subtotal,discount,total,is_credit_sale,status,till_session_id,created_at,updated_at) VALUES ('sale-old','b1','owner1','cust1',15,0,15,0,'COMPLETED','t-old','2025-01-10 09:00:00','2025-01-10 09:00:00'),('sale-new','b1','owner1','cust1',15,0,15,0,'COMPLETED','t-new','2025-02-10 09:00:00','2025-02-10 09:00:00')").run();
   sqlite.prepare("INSERT INTO sale_items (id,sale_id,stock_batch_id,product_id,quantity,quantity_base_units,unit_price,line_total) VALUES ('si-old','sale-old','batch1','prod1',1,1,15,15),('si-new','sale-new','batch1','prod1',1,1,15,15)").run();
@@ -132,7 +133,9 @@ const ENV = { DB, JWT_SECRET: SECRET, ENVIRONMENT: 'test' };
     && sqlite.prepare("SELECT COUNT(*) AS n FROM product_price_overrides WHERE id='price-current'").get().n === 1
     && sqlite.prepare("SELECT COUNT(*) AS n FROM stock_batches WHERE id='batch-empty'").get().n === 0
     && sqlite.prepare("SELECT COUNT(*) AS n FROM products WHERE id='prod-empty'").get().n === 0
-    && sqlite.prepare("SELECT COUNT(*) AS n FROM product_price_overrides WHERE id='price-empty'").get().n === 0, 'current-stock continuity did not match the protected set');
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM product_price_overrides WHERE id='price-empty'").get().n === 0
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM product_barcodes WHERE id='barcode-current'").get().n === 1
+    && sqlite.prepare("SELECT COUNT(*) AS n FROM product_barcodes WHERE id='barcode-empty'").get().n === 0, 'current-stock continuity did not match the protected set');
   check('accounting-and-stock cleanup preserves cumulative GL and branch-safe figures', sqlite.prepare("SELECT COUNT(*) AS n FROM gl_journal_entries WHERE id='je-keep'").get().n === 1
     && sqlite.prepare("SELECT COUNT(*) AS n FROM gl_journal_lines WHERE journal_entry_id='je-keep'").get().n === 2
     && sqlite.prepare("SELECT COUNT(*) AS n FROM branch_safe_ledger WHERE id='safe-keep'").get().n === 1, 'accounting continuity row was removed');

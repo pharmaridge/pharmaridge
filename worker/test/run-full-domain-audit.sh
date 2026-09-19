@@ -96,6 +96,7 @@ run_one test/audit.promotionauthority.js
 run_one test/audit.single-session.js
 run_one test/audit.concurrent-pos-sales.js
 run_one test/audit.retail-categories.js
+run_one test/audit.barcode-flow.js
 run_one test/audit.plan-downgrade.js
 run_one test/tools/probe-crossdomain.js
 
