@@ -148,9 +148,9 @@ app.get('/api/health', async (c) => c.json({
   ok: true,
   env: c.env.ENVIRONMENT || 'production',
   jwt_secret_configured: !jwtSecretProblem(c.env),
-  // Storage headroom: D1 Free caps a database at 500MB, and at that
-  // ceiling WRITES FAIL while reads keep working — a pharmacy would
-  // silently stop being able to record sales. See lib/storageHealth.js.
+  // Storage headroom is provider-aware: D1 and Turso have different Free-tier
+  // reference ceilings, but either provider can eventually refuse writes.
+  // See lib/storageHealth.js.
   storage: await getStorageHealth(database(c)),
   time: new Date().toISOString(),
 }));

@@ -1,7 +1,9 @@
-// D1 STORAGE HEADROOM MONITORING.
+// PROVIDER-AWARE STORAGE HEADROOM MONITORING.
 //
-// FOUND DURING A LONG-TERM DURABILITY AUDIT. Cloudflare D1's Free plan
-// caps a database at 500 MB. Cloudflare's own documentation is explicit
+// The original durability audit was performed against Cloudflare D1, whose
+// Free plan caps a database at 500 MB. The same row-count model is now used
+// for Turso, with its own 5 GB Free-tier reference ceiling. Cloudflare's
+// documentation is explicit
 // about what happens at that ceiling:
 //
 //   "Once you have reached your included storage limit, you will need to
@@ -48,10 +50,20 @@
 // is not retention; it is VISIBILITY, early enough to upgrade the plan
 // before writes start failing.
 
-// Free plan: 500 MB per database. Paid: 10 GB. We warn against the
-// tighter ceiling because that is what this product deploys onto by
-// default, and warning early on a Paid plan is harmless.
+// Capacity is provider-specific. Cloudflare D1 Free has a 500 MB database
+// ceiling, while Turso's current Free tier includes 5 GB per database. The
+// calculation below is still an estimate — it is a proprietor-facing runway
+// signal, not either provider's billing meter.
 const D1_FREE_LIMIT_BYTES = 500 * 1024 * 1024;
+const TURSO_FREE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024;
+const STORAGE_CAPACITY = {
+  D1: { provider: 'D1', label: 'Cloudflare D1 Free', limitBytes: D1_FREE_LIMIT_BYTES },
+  TURSO: { provider: 'TURSO', label: 'Turso Free', limitBytes: TURSO_FREE_LIMIT_BYTES },
+};
+
+function capacityFor(db) {
+  return db && db.provider === 'TURSO' ? STORAGE_CAPACITY.TURSO : STORAGE_CAPACITY.D1;
+}
 
 // Warn with real runway left, not at the cliff edge. At 75% a busy
 // pharmacy still has months to act; at 90% it is weeks.
@@ -167,6 +179,7 @@ const ROW_COST_BYTES = {
  * reporting on.
  */
 async function getStorageHealth(db) {
+  const capacity = capacityFor(db);
   try {
     // Only count tables that actually EXIST. Hardcoding names is how the
     // first version broke: it referenced `controlled_drug_register` when
@@ -213,28 +226,30 @@ async function getStorageHealth(db) {
     // keeps the estimate on the safe side of reality. The catalog row cost
     // is corrected in ROW_COST_BYTES above.
     bytes += EMPTY_SCHEMA_BYTES;
-    const ratio = bytes / D1_FREE_LIMIT_BYTES;
+    const ratio = bytes / capacity.limitBytes;
     return {
+      provider: capacity.provider,
+      provider_label: capacity.label,
       bytes,
       megabytes: Math.round((bytes / 1024 / 1024) * 10) / 10,
-      limit_megabytes: Math.round(D1_FREE_LIMIT_BYTES / 1024 / 1024),
+      limit_megabytes: Math.round(capacity.limitBytes / 1024 / 1024),
       percent_used: Math.round(ratio * 1000) / 10,
       status: ratio >= CRITICAL_AT ? 'CRITICAL' : ratio >= WARN_AT ? 'WARNING' : 'OK',
       // Deliberately plain language: the reader is a pharmacy proprietor,
       // not an engineer, and the consequence must be unmistakable.
       message: ratio >= CRITICAL_AT
-        ? 'This database is nearly full. When it fills, PharmaRidge will stop being able to record new sales — existing records stay readable. Contact PharmaRidge support now to upgrade storage.'
+        ? `This ${capacity.label} database is nearly full. New sales and accounting writes can be refused at the provider limit. Contact PharmaRidge support now to increase capacity.`
         : ratio >= WARN_AT
-          ? 'This database is filling up. Sales, receipts and accounting records are kept permanently for tax and NAFDAC inspection, so storage only grows. Contact PharmaRidge support to plan an upgrade.'
+          ? `This ${capacity.label} database is filling up. Sales, receipts and accounting records are retained for tax and pharmacy inspection, so storage grows over time. Plan a capacity upgrade before the provider limit is reached.`
           : null,
       available: true,
       estimated: true,
     };
   } catch (e) {
-    // An older D1 build, or a permissions change, must not take the
-    // dashboard down. Report unavailability honestly instead of guessing.
-    return { available: false, status: 'UNKNOWN', message: null, error: String((e && e.message) || e).slice(0, 200) };
+    // A provider capability/permission change must not take the dashboard
+    // down. Report unavailability honestly instead of guessing.
+    return { provider: capacity.provider, provider_label: capacity.label, available: false, status: 'UNKNOWN', message: null, error: String((e && e.message) || e).slice(0, 200) };
   }
 }
 
-module.exports = { getStorageHealth, D1_FREE_LIMIT_BYTES, WARN_AT, CRITICAL_AT };
+module.exports = { getStorageHealth, D1_FREE_LIMIT_BYTES, TURSO_FREE_LIMIT_BYTES, WARN_AT, CRITICAL_AT, capacityFor };

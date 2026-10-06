@@ -411,7 +411,7 @@ async function makePreview(db, scope) {
     retains: MODES[scope.mode].retains || null,
     confirmation_phrase: MODES[scope.mode].phrase,
     retention_notice: 'Deleting a record is permanent from this application. Export and verify every report or backup you must retain before continuing. Resolve every reported offline queue first; after any cleanup, an old queued replay is quarantined for review instead of being allowed to recreate records. Check your accountant, tax adviser and applicable pharmacy/controlled-drug retention obligations before deleting financial, VAT/WHT, prescription or controlled-drug records.',
-    storage_notice: 'This removes live rows and reduces PharmaRidge’s active-data estimate. Cloudflare manages physical database allocation; do not rely on deletion alone as a guarantee of immediate billed-storage reduction. If capacity is critical, plan an upgrade with support as well.',
+    storage_notice: 'This removes live rows and reduces PharmaRidge’s active-data estimate. The active database provider manages physical allocation; do not rely on deletion alone as a guarantee of immediate billed-storage reduction. If capacity is critical, plan an upgrade with support as well.',
   };
 }
 

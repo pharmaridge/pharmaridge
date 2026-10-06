@@ -2,7 +2,7 @@
 
 ## Purpose
 
-PharmaRidge estimates active D1 database usage and warns before the default 500 MB free-tier reference ceiling becomes critical. The estimate is a capacity early-warning tool, not a billing meter or a guarantee that deletion immediately changes Cloudflare's physical storage allocation.
+PharmaRidge estimates active database usage and warns before the active provider's free-tier reference ceiling becomes critical: 500 MB for Cloudflare D1 Free and 5 GB for Turso Free. The estimate is a capacity early-warning tool, not a billing meter or a guarantee that deletion immediately changes the provider's physical storage allocation.
 
 - **Owner:** sees the storage warning on Dashboard and My Plan, and is the only pharmacy role allowed to use Data Management.
 - **General Manager:** sees the same organisation-wide warning on Dashboard and their plan/allowance view, but cannot delete data. They should alert the Owner.
@@ -76,7 +76,7 @@ Any cleanup stamps a reset time. An offline request queued before that time is r
 
 Deletion is irreversible from the application. Before deleting financial, VAT/WHT, prescription or controlled-drug data, the Owner must determine what records the business is required to retain with its accountant, tax adviser and relevant pharmacy/controlled-drug obligations.
 
-Data removal can reduce active rows and PharmaRidge's capacity estimate, but Cloudflare controls physical allocation/compaction. A critical warning should also trigger a capacity/upgrade conversation; cleanup is not presented as a guarantee of immediate billing or allocated-storage reduction.
+Data removal can reduce active rows and PharmaRidge's capacity estimate, but the active database provider controls physical allocation/compaction. A critical warning should also trigger a capacity/upgrade conversation; cleanup is not presented as a guarantee of immediate billing or allocated-storage reduction.
 
 ## Validation
 

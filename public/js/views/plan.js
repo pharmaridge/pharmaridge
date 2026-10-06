@@ -138,7 +138,7 @@ async function renderPlan(view) {
         <div class="card" style="border-left:4px solid ${plan.storage.status === 'CRITICAL' ? 'var(--red-500)' : 'var(--amber-500)'};background:${plan.storage.status === 'CRITICAL' ? 'var(--tint-red)' : 'var(--tint-amber)'};">
           <h3 style="margin:0 0 6px;">${plan.storage.status === 'CRITICAL' ? 'Storage almost full' : 'Storage is filling up'}</h3>
           <p style="margin:0 0 7px;font-size:13px;">${UI.escapeHtml(plan.storage.message || '')}</p>
-          <p style="margin:0;font-size:13px;"><strong>${plan.storage.megabytes} MB</strong> of ${plan.storage.limit_megabytes} MB estimated (${plan.storage.percent_used}%). Please alert the Owner; only the Owner can choose retention or reset actions.</p>
+          <p style="margin:0;font-size:13px;"><strong>${plan.storage.megabytes} MB</strong> of ${plan.storage.limit_megabytes} MB estimated (${plan.storage.percent_used}%) on ${UI.escapeHtml(plan.storage.provider_label || 'the active database provider')}. Please alert the Owner; only the Owner can choose retention or reset actions.</p>
         </div>
       ` : ''}
       <div class="card">
@@ -297,7 +297,7 @@ async function renderPlan(view) {
       <div class="card" style="margin-top:16px;border-left:4px solid ${plan.storage.status === 'CRITICAL' ? 'var(--red-500)' : 'var(--amber-500)'};background:${plan.storage.status === 'CRITICAL' ? 'var(--tint-red)' : 'var(--tint-amber)'};">
         <h3 style="margin:0 0 6px;">${plan.storage.status === 'CRITICAL' ? '⚠ Storage almost full' : '⚠ Storage is filling up'}</h3>
         <p style="margin:0 0 8px;font-size:13px;">${UI.escapeHtml(plan.storage.message || '')}</p>
-        <p style="margin:0;font-size:13px;"><strong>${plan.storage.megabytes} MB</strong> of ${plan.storage.limit_megabytes} MB used (${plan.storage.percent_used}%).</p>
+        <p style="margin:0;font-size:13px;"><strong>${plan.storage.megabytes} MB</strong> of ${plan.storage.limit_megabytes} MB used (${plan.storage.percent_used}%) on ${UI.escapeHtml(plan.storage.provider_label || 'the active database provider')}.</p>
       </div>
     ` : ''}
 
@@ -307,7 +307,7 @@ async function renderPlan(view) {
       ${plan.storage && plan.storage.available ? `
         <div class="form-row">
           <label>Database used</label>
-          <div>${plan.storage.megabytes} MB of ${plan.storage.limit_megabytes} MB (${plan.storage.percent_used}%) — ${plan.storage.status === 'OK' ? 'plenty of room' : plan.storage.status.toLowerCase()}</div>
+          <div>${plan.storage.megabytes} MB of ${plan.storage.limit_megabytes} MB (${plan.storage.percent_used}%) on ${UI.escapeHtml(plan.storage.provider_label || 'the active database provider')} — ${plan.storage.status === 'OK' ? 'plenty of room' : plan.storage.status.toLowerCase()}</div>
         </div>
       ` : '<p style="font-size:13px;">Storage usage is not available on this deployment.</p>'}
     </div>
@@ -317,7 +317,7 @@ async function renderPlan(view) {
         <h3 style="margin-top:0;">Owner Data Management</h3>
         <p class="page-subtitle">Use this only after exporting the reports or backup you must retain. You can preview and permanently delete a selected period, clear business data while retaining accounts and branches, or start over and remove Manager and Staff credentials. General Managers receive capacity warnings but cannot use this control.</p>
         ${dataManagement && dataManagement.storage && dataManagement.storage.available ? `
-          <div style="font-size:13px;margin:0 0 10px;"><strong>Live data estimate:</strong> ${dataManagement.storage.megabytes} MB of ${dataManagement.storage.limit_megabytes} MB (${dataManagement.storage.percent_used}%). This does not guarantee that Cloudflare immediately reduces physical allocation after a delete.</div>
+          <div style="font-size:13px;margin:0 0 10px;"><strong>Live data estimate:</strong> ${dataManagement.storage.megabytes} MB of ${dataManagement.storage.limit_megabytes} MB (${dataManagement.storage.percent_used}%) on ${UI.escapeHtml(dataManagement.storage.provider_label || 'the active database provider')}. This does not guarantee that the provider immediately reduces physical allocation after a delete.</div>
         ` : '<div style="font-size:13px;margin:0 0 10px;">Storage status is temporarily unavailable; deletion remains permanently destructive.</div>'}
         <button class="btn btn-danger" id="owner-data-management">Review data-management options</button>
         ${dataManagement && dataManagement.recent_cleanups && dataManagement.recent_cleanups.length ? `
@@ -496,7 +496,7 @@ async function openOwnerDataManagement() {
     <h2 style="margin-top:0;color:var(--red-600);">Owner Data Management</h2>
     <p class="page-subtitle">This is a permanent hard-delete process, not an archive. Download/verify required reports or a backup first. Sync every active device before continuing: known offline queues block this action, and older queued items are quarantined for review after any cleanup rather than being allowed to recreate records. Check your accountant, tax adviser and applicable pharmacy/controlled-drug record-retention obligations before you continue.</p>
     <div class="card" style="border-left:4px solid var(--amber-500);background:var(--tint-amber);margin:12px 0;">
-      <strong>Storage reality:</strong> deleting rows reduces the active-data estimate, but Cloudflare controls physical database allocation. Do not use deletion as the only capacity plan when storage is critical.
+      <strong>Storage reality:</strong> deleting rows reduces the active-data estimate, but the active database provider controls physical allocation. Do not use deletion as the only capacity plan when storage is critical.
     </div>
     <div class="form-row">
       <label for="dm-mode">What do you want to remove?</label>
