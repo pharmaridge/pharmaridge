@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, managerOnly, resolveScopedBranchId } = require('../lib/auth');
 const { getClientSettings, activeBranchCount, activeStaffCount, effectiveMaxBranches, contactLine } = require('../lib/planLimits');
@@ -15,7 +16,7 @@ dashboard.use('*', authRequired);
 const TODAY_WAT = "date('now', '+1 hours')";
 
 dashboard.get('/summary', async (c) => {
-  const db = c.env.DB;
+  const db = database(c);
   const branchId = resolveScopedBranchId(c);
 
   const salesToday = branchId
@@ -87,7 +88,7 @@ dashboard.get('/summary', async (c) => {
 dashboard.get('/license-expiry-alerts', async (c) => {
   const branchId = resolveScopedBranchId(c);
   const sql = branchId ? 'SELECT * FROM v_license_expiry_alerts WHERE branch_id = ?' : 'SELECT * FROM v_license_expiry_alerts';
-  const { results } = branchId ? await c.env.DB.prepare(sql).bind(branchId).all() : await c.env.DB.prepare(sql).all();
+  const { results } = branchId ? await database(c).prepare(sql).bind(branchId).all() : await database(c).prepare(sql).all();
   return c.json(results);
 });
 
@@ -96,7 +97,7 @@ dashboard.get('/void-audit', async (c) => {
   const sql = branchId
     ? 'SELECT * FROM v_void_audit_by_user WHERE branch_id = ? ORDER BY void_rate_pct DESC'
     : 'SELECT * FROM v_void_audit_by_user ORDER BY void_rate_pct DESC';
-  const { results } = branchId ? await c.env.DB.prepare(sql).bind(branchId).all() : await c.env.DB.prepare(sql).all();
+  const { results } = branchId ? await database(c).prepare(sql).bind(branchId).all() : await database(c).prepare(sql).all();
   return c.json(results);
 });
 
@@ -133,8 +134,8 @@ dashboard.get('/unreconciled-cash', managerOnly, async (c) => {
     LIMIT 200
   `;
   const { results } = branchId
-    ? await c.env.DB.prepare(sql).bind(branchId).all()
-    : await c.env.DB.prepare(sql).all();
+    ? await database(c).prepare(sql).bind(branchId).all()
+    : await database(c).prepare(sql).all();
   const total = (results || []).reduce((sum, r) => sum + Number(r.cash_amount || 0), 0);
   return c.json({
     count: (results || []).length,
@@ -144,7 +145,7 @@ dashboard.get('/unreconciled-cash', managerOnly, async (c) => {
 });
 
 dashboard.get('/branches-breakdown', managerOnly, async (c) => {
-  const db = c.env.DB;
+  const db = database(c);
   // CLOUDFLARE FREE-TIER SUBREQUEST SAFETY NET (found and fixed during a
   // production audit — same bug class as the sales engine's Bugs 1/2 and
   // the stocktake-close bug): this endpoint previously issued 2 D1 reads
@@ -183,7 +184,7 @@ dashboard.get('/sales-trend', async (c) => {
   const sql = branchId
     ? `SELECT sale_date, transaction_count, gross_sales, total_discount FROM v_daily_sales_by_branch WHERE branch_id = ? AND sale_date >= date('now', '+1 hours', ?) ORDER BY sale_date`
     : `SELECT sale_date, transaction_count, gross_sales, total_discount FROM v_daily_sales_total WHERE sale_date >= date('now', '+1 hours', ?) ORDER BY sale_date`;
-  const { results } = branchId ? await c.env.DB.prepare(sql).bind(branchId, `-${days} days`).all() : await c.env.DB.prepare(sql).bind(`-${days} days`).all();
+  const { results } = branchId ? await database(c).prepare(sql).bind(branchId, `-${days} days`).all() : await database(c).prepare(sql).bind(`-${days} days`).all();
   return c.json(results);
 });
 
@@ -191,7 +192,7 @@ dashboard.get('/sales-trend', async (c) => {
 // limits/usage/subscription status — see the write-up below's /plan
 // endpoint for the full rationale.
 dashboard.get('/plan', managerOnly, async (c) => {
-  const db = c.env.DB;
+  const db = database(c);
   const settings = await getClientSettings(db);
   const branchesUsed = await activeBranchCount(db);
   const staffUsed = await activeStaffCount(db);

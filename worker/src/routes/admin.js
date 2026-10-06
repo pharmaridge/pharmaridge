@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, adminOnly } = require('../lib/auth');
 const { getClientSettings, activeBranchCount, activeStaffCount, effectiveMaxBranches } = require('../lib/planLimits');
@@ -69,13 +70,13 @@ async function downgradeConflict(db, settings, body) {
 }
 
 admin.get('/settings', async (c) => {
-  const db = c.env.DB;
+  const db = database(c);
   const settings = await getClientSettings(db);
   return c.json({ ...settings, usage: await usageSnapshot(db, settings) });
 });
 
 admin.put('/settings', async (c) => {
-  const db = c.env.DB;
+  const db = database(c);
   const user = c.get('user');
   const body = await readJsonBody(c);
   const updates = EDITABLE_FIELDS.filter((f) => body[f] !== undefined);

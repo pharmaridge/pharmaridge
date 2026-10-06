@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, resolveScopedBranchId, assertBranchAccess, assertBranchActive, assertNotVendorSeat, resolveMutationBranchId } = require('../lib/auth');
 const { assertManagerPermission, assertStaffCanVoid } = require('../lib/planLimits');
@@ -38,7 +39,7 @@ sales.get('/', async (c) => {
   sql += ' ORDER BY s.created_at DESC LIMIT ?';
   params.push(limit);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
@@ -68,12 +69,12 @@ sales.get('/category-summary', async (c) => {
   if (to) { sql += ' AND s.created_at <= ?'; params.push(to); }
   if (retailCategory) { sql += ' AND si.retail_category = ?'; params.push(retailCategory); }
   sql += ' GROUP BY si.retail_category ORDER BY gross_sales DESC, si.retail_category';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
 sales.get('/:id', async (c) => {
-  const sale = await salesService.getSaleReceipt(c.env.DB, c.req.param('id'));
+  const sale = await salesService.getSaleReceipt(database(c), c.req.param('id'));
   if (!sale) return c.json({ error: 'Sale not found' }, 404);
   try {
     assertBranchAccess(c, sale.branch_id);
@@ -98,7 +99,7 @@ sales.post('/', idempotent, async (c) => {
   if (!branchId) return c.json({ error: 'branch_id is required' }, 400);
 
   try {
-    await assertBranchActive(c.env.DB, branchId, 'record a sale');
+    await assertBranchActive(database(c), branchId, 'record a sale');
     // DATA-INTEGRITY: see the identical fix + full exploit write-up in the
     // original design — an explicitly- provided till_session_id that does not
     // correspond to a currently-OPEN session for this branch (nonexistent, or
@@ -111,11 +112,11 @@ sales.post('/', idempotent, async (c) => {
     // a raw D1 foreign-key error.
     let tillSessionId = body.till_session_id || null;
     if (tillSessionId) {
-      const stillOpen = await c.env.DB.prepare(`SELECT id FROM till_sessions WHERE id = ? AND branch_id = ? AND status = 'OPEN' AND is_deleted = 0`).bind(tillSessionId, branchId).first();
+      const stillOpen = await database(c).prepare(`SELECT id FROM till_sessions WHERE id = ? AND branch_id = ? AND status = 'OPEN' AND is_deleted = 0`).bind(tillSessionId, branchId).first();
       if (!stillOpen) tillSessionId = null;
     }
     if (!tillSessionId) {
-      const openTill = await c.env.DB.prepare(`SELECT id FROM till_sessions WHERE branch_id = ? AND status = 'OPEN' AND is_deleted = 0`).bind(branchId).first();
+      const openTill = await database(c).prepare(`SELECT id FROM till_sessions WHERE branch_id = ? AND status = 'OPEN' AND is_deleted = 0`).bind(branchId).first();
       tillSessionId = openTill ? openTill.id : null;
     }
 
@@ -166,7 +167,7 @@ sales.post('/', idempotent, async (c) => {
       }, 409);
     }
 
-    const receipt = await salesService.createSale(c.env.DB, {
+    const receipt = await salesService.createSale(database(c), {
       branchId,
       servedBy: user.id,
       // BUG 83: the credit-limit override is manager-and-above only, so the
@@ -216,9 +217,9 @@ sales.post('/:id/void', async (c) => {
     // withhold void authority from managers. Voiding reverses revenue and
     // COGS in the GL, so it is the highest-risk routine manager action.
     // OWNER and ADMIN are never restricted.
-    const permErr = await assertManagerPermission(c.env.DB, user, 'managers_can_void_sales');
+    const permErr = await assertManagerPermission(database(c), user, 'managers_can_void_sales');
     if (permErr) return c.json({ error: permErr.message, code: permErr.code }, permErr.status);
-    const sale = await c.env.DB.prepare(
+    const sale = await database(c).prepare(
       'SELECT branch_id, served_by, created_at, till_session_id FROM sales WHERE id = ? AND is_deleted = 0'
     ).bind(c.req.param('id')).first();
     if (!sale) return c.json({ error: 'Sale not found' }, 404);
@@ -234,7 +235,7 @@ sales.post('/:id/void', async (c) => {
     // may void their OWN sale, inside a short window, while the till is
     // still open. Everything else needs a manager. See
     // lib/planLimits.assertStaffCanVoid.
-    const staffErr = await assertStaffCanVoid(c.env.DB, user, sale);
+    const staffErr = await assertStaffCanVoid(database(c), user, sale);
     if (staffErr) return c.json({ error: staffErr.message, code: staffErr.code }, staffErr.status);
 
     // BUG 80 — A CASH REVERSAL WITH NO EXPLANATION.
@@ -263,7 +264,7 @@ sales.post('/:id/void', async (c) => {
         code: 'VOID_REASON_REQUIRED',
       }, 400);
     }
-    const receipt = await salesService.voidSale(c.env.DB, c.req.param('id'), user.id, voidReason);
+    const receipt = await salesService.voidSale(database(c), c.req.param('id'), user.id, voidReason);
     return c.json(receipt);
   } catch (e) {
     return c.json({ error: e.message }, e.status || 400);

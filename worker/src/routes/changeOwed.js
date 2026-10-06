@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { withD1Retry } = require('../lib/d1Retry');
 const { idempotent } = require('../lib/idempotency');
@@ -16,7 +17,7 @@ changeOwed.use('*', authRequired);
 // number can be used to pay the customer change".
 changeOwed.get('/', async (c) => {
   const branchId = resolveScopedBranchId(c);
-  const claims = await changeOwedService.findClaims(c.env.DB, {
+  const claims = await changeOwedService.findClaims(database(c), {
     branchId,
     query: c.req.query('q'),
     status: c.req.query('status') || 'OUTSTANDING',
@@ -28,12 +29,12 @@ changeOwed.get('/', async (c) => {
 // Totals for the dashboard tile and the till screen.
 changeOwed.get('/summary', async (c) => {
   const branchId = resolveScopedBranchId(c);
-  return c.json(await changeOwedService.outstandingTotal(c.env.DB, branchId));
+  return c.json(await changeOwedService.outstandingTotal(database(c), branchId));
 });
 
 // Single claim by its 7-digit code — the fast counter path.
 changeOwed.get('/code/:code', async (c) => {
-  const claim = await changeOwedService.getClaimByCode(c.env.DB, c.req.param('code'));
+  const claim = await changeOwedService.getClaimByCode(database(c), c.req.param('code'));
   if (!claim) {
     return c.json({
       error: 'No change claim found with that code. Try searching by the customer\'s name or phone number instead.',
@@ -61,7 +62,7 @@ changeOwed.post('/:id/settle', idempotent, async (c) => {
   const unknown = rejectUnknownFields(body, ['method', 'notes', 'applied_sale_id'], { label: 'settling a change claim' });
   if (unknown) return c.json(unknown, 400);
 
-  const claim = await changeOwedService.getClaim(c.env.DB, c.req.param('id'));
+  const claim = await changeOwedService.getClaim(database(c), c.req.param('id'));
   const err = changeOwedService.assertSettleable(claim);
   if (err) return c.json({ error: err.message, code: err.code }, err.status);
 
@@ -76,7 +77,7 @@ changeOwed.post('/:id/settle', idempotent, async (c) => {
     }, 400);
   }
 
-  const statements = [c.env.DB.prepare(`
+  const statements = [database(c).prepare(`
     UPDATE change_owed
        SET status = 'SETTLED', settlement_method = ?, settled_sale_id = ?, settled_at = datetime('now'),
            settled_by = ?, settled_notes = ?, updated_at = datetime('now')
@@ -84,15 +85,15 @@ changeOwed.post('/:id/settle', idempotent, async (c) => {
   `).bind(method, method === 'APPLIED_TO_SALE' ? body.applied_sale_id : null,
     user.id, (body.notes || '').trim() || null, claim.id)];
 
-  const gl = await glService.postChangeSettlement(c.env.DB, {
+  const gl = await glService.postChangeSettlement(database(c), {
     branchId: claim.branch_id, claimId: claim.id, settledBy: user.id,
     amount: claim.amount, appliedToSale: method === 'APPLIED_TO_SALE',
   });
   // `{ entryId, statements }`, not an array — see the note in salesService.
   if (gl && gl.statements) statements.push(...gl.statements);
 
-  await withD1Retry(() => c.env.DB.batch(statements), 'change settle');
-  const updated = await changeOwedService.getClaim(c.env.DB, claim.id);
+  await withD1Retry(() => database(c).batch(statements), 'change settle');
+  const updated = await changeOwedService.getClaim(database(c), claim.id);
   return c.json({
     ...updated,
     receipt: {
@@ -133,22 +134,22 @@ changeOwed.post('/:id/write-off', ownerOnly, async (c) => {
     }, 400);
   }
 
-  const claim = await changeOwedService.getClaim(c.env.DB, c.req.param('id'));
+  const claim = await changeOwedService.getClaim(database(c), c.req.param('id'));
   const err = changeOwedService.assertSettleable(claim);
   if (err) return c.json({ error: err.message, code: err.code }, err.status);
 
-  const statements = [c.env.DB.prepare(`
+  const statements = [database(c).prepare(`
     UPDATE change_owed
        SET status = 'WRITTEN_OFF', settlement_method = 'WRITTEN_OFF', settled_at = datetime('now'),
            settled_by = ?, settled_notes = ?, updated_at = datetime('now')
      WHERE id = ? AND status = 'OUTSTANDING' AND is_deleted = 0
   `).bind(user.id, reason, claim.id)];
-  const gl = await glService.postChangeWriteOff(c.env.DB, {
+  const gl = await glService.postChangeWriteOff(database(c), {
     branchId: claim.branch_id, claimId: claim.id, writtenOffBy: user.id, amount: claim.amount,
   });
   if (gl && gl.statements) statements.push(...gl.statements);
-  await withD1Retry(() => c.env.DB.batch(statements), 'change write-off');
-  return c.json(await changeOwedService.getClaim(c.env.DB, claim.id));
+  await withD1Retry(() => database(c).batch(statements), 'change write-off');
+  return c.json(await changeOwedService.getClaim(database(c), claim.id));
 });
 
 module.exports = changeOwed;

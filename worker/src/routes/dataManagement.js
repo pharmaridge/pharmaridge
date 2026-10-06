@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 // OWNER DATA MANAGEMENT — deliberate, guarded data removal.
 //
 // A database-size warning must not trap a proprietor with no controlled way to
@@ -438,7 +439,7 @@ async function recentLog(db) {
 
 dataManagement.get('/status', async (c) => {
   if (!ownerOperationGuard(c)) return c.json({ error: 'Only the pharmacy Owner can view data-management controls.' }, 403);
-  const db = c.env.DB;
+  const db = database(c);
   return c.json({
     storage: await getStorageHealth(db),
     recent_cleanups: await recentLog(db),
@@ -453,7 +454,7 @@ dataManagement.get('/preview', async (c) => {
     end_date: c.req.query('end_date'),
   });
   if (scope.error) return c.json({ error: scope.error }, 400);
-  return c.json(await makePreview(c.env.DB, scope));
+  return c.json(await makePreview(database(c), scope));
 });
 
 dataManagement.post('/purge', async (c) => {
@@ -473,7 +474,7 @@ dataManagement.post('/purge', async (c) => {
     return c.json({ error: 'Confirm that required exports/backups were checked and that you understand the retention warning before continuing.' }, 400);
   }
 
-  const db = c.env.DB;
+  const db = database(c);
   // Recalculate at execution time. A preview is intentionally only advice:
   // someone can record a sale after previewing but before submitting.
   const preview = await makePreview(db, scope);

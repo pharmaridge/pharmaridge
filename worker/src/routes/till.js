@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, assertBranchAccess, assertBranchActive, ForbiddenError, assertNotVendorSeat, resolveMutationBranchId, resolveScopedBranchId } = require('../lib/auth');
 const { idempotent } = require('../lib/idempotency');
@@ -12,7 +13,7 @@ till.get('/current', async (c) => {
   const user = c.get('user');
   const branchId = resolveScopedBranchId(c);
   if (!branchId) return c.json({ error: 'branch_id is required' }, 400);
-  const row = await c.env.DB.prepare(`
+  const row = await database(c).prepare(`
     SELECT t.*, u.full_name AS opened_by_name
     FROM till_sessions t JOIN users u ON u.id = t.opened_by
     WHERE t.branch_id = ? AND t.status = 'OPEN' AND t.is_deleted = 0
@@ -33,7 +34,7 @@ till.get('/', async (c) => {
   const params = [];
   if (branchId) { sql += ' AND t.branch_id = ?'; params.push(branchId); }
   sql += ' ORDER BY t.opened_at DESC LIMIT 100';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
@@ -57,8 +58,8 @@ till.post('/open', async (c) => {
     return c.json({ error: 'opening_cash must be a non-negative number' }, 400);
   }
   try {
-    await assertBranchActive(c.env.DB, branchId, 'open a till');
-    const result = await tillService.openTill(c.env.DB, { branchId, openedBy: user.id, openingCash: body.opening_cash || 0 });
+    await assertBranchActive(database(c), branchId, 'open a till');
+    const result = await tillService.openTill(database(c), { branchId, openedBy: user.id, openingCash: body.opening_cash || 0 });
     return c.json(result, 201);
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || (e.code ? 409 : 400));
@@ -74,7 +75,7 @@ till.post('/:id/close', idempotent, async (c) => {
   const user = c.get('user');
   const body = await readJsonBody(c);
   try {
-    const till_ = await c.env.DB.prepare('SELECT branch_id, opened_by, status FROM till_sessions WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
+    const till_ = await database(c).prepare('SELECT branch_id, opened_by, status FROM till_sessions WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
     if (!till_) return c.json({ error: 'Till session not found' }, 404);
     assertBranchAccess(c, till_.branch_id);
 
@@ -138,7 +139,7 @@ till.post('/:id/close', idempotent, async (c) => {
       }
     }
 
-    const result = await tillService.closeTill(c.env.DB, {
+    const result = await tillService.closeTill(database(c), {
       tillSessionId: c.req.param('id'), closedBy: user.id, countedClosingCash: body.counted_closing_cash, notes: body.notes,
       forceClose: isForceClose, forceReason: body.force_reason,
     });
@@ -150,10 +151,10 @@ till.post('/:id/close', idempotent, async (c) => {
 
 till.get('/:id/expected', async (c) => {
   try {
-    const till_ = await c.env.DB.prepare('SELECT branch_id FROM till_sessions WHERE id = ?').bind(c.req.param('id')).first();
+    const till_ = await database(c).prepare('SELECT branch_id FROM till_sessions WHERE id = ?').bind(c.req.param('id')).first();
     if (!till_) return c.json({ error: 'Till session not found' }, 404);
     assertBranchAccess(c, till_.branch_id);
-    const expected = await tillService.computeExpectedCash(c.env.DB, c.req.param('id'));
+    const expected = await tillService.computeExpectedCash(database(c), c.req.param('id'));
     return c.json({ expected_closing_cash: expected });
   } catch (e) {
     return c.json({ error: e.message }, e.status || 400);

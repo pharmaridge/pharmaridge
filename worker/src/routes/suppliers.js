@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, managerOnly } = require('../lib/auth');
 const { uuid } = require('../lib/crypto');
@@ -49,7 +50,7 @@ suppliers.get('/', async (c) => {
   // DATA-SAFETY — this previously had no limit at
   // all, unlike every comparable master-data listing endpoint in the app.
   const columns = isManagerish ? '*' : 'id, name';
-  const { results } = await c.env.DB
+  const { results } = await database(c)
     .prepare(`SELECT ${columns} FROM suppliers WHERE is_deleted = 0 ORDER BY name LIMIT 500`)
     .all();
   return c.json(results);
@@ -59,21 +60,21 @@ suppliers.post('/', managerOnly, async (c) => {
   const body = await readJsonBody(c);
   if (!body.name) return c.json({ error: 'name is required' }, 400);
   const id = uuid();
-  await c.env.DB.prepare('INSERT INTO suppliers (id, name, phone, address) VALUES (?,?,?,?)').bind(id, body.name, body.phone || null, body.address || null).run();
-  return c.json(await c.env.DB.prepare('SELECT * FROM suppliers WHERE id = ?').bind(id).first(), 201);
+  await database(c).prepare('INSERT INTO suppliers (id, name, phone, address) VALUES (?,?,?,?)').bind(id, body.name, body.phone || null, body.address || null).run();
+  return c.json(await database(c).prepare('SELECT * FROM suppliers WHERE id = ?').bind(id).first(), 201);
 });
 
 suppliers.put('/:id', managerOnly, async (c) => {
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM suppliers WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const existing = await database(c).prepare('SELECT * FROM suppliers WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!existing) return c.json({ error: 'Supplier not found' }, 404);
   const body = await readJsonBody(c);
   const fields = ['name', 'phone', 'address'];
   const updates = fields.filter((f) => body[f] !== undefined);
   if (updates.length) {
-    await c.env.DB.prepare(`UPDATE suppliers SET ${updates.map((f) => f + ' = ?').join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...updates.map((f) => body[f]), id).run();
+    await database(c).prepare(`UPDATE suppliers SET ${updates.map((f) => f + ' = ?').join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...updates.map((f) => body[f]), id).run();
   }
-  return c.json(await c.env.DB.prepare('SELECT * FROM suppliers WHERE id = ?').bind(id).first());
+  return c.json(await database(c).prepare('SELECT * FROM suppliers WHERE id = ?').bind(id).first());
 });
 
 module.exports = suppliers;

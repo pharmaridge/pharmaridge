@@ -6,6 +6,8 @@ const { pruneSyncChangeLog, pruneLoginAttempts, pruneReviewedSyncConflicts } = r
 const { getStorageHealth } = require('./lib/storageHealth');
 const { authRequired } = require('./lib/auth');
 const { subscriptionGate, getClientSettings } = require('./lib/planLimits');
+const { getDatabase } = require('./lib/databaseAdapter');
+const { database } = require('./lib/database');
 
 
 const app = new Hono();
@@ -126,6 +128,19 @@ app.use('*', async (c, next) => {
   return next();
 });
 
+// Database-provider seam. Every request receives either the native D1 binding
+// (the default) or, only after an explicit future provider switch, the Turso
+// adapter. Routes use lib/database.js rather than reaching into c.env directly,
+// so provider selection is centralised and cannot drift endpoint by endpoint.
+app.use('*', async (c, next) => {
+  try {
+    c.set('database', getDatabase(c.env));
+  } catch (error) {
+    return c.json({ error: `Database configuration is invalid: ${error.message}`, code: 'DATABASE_CONFIGURATION_ERROR' }, 503);
+  }
+  return next();
+});
+
 // Health check deliberately reports configuration status so an operator
 // can verify a deployment BEFORE handing it to a pharmacy. It never
 // echoes the secret itself — only whether it passes the checks above.
@@ -136,7 +151,7 @@ app.get('/api/health', async (c) => c.json({
   // Storage headroom: D1 Free caps a database at 500MB, and at that
   // ceiling WRITES FAIL while reads keep working — a pharmacy would
   // silently stop being able to record sales. See lib/storageHealth.js.
-  storage: await getStorageHealth(c.env.DB),
+  storage: await getStorageHealth(database(c)),
   time: new Date().toISOString(),
 }));
 
@@ -177,7 +192,7 @@ function toHomeScreenLabel(businessName) {
 }
 
 app.get('/api/manifest.json', async (c) => {
-  const settings = await getClientSettings(c.env.DB);
+  const settings = await getClientSettings(database(c));
 
   const name = settings.business_name ? `${settings.business_name} — Powered by PharmaRidge` : 'PharmaRidge';
 
@@ -296,7 +311,7 @@ app.use('/api/*', async (c, next) => {
 // carries no X-Offline-Replay header and is unaffected.
 app.use('/api/*', async (c, next) => {
   if (c.req.header('X-Offline-Replay') !== '1') return next();
-  const settings = await getClientSettings(c.env.DB);
+  const settings = await getClientSettings(database(c));
   if (!settings.data_reset_at) return next();
   const rawQueuedAt = c.req.header('X-Offline-Queued-At');
   const queuedAt = rawQueuedAt ? Date.parse(rawQueuedAt) : NaN;

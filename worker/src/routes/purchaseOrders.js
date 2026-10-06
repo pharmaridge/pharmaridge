@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { withD1Retry } = require('../lib/d1Retry');
 const { idempotent } = require('../lib/idempotency');
@@ -42,7 +43,7 @@ purchaseOrders.get('/', async (c) => {
   if (branchId) { sql += ' AND po.branch_id = ?'; params.push(branchId); }
   sql += ' ORDER BY po.ordered_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
@@ -53,7 +54,7 @@ purchaseOrders.get('/:id', async (c) => {
   // the printed copy has blank Supplier and Branch fields. Joined here rather
   // than fetched separately by the frontend, which would cost extra
   // subrequests per view against the Workers free-plan budget.
-  const po = await c.env.DB.prepare(`
+  const po = await database(c).prepare(`
     SELECT po.*, s.name AS supplier_name, s.phone AS supplier_phone, s.address AS supplier_address,
            b.name AS branch_name, u.full_name AS ordered_by_name
     FROM purchase_orders po
@@ -68,14 +69,14 @@ purchaseOrders.get('/:id', async (c) => {
   } catch (e) {
     return c.json({ error: e.message }, e.status || 403);
   }
-  const { results: items } = await c.env.DB.prepare(`
+  const { results: items } = await database(c).prepare(`
     SELECT poi.*, p.name AS product_name FROM purchase_order_items poi JOIN products p ON p.id = poi.product_id
     WHERE poi.purchase_order_id = ? AND poi.is_deleted = 0
   `).bind(id).all();
   // Receiving history — one row per actual delivery event — see the
   // identical field + rationale in the original design's partial-receiving
   // write-up.
-  const { results: receipts } = await c.env.DB.prepare(`
+  const { results: receipts } = await database(c).prepare(`
     SELECT por.*, u.full_name AS received_by_name FROM purchase_order_receipts por
     LEFT JOIN users u ON u.id = por.received_by
     WHERE por.purchase_order_id = ? AND por.is_deleted = 0
@@ -90,7 +91,7 @@ purchaseOrders.post('/', async (c) => {
   const branchId = resolveMutationBranchId(c, body.branch_id);
   if (!branchId) return c.json({ error: 'branch_id is required' }, 400);
   try {
-    await assertBranchActive(c.env.DB, branchId, 'create a purchase order');
+    await assertBranchActive(database(c), branchId, 'create a purchase order');
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || 403);
   }
@@ -163,7 +164,7 @@ purchaseOrders.post('/', async (c) => {
   const productById = new Map();
   for (const chunk of chunkIds(requestedProductIds)) {
     const placeholders = chunk.map(() => '?').join(',');
-    const { results } = await c.env.DB.prepare(
+    const { results } = await database(c).prepare(
       `SELECT id, is_deleted, dispensing_type FROM products WHERE id IN (${placeholders})`
     ).bind(...chunk).all();
     for (const p of results) productById.set(p.id, p);
@@ -175,7 +176,7 @@ purchaseOrders.post('/', async (c) => {
     return p && p.dispensing_type === 'POM';
   });
   if (hasPom) {
-    const branch = await c.env.DB.prepare('SELECT license_type FROM branches WHERE id = ?').bind(branchId).first();
+    const branch = await database(c).prepare('SELECT license_type FROM branches WHERE id = ?').bind(branchId).first();
     branchLicenseType = branch ? branch.license_type : null;
   }
 
@@ -199,15 +200,15 @@ purchaseOrders.post('/', async (c) => {
 
   const id = uuid();
   const statements = [
-    c.env.DB.prepare(`INSERT INTO purchase_orders (id, branch_id, supplier_id, ordered_by, notes) VALUES (?,?,?,?,?)`)
+    database(c).prepare(`INSERT INTO purchase_orders (id, branch_id, supplier_id, ordered_by, notes) VALUES (?,?,?,?,?)`)
       .bind(id, branchId, body.supplier_id || null, user.id, body.notes || null),
     ...body.items.map((it) =>
-      c.env.DB.prepare(`INSERT INTO purchase_order_items (id, purchase_order_id, product_id, quantity_ordered, expected_unit_cost) VALUES (?,?,?,?,?)`)
+      database(c).prepare(`INSERT INTO purchase_order_items (id, purchase_order_id, product_id, quantity_ordered, expected_unit_cost) VALUES (?,?,?,?,?)`)
         .bind(uuid(), id, it.product_id, it.quantity_ordered, it.expected_unit_cost || null)
     ),
   ];
-  await withD1Retry(() => c.env.DB.batch(statements), 'purchase order');
-  return c.json(await c.env.DB.prepare('SELECT * FROM purchase_orders WHERE id = ?').bind(id).first(), 201);
+  await withD1Retry(() => database(c).batch(statements), 'purchase order');
+  return c.json(await database(c).prepare('SELECT * FROM purchase_orders WHERE id = ?').bind(id).first(), 201);
 });
 
 // PARTIAL RECEIVING SUPPORT (feature added during a production audit pass
@@ -262,7 +263,7 @@ purchaseOrders.post('/', async (c) => {
 purchaseOrders.post('/:id/cancel', managerOnly, async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
-  const po = await c.env.DB.prepare('SELECT * FROM purchase_orders WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const po = await database(c).prepare('SELECT * FROM purchase_orders WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!po) return c.json({ error: 'Purchase order not found' }, 404);
   try {
     assertBranchAccess(c, po.branch_id);
@@ -315,7 +316,7 @@ purchaseOrders.post('/:id/cancel', managerOnly, async (c) => {
   // Guarded UPDATE: the WHERE clause re-asserts PENDING so two concurrent
   // cancels (or a cancel racing a receive) cannot both take effect. Same
   // compare-and-swap discipline as every other state transition here.
-  const claim = await c.env.DB.prepare(`
+  const claim = await database(c).prepare(`
     UPDATE purchase_orders
        SET status = 'CANCELLED',
            notes = TRIM(COALESCE(notes || ' | ', '') || 'Cancelled: ' || ?),
@@ -329,17 +330,17 @@ purchaseOrders.post('/:id/cancel', managerOnly, async (c) => {
     }, 409);
   }
 
-  return c.json(await c.env.DB.prepare('SELECT * FROM purchase_orders WHERE id = ?').bind(id).first());
+  return c.json(await database(c).prepare('SELECT * FROM purchase_orders WHERE id = ?').bind(id).first());
 });
 
 purchaseOrders.post('/:id/receive', idempotent, async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
-  const po = await c.env.DB.prepare('SELECT * FROM purchase_orders WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const po = await database(c).prepare('SELECT * FROM purchase_orders WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!po) return c.json({ error: 'Purchase order not found' }, 404);
   try {
     assertBranchAccess(c, po.branch_id);
-    await assertBranchActive(c.env.DB, po.branch_id, 'receive a purchase order');
+    await assertBranchActive(database(c), po.branch_id, 'receive a purchase order');
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || 403);
   }
@@ -461,7 +462,7 @@ purchaseOrders.post('/:id/receive', idempotent, async (c) => {
   // a first-ever delivery workable. Only a genuine price CHANGE is
   // refused.
   {
-    const permErr = await assertManagerPermission(c.env.DB, user, 'managers_can_edit_prices');
+    const permErr = await assertManagerPermission(database(c), user, 'managers_can_edit_prices');
     if (permErr) {
       // Owner-set branch prices take precedence, then the product's
       // current batch price. Loaded in ONE query per source to stay well
@@ -470,12 +471,12 @@ purchaseOrders.post('/:id/receive', idempotent, async (c) => {
       const allowed = new Map();
       for (const chunk of chunkIds(productIds, 1)) {
         const ph = chunk.map(() => '?').join(',');
-        const { results: overrides } = await c.env.DB.prepare(`
+        const { results: overrides } = await database(c).prepare(`
           SELECT product_id, default_selling_price FROM product_price_overrides
            WHERE branch_id = ? AND product_id IN (${ph}) AND is_deleted = 0
         `).bind(po.branch_id, ...chunk).all();
         for (const r of overrides) allowed.set(r.product_id, r.default_selling_price);
-        const { results: batches } = await c.env.DB.prepare(`
+        const { results: batches } = await database(c).prepare(`
           SELECT product_id, MAX(selling_price_per_unit) AS p FROM stock_batches
            WHERE branch_id = ? AND product_id IN (${ph}) AND is_deleted = 0
            GROUP BY product_id
@@ -523,7 +524,7 @@ purchaseOrders.post('/:id/receive', idempotent, async (c) => {
   const distinctProductIds = [...requestedByProduct.keys()];
   for (const chunk of chunkIds(distinctProductIds, 1)) {
     const placeholders = chunk.map(() => '?').join(',');
-    const { results: rows } = await c.env.DB.prepare(`
+    const { results: rows } = await database(c).prepare(`
       SELECT * FROM purchase_order_items
       WHERE purchase_order_id = ? AND product_id IN (${placeholders}) AND is_deleted = 0
       ORDER BY id
@@ -548,7 +549,7 @@ purchaseOrders.post('/:id/receive', idempotent, async (c) => {
   const statements = [];
   for (const b of body.batches) {
     const batchId = uuid();
-    statements.push(c.env.DB.prepare(`
+    statements.push(database(c).prepare(`
       INSERT INTO stock_batches (id, branch_id, product_id, batch_no, expiry_date, quantity_received, quantity_remaining, cost_price_per_unit, selling_price_per_unit, pack_price, carton_price, supplier_id, purchase_order_id, received_by,
                                  received_unit, received_unit_count, units_per_pack_at_receipt, packs_per_carton_at_receipt, selling_pattern, total_cost)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -581,19 +582,19 @@ purchaseOrders.post('/:id/receive', idempotent, async (c) => {
       const availableOnThisRow = row.quantity_ordered - row.quantity_received;
       if (availableOnThisRow <= 0) continue;
       const applyToThisRow = Math.min(availableOnThisRow, remainingToApply);
-      statements.push(c.env.DB.prepare(`UPDATE purchase_order_items SET quantity_received = quantity_received + ?, updated_at = datetime('now') WHERE id = ?`).bind(applyToThisRow, row.id));
+      statements.push(database(c).prepare(`UPDATE purchase_order_items SET quantity_received = quantity_received + ?, updated_at = datetime('now') WHERE id = ?`).bind(applyToThisRow, row.id));
       remainingToApply -= applyToThisRow;
     }
   }
 
   const receiptId = uuid();
-  statements.push(c.env.DB.prepare(`
+  statements.push(database(c).prepare(`
     INSERT INTO purchase_order_receipts (id, purchase_order_id, received_by, on_credit, total_cost)
     VALUES (?,?,?,?,?)
   `).bind(receiptId, po.id, user.id, body.on_credit && po.supplier_id ? 1 : 0, totalCost));
 
   if (body.on_credit && po.supplier_id) {
-    statements.push(c.env.DB.prepare(`
+    statements.push(database(c).prepare(`
       INSERT INTO creditor_ledger (id, branch_id, supplier_id, purchase_order_id, entry_type, amount, recorded_by, notes) VALUES (?,?,?,?,'DEBIT',?,?,'Stock received on credit')
     `).bind(uuid(), po.branch_id, po.supplier_id, po.id, totalCost, user.id));
   }
@@ -623,7 +624,7 @@ purchaseOrders.post('/:id/receive', idempotent, async (c) => {
       }, 400);
     }
     try {
-      deduction = await wht.resolveDeduction(c.env.DB, {
+      deduction = await wht.resolveDeduction(database(c), {
         grossAmount: totalCost,
         rateCode: body.wht_rate_code,
         ratePercentOverride: body.wht_rate_percent,
@@ -636,9 +637,9 @@ purchaseOrders.post('/:id/receive', idempotent, async (c) => {
 
   if (deduction) {
     const supplierRow = po.supplier_id
-      ? await c.env.DB.prepare('SELECT name FROM suppliers WHERE id = ?').bind(po.supplier_id).first()
+      ? await database(c).prepare('SELECT name FROM suppliers WHERE id = ?').bind(po.supplier_id).first()
       : null;
-    statements.push(wht.buildEntryStatement(c.env.DB, {
+    statements.push(wht.buildEntryStatement(database(c), {
       id: uuid(), branchId: po.branch_id, direction: 'PAYABLE', sourceType: 'PO_RECEIVE', sourceId: receiptId,
       deduction,
       supplierId: po.supplier_id || null,
@@ -654,7 +655,7 @@ purchaseOrders.post('/:id/receive', idempotent, async (c) => {
   // Payable credited if on supplier credit, else Cash credited by the NET
   // with WHT Payable credited the remainder.
   if (totalCost > 0) {
-    const glResult = await glService.postPoReceive(c.env.DB, {
+    const glResult = await glService.postPoReceive(database(c), {
       branchId: po.branch_id, poId: receiptId, receivedBy: user.id, totalCost,
       onCredit,
       whtAmount: deduction ? deduction.wht : 0,
@@ -668,7 +669,7 @@ purchaseOrders.post('/:id/receive', idempotent, async (c) => {
   // this same batch (i.e. AFTER every increment above has already
   // applied), not from any earlier, possibly-stale read. This is the
   // exact transition this route could never previously reach.
-  statements.push(c.env.DB.prepare(`
+  statements.push(database(c).prepare(`
     UPDATE purchase_orders
     SET status = CASE
           WHEN (SELECT COUNT(*) FROM purchase_order_items WHERE purchase_order_id = ? AND is_deleted = 0 AND quantity_received < quantity_ordered) = 0
@@ -679,14 +680,14 @@ purchaseOrders.post('/:id/receive', idempotent, async (c) => {
   `).bind(po.id, po.id));
 
   try {
-    await withD1Retry(() => c.env.DB.batch(statements), 'purchase order');
+    await withD1Retry(() => database(c).batch(statements), 'purchase order');
   } catch (e) {
     if (String(e.message).includes('CHECK constraint')) {
       return c.json({ error: 'This purchase order was received by another request at the same time and can no longer accept this delivery as specified — please refresh and try again.' }, 409);
     }
     throw e;
   }
-  return c.json(await c.env.DB.prepare('SELECT * FROM purchase_orders WHERE id = ?').bind(po.id).first());
+  return c.json(await database(c).prepare('SELECT * FROM purchase_orders WHERE id = ?').bind(po.id).first());
 });
 
 module.exports = purchaseOrders;

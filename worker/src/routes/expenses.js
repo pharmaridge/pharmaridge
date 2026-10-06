@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { withD1Retry } = require('../lib/d1Retry');
 const { authRequired, managerOnly, assertBranchActive, resolveMutationBranchId, resolveScopedBranchId, assertBranchAccess } = require('../lib/auth');
@@ -29,7 +30,7 @@ expenses.get('/', managerOnly, async (c) => {
   const params = [];
   if (branchId) { sql += ' AND e.branch_id = ?'; params.push(branchId); }
   sql += ' ORDER BY e.expense_date DESC LIMIT 200';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
@@ -87,12 +88,12 @@ expenses.post('/', idempotent, async (c) => {
   // drawer reconciliation may claim it. See tillService.computeExpectedCash.
   let noDrawerAtRecordTime = false;
   if (drawerPart) {
-    const openTill = await c.env.DB.prepare(
+    const openTill = await database(c).prepare(
       `SELECT id FROM till_sessions WHERE branch_id = ? AND status = 'OPEN' AND is_deleted = 0 LIMIT 1`
     ).bind(branchId).first();
     if (!openTill) noDrawerAtRecordTime = true;
     if (openTill) {
-      const available = await tillService.computeExpectedCash(c.env.DB, openTill.id);
+      const available = await tillService.computeExpectedCash(database(c), openTill.id);
       if (drawerPart.amount > Number(available) + 0.005) {
         return c.json({
           error: `This is more cash than the drawer holds. The till has N${Number(available).toFixed(2)} `
@@ -113,13 +114,13 @@ expenses.post('/', idempotent, async (c) => {
       // CLIENT DECISION: staff MAY spend from the safe, within an allowance a
       // manager or the owner sets (and which may be set to no cap at all).
       // The original manager-only rule stopped a cashier doing their job.
-      const capped = await assertStaffSafeSpend(c.env.DB, user, safePart.amount);
+      const capped = await assertStaffSafeSpend(database(c), user, safePart.amount);
       if (capped) return c.json(capped, capped.status);
     } else {
       const denied = safeService.assertCanMoveSafe(user, branchId);
       if (denied) return c.json({ error: denied.error, code: denied.code }, denied.status);
     }
-    const short = await safeService.assertSufficientFunds(c.env.DB, branchId, safePart.amount,
+    const short = await safeService.assertSufficientFunds(database(c), branchId, safePart.amount,
       { label: 'this expense' });
     if (short) return c.json(short, short.status);
   }
@@ -132,7 +133,7 @@ expenses.post('/', idempotent, async (c) => {
   else if (cashSources.length === 1) body.paid_by_method = cashSources[0].source;
 
   try {
-    await assertBranchActive(c.env.DB, branchId, 'record an expense');
+    await assertBranchActive(database(c), branchId, 'record an expense');
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || 403);
   }
@@ -142,7 +143,7 @@ expenses.post('/', idempotent, async (c) => {
   // the CASH that leaves, never the expense itself. See lib/wht.js.
   let deduction = null;
   try {
-    deduction = await wht.resolveDeduction(c.env.DB, {
+    deduction = await wht.resolveDeduction(database(c), {
       grossAmount: body.amount,
       rateCode: body.wht_rate_code,
       ratePercentOverride: body.wht_rate_percent,
@@ -154,7 +155,7 @@ expenses.post('/', idempotent, async (c) => {
 
   const id = uuid();
   const statements = [
-    c.env.DB.prepare(`
+    database(c).prepare(`
       INSERT INTO expenses (id, branch_id, category, description, amount, paid_by_method, recorded_by, expense_date, no_open_till_at_record)
       VALUES (?,?,?,?,?,?,?, COALESCE(?, datetime('now')), ?)
     `).bind(id, branchId, body.category, body.description || null, body.amount, body.paid_by_method || null, user.id, body.expense_date || null,
@@ -179,7 +180,7 @@ expenses.post('/', idempotent, async (c) => {
     // put, and would leave the two pots disagreeing by exactly the deduction.
     const netRatio = deduction ? (deduction.net / body.amount) : 1;
     const safeOut = Math.round(safePart.amount * netRatio * 100) / 100;
-    const mv = safeService.movementStatements(c.env.DB, {
+    const mv = safeService.movementStatements(database(c), {
       branchId, entryType: 'EXPENSE_PAID', amount: safeOut,
       reason: `${body.category}${body.description ? ' — ' + body.description : ''}`
         + (drawerPart ? ` (safe share of a N${Number(body.amount).toFixed(2)} purchase)` : ''),
@@ -189,7 +190,7 @@ expenses.post('/', idempotent, async (c) => {
   }
 
   if (deduction) {
-    statements.push(wht.buildEntryStatement(c.env.DB, {
+    statements.push(wht.buildEntryStatement(database(c), {
       id: uuid(), branchId, direction: 'PAYABLE', sourceType: 'EXPENSE', sourceId: id,
       deduction,
       supplierId: body.supplier_id || null,
@@ -206,15 +207,15 @@ expenses.post('/', idempotent, async (c) => {
   // postExpense(). Appended to this same batch for atomicity, so the
   // expense, the WHT register row and the journal entry either all
   // commit or none do.
-  const glResult = await glService.postExpense(c.env.DB, {
+  const glResult = await glService.postExpense(database(c), {
     branchId, expenseId: id, recordedBy: user.id, amount: body.amount, category: body.category, paidByMethod: body.paid_by_method,
     cashSources,
     whtAmount: deduction ? deduction.wht : 0,
   });
   if (glResult) statements.push(...glResult.statements);
 
-  await withD1Retry(() => c.env.DB.batch(statements), 'expense');
-  const saved = await c.env.DB.prepare('SELECT * FROM expenses WHERE id = ?').bind(id).first();
+  await withD1Retry(() => database(c).batch(statements), 'expense');
+  const saved = await database(c).prepare('SELECT * FROM expenses WHERE id = ?').bind(id).first();
   if (deduction) {
     // Echo the split back so the UI can show the cashier exactly what left
     // the till versus what is now owed to the revenue authority, and warn
@@ -239,9 +240,9 @@ expenses.post('/:id/approve', managerOnly, async (c) => {
   // original design): approving a nonexistent expense id previously returned
   // a confusing empty-body 200 instead of a clean 404. OWNER-CONTROLLED
   // MANAGER PERMISSION (migration 0003).
-  const permErr = await assertManagerPermission(c.env.DB, user, 'managers_can_approve_expenses');
+  const permErr = await assertManagerPermission(database(c), user, 'managers_can_approve_expenses');
   if (permErr) return c.json({ error: permErr.message, code: permErr.code }, permErr.status);
-  const existing = await c.env.DB.prepare('SELECT id, branch_id FROM expenses WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const existing = await database(c).prepare('SELECT id, branch_id FROM expenses WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!existing) return c.json({ error: 'Expense not found' }, 404);
   // CROSS-BRANCH HOLE FOUND AND FIXED (live-reproduced): a MANAGER pinned
   // to Minna approved a 50,000 Lagos rent expense. Approval is what
@@ -255,8 +256,8 @@ expenses.post('/:id/approve', managerOnly, async (c) => {
   } catch (e) {
     return c.json({ error: e.message }, e.status || 403);
   }
-  await c.env.DB.prepare(`UPDATE expenses SET approved_by = ?, updated_at = datetime('now') WHERE id = ?`).bind(user.id, id).run();
-  return c.json(await c.env.DB.prepare('SELECT * FROM expenses WHERE id = ?').bind(id).first());
+  await database(c).prepare(`UPDATE expenses SET approved_by = ?, updated_at = datetime('now') WHERE id = ?`).bind(user.id, id).run();
+  return c.json(await database(c).prepare('SELECT * FROM expenses WHERE id = ?').bind(id).first());
 });
 
 module.exports = expenses;

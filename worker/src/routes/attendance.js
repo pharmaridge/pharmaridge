@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, managerOnly, assertBranchActive, assertNotVendorSeat, resolveMutationBranchId, resolveScopedBranchId, assertBranchAccess, pinnedBranchIdOf } = require('../lib/auth');
 const { requireFeature } = require('../lib/planLimits');
@@ -19,9 +20,9 @@ attendance.use('/devices/:id/revoke', requireFeature('attendance_module_enabled'
 
 attendance.get('/me/current', async (c) => {
   const user = c.get('user');
-  const open = await attendanceService.getOpenAttendance(c.env.DB, user.id);
+  const open = await attendanceService.getOpenAttendance(database(c), user.id);
   if (!open) return c.json(null);
-  return c.json(await attendanceService.getAttendance(c.env.DB, open.id));
+  return c.json(await attendanceService.getAttendance(database(c), open.id));
 });
 
 attendance.post('/clock-in', async (c) => {
@@ -36,8 +37,8 @@ attendance.post('/clock-in', async (c) => {
   const branchId = resolveMutationBranchId(c, body.branch_id);
   if (!branchId) return c.json({ error: 'branch_id is required' }, 400);
   try {
-    await assertBranchActive(c.env.DB, branchId, 'accept a clock-in');
-    const record = await attendanceService.clockIn(c.env.DB, { branchId, userId: user.id, location: body.location || null, deviceId: body.device_id || null });
+    await assertBranchActive(database(c), branchId, 'accept a clock-in');
+    const record = await attendanceService.clockIn(database(c), { branchId, userId: user.id, location: body.location || null, deviceId: body.device_id || null });
     return c.json(record, 201);
   } catch (e) {
     // PARITY FIX (found while adding branch-deactivation enforcement):
@@ -56,7 +57,7 @@ attendance.post('/:id/clock-out', async (c) => {
   const user = c.get('user');
   const body = await readJsonBody(c);
   try {
-    const record = await attendanceService.clockOut(c.env.DB, { attendanceId: c.req.param('id'), userId: user.id, location: body.location || null, deviceId: body.device_id || null });
+    const record = await attendanceService.clockOut(database(c), { attendanceId: c.req.param('id'), userId: user.id, location: body.location || null, deviceId: body.device_id || null });
     return c.json(record);
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.code === 'FORBIDDEN' ? 403 : (e.status || 400));
@@ -72,10 +73,10 @@ attendance.post('/:id/override', managerOnly, async (c) => {
     // attendance record. That record is payroll evidence — an override is
     // a manager vouching "this person really was on duty" — so it must be
     // performed by someone with authority over THAT branch.
-    const att = await c.env.DB.prepare('SELECT branch_id FROM staff_attendance WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
+    const att = await database(c).prepare('SELECT branch_id FROM staff_attendance WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
     if (!att) return c.json({ error: 'Attendance record not found' }, 404);
     assertBranchAccess(c, att.branch_id);
-    const record = await attendanceService.managerOverride(c.env.DB, { attendanceId: c.req.param('id'), managerId: user.id, reason: body.reason });
+    const record = await attendanceService.managerOverride(database(c), { attendanceId: c.req.param('id'), managerId: user.id, reason: body.reason });
     return c.json(record);
   } catch (e) {
     // BUG 51: this catch dropped `e.code`, so OVERRIDE_REASON_REQUIRED
@@ -96,10 +97,10 @@ attendance.post('/:id/force-clock-out', managerOnly, async (c) => {
   const user = c.get('user');
   const body = await readJsonBody(c);
   try {
-    const att = await c.env.DB.prepare('SELECT branch_id FROM staff_attendance WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
+    const att = await database(c).prepare('SELECT branch_id FROM staff_attendance WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
     if (!att) return c.json({ error: 'Attendance record not found' }, 404);
     assertBranchAccess(c, att.branch_id);
-    const record = await attendanceService.forceClockOut(c.env.DB, {
+    const record = await attendanceService.forceClockOut(database(c), {
       attendanceId: c.req.param('id'),
       managerId: user.id,
       reason: body.reason,
@@ -117,7 +118,7 @@ attendance.get('/devices', managerOnly, async (c) => {
   // manager must still name one explicitly.
   const branchId = resolveScopedBranchId(c) || c.req.query('branch_id');
   if (!branchId) return c.json({ error: 'branch_id is required' }, 400);
-  return c.json(await attendanceService.listBranchDevices(c.env.DB, branchId));
+  return c.json(await attendanceService.listBranchDevices(database(c), branchId));
 });
 
 attendance.post('/devices', managerOnly, async (c) => {
@@ -132,7 +133,7 @@ attendance.post('/devices', managerOnly, async (c) => {
   // branch-owned write.
   const registerBranchId = resolveMutationBranchId(c, body.branch_id);
   try {
-    const result = await attendanceService.registerDevice(c.env.DB, { branchId: registerBranchId, deviceId: body.device_id, label: body.label, registeredBy: user.id });
+    const result = await attendanceService.registerDevice(database(c), { branchId: registerBranchId, deviceId: body.device_id, label: body.label, registeredBy: user.id });
     return c.json(result, 201);
   } catch (e) {
     return c.json({ error: e.message }, e.status || 400);
@@ -147,7 +148,7 @@ attendance.post('/devices/:id/revoke', managerOnly, async (c) => {
   // revoke devices belonging to their own branch.
   const revokeBranchId = resolveMutationBranchId(c, body.branch_id);
   try {
-    const result = await attendanceService.revokeDevice(c.env.DB, { branchDeviceId: c.req.param('id'), branchId: revokeBranchId, revokedBy: user.id });
+    const result = await attendanceService.revokeDevice(database(c), { branchDeviceId: c.req.param('id'), branchId: revokeBranchId, revokedBy: user.id });
     return c.json(result);
   } catch (e) {
     return c.json({ error: e.message }, e.status || 400);
@@ -204,7 +205,7 @@ attendance.get('/', async (c) => {
   sql += ' ORDER BY a.clock_in_at DESC LIMIT ?';
   params.push(limit);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 

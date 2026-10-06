@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, managerOnly, assertBranchActive, pinnedBranchIdOf, roleLabel } = require('../lib/auth');
 const { uuid, hashPin, verifyPin } = require('../lib/crypto');
@@ -124,7 +125,7 @@ users.get('/', managerOnly, async (c) => {
   const branchClause = pinned ? 'AND (u.branch_id = ? OR u.branch_id IS NULL)' : '';
   const branchParams = pinned ? [pinned] : [];
   // DATA-SAFETY — see the write-up below.
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await database(c).prepare(`
     SELECT u.id, u.branch_id, b.name AS branch_name, u.full_name, u.phone, u.username, u.role, u.job_title, u.is_active, u.created_at
     FROM users u LEFT JOIN branches b ON b.id = u.branch_id WHERE u.is_deleted = 0 ${adminClause} ${branchClause} ORDER BY u.role, u.full_name LIMIT 2000
   `).bind(...branchParams).all();
@@ -136,7 +137,7 @@ users.get('/', managerOnly, async (c) => {
   // query per row would be an N+1; instead aggregate all of them at once.
   const locked = new Map();
   try {
-    const { results: lockRows } = await c.env.DB.prepare(`
+    const { results: lockRows } = await database(c).prepare(`
       SELECT username, COUNT(*) AS failures, MAX(attempted_at) AS last_failure
       FROM login_attempts
       WHERE succeeded = 0 AND attempted_at > datetime('now', '-15 minutes')
@@ -161,7 +162,7 @@ users.get('/', managerOnly, async (c) => {
 
 users.get('/me', async (c) => {
   const user = c.get('user');
-  const row = await c.env.DB.prepare('SELECT id, full_name, username, role, branch_id, job_title FROM users WHERE id = ?').bind(user.id).first();
+  const row = await database(c).prepare('SELECT id, full_name, username, role, branch_id, job_title FROM users WHERE id = ?').bind(user.id).first();
   return c.json(row ? { ...row, role_label: roleLabel(row) } : row);
 });
 
@@ -204,17 +205,17 @@ users.post('/', managerOnly, async (c) => {
   // account to a deactivated (closed) branch previously succeeded
   // outright.
   if (branch_id) {
-    const branch = await c.env.DB.prepare('SELECT id, is_active FROM branches WHERE id = ? AND is_deleted = 0').bind(branch_id).first();
+    const branch = await database(c).prepare('SELECT id, is_active FROM branches WHERE id = ? AND is_deleted = 0').bind(branch_id).first();
     if (!branch) return c.json({ error: `Unknown branch ${branch_id}` }, 400);
     try {
-      await assertBranchActive(c.env.DB, branch_id, 'have a new staff member assigned to it');
+      await assertBranchActive(database(c), branch_id, 'have a new staff member assigned to it');
     } catch (e) {
       return c.json({ error: e.message, code: e.code }, e.status || 403);
     }
   }
 
   try {
-    await assertCanAddStaff(c.env.DB);
+    await assertCanAddStaff(database(c));
   } catch (e) {
     if (e instanceof PlanLimitError) return c.json({ error: e.message, code: e.code }, e.status);
     throw e;
@@ -223,7 +224,7 @@ users.post('/', managerOnly, async (c) => {
   const id = uuid();
   const pinHash = await hashPin(pin);
   try {
-    await c.env.DB.prepare(`INSERT INTO users (id, branch_id, full_name, phone, username, pin_hash, role, job_title) VALUES (?,?,?,?,?,?,?,?)`)
+    await database(c).prepare(`INSERT INTO users (id, branch_id, full_name, phone, username, pin_hash, role, job_title) VALUES (?,?,?,?,?,?,?,?)`)
       .bind(id, role === 'OWNER' ? null : (branch_id || null), full_name, phone || null, username, pinHash, role, job_title || null).run();
   } catch (e) {
     if (String(e.message).includes('UNIQUE')) {
@@ -233,7 +234,7 @@ users.post('/', managerOnly, async (c) => {
       // old code collapsed all of them into "Username already exists", which
       // told an operator following the deactivate-and-recreate instruction
       // nothing at all about why it had just failed.
-      const clash = await c.env.DB
+      const clash = await database(c)
         .prepare('SELECT is_deleted, is_active, full_name FROM users WHERE username = ?')
         .bind(username).first();
       if (clash && (clash.is_deleted || !clash.is_active)) {
@@ -258,7 +259,7 @@ users.post('/', managerOnly, async (c) => {
 users.put('/:id', managerOnly, async (c) => {
   const requester = c.get('user');
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const existing = await database(c).prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!existing || (existing.role === 'ADMIN' && requester.role !== 'ADMIN')) return c.json({ error: 'User not found' }, 404);
 
 
@@ -379,13 +380,13 @@ users.put('/:id', managerOnly, async (c) => {
 
   // Combined MANAGER+OWNER lockout guard — see the write-up below
   if (LOCKOUT_GUARD_ROLES.includes(existing.role) && isExplicitFalse(is_active)) {
-    const activeAdmins = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE role IN ('MANAGER','OWNER') AND is_active = 1 AND is_deleted = 0`).first();
+    const activeAdmins = await database(c).prepare(`SELECT COUNT(*) AS n FROM users WHERE role IN ('MANAGER','OWNER') AND is_active = 1 AND is_deleted = 0`).first();
     if (activeAdmins.n <= 1) return c.json({ error: 'Cannot deactivate the last remaining active manager/owner account. Create or activate another manager or owner first.' }, 400);
   }
   // BUG 70: the combined count above is satisfied by a surviving MANAGER, which
   // is not a substitute for an OWNER. Guard the owner seat on its own terms.
   if (isExplicitFalse(is_active)) {
-    const lastOwner = await wouldRemoveLastOwner(c.env.DB, existing);
+    const lastOwner = await wouldRemoveLastOwner(database(c), existing);
     if (lastOwner) return c.json({ error: lastOwner, code: 'LAST_OWNER_PROTECTED' }, 400);
   }
   // A deactivated person frees a paid seat. Reinstating them must take one
@@ -393,7 +394,7 @@ users.put('/:id', managerOnly, async (c) => {
   // toggling inactive records back on instead of creating new accounts.
   const reactivating = !existing.is_active && (is_active === true || is_active === 1);
   if (reactivating) {
-    try { await assertCanAddStaff(c.env.DB); }
+    try { await assertCanAddStaff(database(c)); }
     catch (e) {
       if (e instanceof PlanLimitError) return c.json({ error: e.message, code: e.code }, e.status);
       throw e;
@@ -438,17 +439,17 @@ users.put('/:id', managerOnly, async (c) => {
   // an account that is off but still shows an open shift is precisely the
   // inconsistent state this guards against.
   const statements = [
-    c.env.DB.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, id),
+    database(c).prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, id),
   ];
   if (isExplicitFalse(is_active)) {
-    statements.push(attendanceService.autoCloseShiftStatement(c.env.DB, {
+    statements.push(attendanceService.autoCloseShiftStatement(database(c), {
       userId: id,
       actorId: requester.id,
       reason: 'Shift closed automatically because this account was deactivated.',
     }));
   }
-  await withD1Retry(() => c.env.DB.batch(statements), 'user update');
-  const updated = await c.env.DB.prepare('SELECT id, full_name, username, role, branch_id, job_title, is_active FROM users WHERE id = ?').bind(id).first();
+  await withD1Retry(() => database(c).batch(statements), 'user update');
+  const updated = await database(c).prepare('SELECT id, full_name, username, role, branch_id, job_title, is_active FROM users WHERE id = ?').bind(id).first();
   return c.json(updated ? { ...updated, role_label: roleLabel(updated) } : updated);
 });
 
@@ -466,7 +467,7 @@ users.put('/:id', managerOnly, async (c) => {
 users.post('/:id/transfer', managerOnly, async (c) => {
   const requester = c.get('user');
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const existing = await database(c).prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!existing || (existing.role === 'ADMIN' && requester.role !== 'ADMIN')) return c.json({ error: 'User not found' }, 404);
 
   const body = await readJsonBody(c);
@@ -516,7 +517,7 @@ users.post('/:id/transfer', managerOnly, async (c) => {
   }
 
   try {
-    const result = await userTransferService.transferUser(c.env.DB, { existing, actor: requester, body });
+    const result = await userTransferService.transferUser(database(c), { existing, actor: requester, body });
     return c.json(result);
   } catch (e) {
     if (e instanceof userTransferService.TransferError) {
@@ -535,7 +536,7 @@ users.post('/:id/transfer', managerOnly, async (c) => {
 // `/:id/...` routes so "pending" is never read as a user id.
 users.get('/transfers/pending/mine', async (c) => {
   const me = c.get('user');
-  return c.json(await userTransferService.listPendingForUser(c.env.DB, me.id));
+  return c.json(await userTransferService.listPendingForUser(database(c), me.id));
 });
 
 // Everything outstanding, for a manager chasing an unanswered request. A
@@ -544,14 +545,14 @@ users.get('/transfers/pending/mine', async (c) => {
 users.get('/transfers/pending', managerOnly, async (c) => {
   const me = c.get('user');
   const pinned = pinnedBranchIdOf(me);
-  return c.json(await userTransferService.listAllPending(c.env.DB, { branchId: pinned || null }));
+  return c.json(await userTransferService.listAllPending(database(c), { branchId: pinned || null }));
 });
 
 // I accept the move.
 users.post('/transfers/pending/:pendingId/confirm', async (c) => {
   const me = c.get('user');
   try {
-    return c.json(await userTransferService.confirmPending(c.env.DB, {
+    return c.json(await userTransferService.confirmPending(database(c), {
       pendingId: c.req.param('pendingId'), actor: me,
     }));
   } catch (e) {
@@ -567,7 +568,7 @@ users.post('/transfers/pending/:pendingId/decline', async (c) => {
   const me = c.get('user');
   const body = await readJsonBody(c);
   try {
-    return c.json(await userTransferService.declinePending(c.env.DB, {
+    return c.json(await userTransferService.declinePending(database(c), {
       pendingId: c.req.param('pendingId'), actor: me, reason: body.reason,
     }));
   } catch (e) {
@@ -582,7 +583,7 @@ users.post('/transfers/pending/:pendingId/decline', async (c) => {
 users.post('/transfers/pending/:pendingId/cancel', managerOnly, async (c) => {
   const me = c.get('user');
   try {
-    return c.json(await userTransferService.cancelPending(c.env.DB, {
+    return c.json(await userTransferService.cancelPending(database(c), {
       pendingId: c.req.param('pendingId'), actor: me,
     }));
   } catch (e) {
@@ -611,7 +612,7 @@ users.post('/transfers/pending/:pendingId/force', managerOnly, async (c) => {
     }, 403);
   }
   try {
-    return c.json(await userTransferService.confirmPending(c.env.DB, {
+    return c.json(await userTransferService.confirmPending(database(c), {
       pendingId: c.req.param('pendingId'), actor: me, forced: true,
     }));
   } catch (e) {
@@ -628,19 +629,19 @@ users.post('/transfers/pending/:pendingId/force', managerOnly, async (c) => {
 users.get('/:id/assignment-history', managerOnly, async (c) => {
   const requester = c.get('user');
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT id, branch_id, role FROM users WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const existing = await database(c).prepare('SELECT id, branch_id, role FROM users WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!existing || (existing.role === 'ADMIN' && requester.role !== 'ADMIN')) return c.json({ error: 'User not found' }, 404);
   const pinnedActor = pinnedBranchIdOf(requester);
   if (pinnedActor && existing.branch_id !== pinnedActor) {
     return c.json({ error: 'As a Branch Manager you can only view people assigned to your own branch.', code: 'BRANCH_SCOPE_VIOLATION' }, 403);
   }
-  return c.json(await userTransferService.listAssignmentHistory(c.env.DB, id));
+  return c.json(await userTransferService.listAssignmentHistory(database(c), id));
 });
 
 users.delete('/:id', managerOnly, async (c) => {
   const requester = c.get('user');
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const existing = await database(c).prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!existing || (existing.role === 'ADMIN' && requester.role !== 'ADMIN')) return c.json({ error: 'User not found' }, 404);
 
 
@@ -675,21 +676,21 @@ users.delete('/:id', managerOnly, async (c) => {
   if (forbiddenDelete) return c.json({ error: forbiddenDelete, code: 'INSUFFICIENT_ROLE_AUTHORITY' }, 403);
 
   if (LOCKOUT_GUARD_ROLES.includes(existing.role)) {
-    const activeAdmins = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE role IN ('MANAGER','OWNER') AND is_active = 1 AND is_deleted = 0`).first();
+    const activeAdmins = await database(c).prepare(`SELECT COUNT(*) AS n FROM users WHERE role IN ('MANAGER','OWNER') AND is_active = 1 AND is_deleted = 0`).first();
     if (activeAdmins.n <= 1) return c.json({ error: 'Cannot delete the last remaining active manager/owner account. Create or activate another manager or owner first.' }, 400);
   }
   // BUG 70: same gap, but permanent here — this sets is_deleted = 1.
   {
-    const lastOwner = await wouldRemoveLastOwner(c.env.DB, existing);
+    const lastOwner = await wouldRemoveLastOwner(database(c), existing);
     if (lastOwner) return c.json({ error: lastOwner, code: 'LAST_OWNER_PROTECTED' }, 400);
   }
   // BUG 74 — same rule as deactivation above, and more important here because
   // deletion is permanent: a deleted employee left "Still clocked in" can
   // never be resolved by anyone, since the account can no longer sign in and
   // no other route may clock them out.
-  await withD1Retry(() => c.env.DB.batch([
-    c.env.DB.prepare(`UPDATE users SET is_deleted = 1, is_active = 0, updated_at = datetime('now') WHERE id = ?`).bind(id),
-    attendanceService.autoCloseShiftStatement(c.env.DB, {
+  await withD1Retry(() => database(c).batch([
+    database(c).prepare(`UPDATE users SET is_deleted = 1, is_active = 0, updated_at = datetime('now') WHERE id = ?`).bind(id),
+    attendanceService.autoCloseShiftStatement(database(c), {
       userId: id,
       actorId: requester.id,
       reason: 'Shift closed automatically because this account was deleted.',
@@ -716,7 +717,7 @@ users.delete('/:id', managerOnly, async (c) => {
 users.post('/:id/unlock', managerOnly, async (c) => {
   const requester = c.get('user');
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const existing = await database(c).prepare('SELECT * FROM users WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!existing || (existing.role === 'ADMIN' && requester.role !== 'ADMIN')) return c.json({ error: 'User not found' }, 404);
 
   // Branch scoping: a Branch Manager may only unlock their own branch's
@@ -733,8 +734,8 @@ users.post('/:id/unlock', managerOnly, async (c) => {
   const forbidden = assertCanModifyUser(requester, existing);
   if (forbidden) return c.json({ error: forbidden, code: 'INSUFFICIENT_ROLE_AUTHORITY' }, 403);
 
-  const cleared = await clearLoginLock(c.env.DB, existing.username);
-  const state = await getLockState(c.env.DB, existing.username);
+  const cleared = await clearLoginLock(database(c), existing.username);
+  const state = await getLockState(database(c), existing.username);
   return c.json({ ok: true, username: existing.username, cleared_attempts: cleared, ...state });
 });
 
@@ -758,7 +759,7 @@ users.get('/default-pin-warning', managerOnly, async (c) => {
   const adminClause = requester.role === 'ADMIN' ? '' : `AND role != 'ADMIN'`;
   const branchClause = pinned ? 'AND (branch_id = ? OR branch_id IS NULL)' : '';
   const params = pinned ? [pinned] : [];
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await database(c).prepare(`
     SELECT id, username, full_name, role, branch_id, pin_hash
     FROM users WHERE is_deleted = 0 AND is_active = 1 ${adminClause} ${branchClause}
     ORDER BY role, full_name LIMIT 200

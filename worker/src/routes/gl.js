@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 // General Ledger reporting routes for the Cloudflare D1 deployment —
 // mirrors the original design exactly for full backend parity. See the
 // original implementation's "GENERAL LEDGER & CHART OF ACCOUNTS" section
@@ -15,12 +16,12 @@ gl.use('*', authRequired);
 gl.use('*', managerOnly);
 
 gl.get('/chart-of-accounts', async (c) => {
-  return c.json(await glService.getChartOfAccounts(c.env.DB));
+  return c.json(await glService.getChartOfAccounts(database(c)));
 });
 
 gl.get('/trial-balance', async (c) => {
   const branchId = resolveScopedBranchId(c);
-  return c.json(await glService.getTrialBalance(c.env.DB, branchId));
+  return c.json(await glService.getTrialBalance(database(c), branchId));
 });
 
 gl.get('/profit-loss', async (c) => {
@@ -30,13 +31,13 @@ gl.get('/profit-loss', async (c) => {
   if (!startDate || !endDate) {
     return c.json({ error: 'start_date and end_date query parameters are required (YYYY-MM-DD)' }, 400);
   }
-  return c.json(await glService.getProfitAndLoss(c.env.DB, { branchId, startDate, endDate }));
+  return c.json(await glService.getProfitAndLoss(database(c), { branchId, startDate, endDate }));
 });
 
 gl.get('/balance-sheet', async (c) => {
   const branchId = resolveScopedBranchId(c);
   const asOfDate = c.req.query('as_of_date') || new Date().toISOString().slice(0, 10);
-  return c.json(await glService.getBalanceSheet(c.env.DB, { branchId, asOfDate }));
+  return c.json(await glService.getBalanceSheet(database(c), { branchId, asOfDate }));
 });
 
 // Retail category GL analysis. Uses dimensions saved on sale-related journal
@@ -70,7 +71,7 @@ gl.get('/retail-category-summary', async (c) => {
   if (branchId) { sql += ' AND gje.branch_id = ?'; params.push(branchId); }
   if (retailCategory) { sql += ' AND gjl.retail_category = ?'; params.push(retailCategory); }
   sql += ' GROUP BY gjl.retail_category ORDER BY revenue_net_of_vat DESC, gjl.retail_category';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results.map((row) => {
     const revenue = Number(row.revenue_net_of_vat || 0);
     const discounts = Number(row.discounts || 0);
@@ -96,7 +97,7 @@ gl.get('/retail-category-summary', async (c) => {
 // lines via `IN (...)`, chunked at D1's own 100-bound-parameters-per-query
 // ceiling, instead of one query per entry.
 gl.get('/journal-entries', async (c) => {
-  const db = c.env.DB;
+  const db = database(c);
   const branchId = resolveScopedBranchId(c);
   const sourceType = c.req.query('source_type');
   const sourceId = c.req.query('source_id');

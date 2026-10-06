@@ -1,10 +1,11 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { getClientSettings } = require('../lib/planLimits');
 
 const branding = new Hono();
 
 branding.get('/', async (c) => {
-  const settings = await getClientSettings(c.env.DB);
+  const settings = await getClientSettings(database(c));
   return c.json({
     business_name: settings.business_name || null,
     has_logo: !!settings.logo_data_url,
@@ -13,7 +14,7 @@ branding.get('/', async (c) => {
 });
 
 branding.get('/logo', async (c) => {
-  const settings = await getClientSettings(c.env.DB);
+  const settings = await getClientSettings(database(c));
   if (!settings.logo_data_url) return c.json({ error: 'No logo configured for this deployment.' }, 404);
 
   const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(settings.logo_data_url);

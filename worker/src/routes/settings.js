@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 // Client-owned business settings — DISTINCT from routes/admin.js's
 // vendor-controlled plan limits/feature toggles. Mirrors the original
 // design for the full rationale.
@@ -10,7 +11,7 @@ const settings = new Hono();
 settings.use('*', authRequired);
 
 settings.get('/vat', async (c) => {
-  const s = await getClientSettings(c.env.DB);
+  const s = await getClientSettings(database(c));
   return c.json({
     vat_enabled: !!s.vat_enabled,
     vat_rate_percent: s.vat_rate_percent,
@@ -18,7 +19,7 @@ settings.get('/vat', async (c) => {
 });
 
 settings.put('/vat', ownerOnly, async (c) => {
-  const db = c.env.DB;
+  const db = database(c);
   const user = c.get('user');
   const body = await readJsonBody(c);
   // BUG 77 — a typo here used to answer 200 with VAT unchanged.
@@ -111,11 +112,11 @@ function readPermissions(s) {
 settings.get('/manager-permissions', async (c) => {
   // Default to enabled when a column is absent (an older database) so the
   // UI never wrongly greys out a live capability.
-  return c.json(readPermissions(await getClientSettings(c.env.DB)));
+  return c.json(readPermissions(await getClientSettings(database(c))));
 });
 
 settings.put('/manager-permissions', managerOnly, async (c) => {
-  const db = c.env.DB;
+  const db = database(c);
   const user = c.get('user');
   const body = await readJsonBody(c);
   // BUG 77 — same class: `staff_can_void` (the real field is

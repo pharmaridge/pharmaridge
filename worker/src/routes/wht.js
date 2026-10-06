@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 // WITHHOLDING TAX ROUTES — the rate schedule, the deduction register, the
 // remittance workflow and the credit-note data.
 //
@@ -21,7 +22,7 @@ whtRoutes.use('*', authRequired);
 // Readable by anyone signed in: a cashier recording an expense needs the
 // list to pick from, and the rates are not sensitive.
 whtRoutes.get('/rates', async (c) => {
-  const { results } = await c.env.DB.prepare(
+  const { results } = await database(c).prepare(
     'SELECT * FROM wht_rates WHERE is_deleted = 0 ORDER BY is_active DESC, rate_percent DESC, name'
   ).all();
   return c.json(results);
@@ -33,14 +34,14 @@ whtRoutes.get('/rates', async (c) => {
 whtRoutes.put('/rates/:code', ownerOnly, async (c) => {
   const code = String(c.req.param('code') || '').trim().toUpperCase();
   const body = await readJsonBody(c);
-  const existing = await c.env.DB.prepare('SELECT * FROM wht_rates WHERE code = ? AND is_deleted = 0').bind(code).first();
+  const existing = await database(c).prepare('SELECT * FROM wht_rates WHERE code = ? AND is_deleted = 0').bind(code).first();
   if (!existing) return c.json({ error: `Unknown WHT rate "${code}"` }, 404);
 
   const rate = body.rate_percent;
   if (rate != null && (!Number.isFinite(rate) || rate < 0 || rate > 100)) {
     return c.json({ error: 'rate_percent must be a percentage between 0 and 100', code: 'WHT_INVALID_RATE' }, 400);
   }
-  await c.env.DB.prepare(`
+  await database(c).prepare(`
     UPDATE wht_rates
        SET rate_percent = COALESCE(?, rate_percent),
            name         = COALESCE(?, name),
@@ -55,7 +56,7 @@ whtRoutes.put('/rates/:code', ownerOnly, async (c) => {
     body.is_active == null ? null : (body.is_active ? 1 : 0),
     code
   ).run();
-  return c.json(await c.env.DB.prepare('SELECT * FROM wht_rates WHERE code = ?').bind(code).first());
+  return c.json(await database(c).prepare('SELECT * FROM wht_rates WHERE code = ?').bind(code).first());
 });
 
 // Adding a category — e.g. a non-resident rate, which this app
@@ -74,15 +75,15 @@ whtRoutes.post('/rates', ownerOnly, async (c) => {
   if (!['PAYABLE', 'RECEIVABLE', 'BOTH'].includes(direction)) {
     return c.json({ error: 'direction must be one of: PAYABLE, RECEIVABLE, BOTH' }, 400);
   }
-  const dupe = await c.env.DB.prepare('SELECT 1 FROM wht_rates WHERE code = ?').bind(code).first();
+  const dupe = await database(c).prepare('SELECT 1 FROM wht_rates WHERE code = ?').bind(code).first();
   if (dupe) return c.json({ error: `A WHT rate with code "${code}" already exists.` }, 409);
 
   const id = uuid();
-  await c.env.DB.prepare(`
+  await database(c).prepare(`
     INSERT INTO wht_rates (id, code, name, rate_percent, direction, is_system, note)
     VALUES (?,?,?,?,?,0,?)
   `).bind(id, code, String(body.name).trim(), body.rate_percent, direction, body.note || null).run();
-  return c.json(await c.env.DB.prepare('SELECT * FROM wht_rates WHERE id = ?').bind(id).first(), 201);
+  return c.json(await database(c).prepare('SELECT * FROM wht_rates WHERE id = ?').bind(id).first(), 201);
 });
 
 // ---------------------------------------------------------------------
@@ -111,7 +112,7 @@ whtRoutes.get('/entries', managerOnly, async (c) => {
   if (direction === 'PAYABLE' || direction === 'RECEIVABLE') { sql += ' AND e.direction = ?'; params.push(direction); }
   if (outstanding === 'true') sql += ' AND e.remitted_at IS NULL';
   sql += ' ORDER BY e.entry_date DESC LIMIT 500';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
@@ -123,7 +124,7 @@ whtRoutes.get('/summary', managerOnly, async (c) => {
   const branchId = resolveScopedBranchId(c);
   const scope = branchId ? ' AND branch_id = ?' : '';
   const p = branchId ? [branchId] : [];
-  const one = async (sql) => (await c.env.DB.prepare(sql).bind(...p).first()) || {};
+  const one = async (sql) => (await database(c).prepare(sql).bind(...p).first()) || {};
 
   const payableDue = await one(`
     SELECT COALESCE(SUM(wht_amount),0) AS total, COUNT(*) AS n
@@ -167,7 +168,7 @@ whtRoutes.post('/remit', managerOnly, async (c) => {
   const branchId = resolveMutationBranchId(c, body.branch_id);
   if (!branchId) return c.json({ error: 'branch_id is required' }, 400);
   try {
-    await assertBranchActive(c.env.DB, branchId, 'remit withholding tax');
+    await assertBranchActive(database(c), branchId, 'remit withholding tax');
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || 403);
   }
@@ -182,7 +183,7 @@ whtRoutes.post('/remit', managerOnly, async (c) => {
   }
 
   const placeholders = ids.map(() => '?').join(',');
-  const { results: rows } = await c.env.DB.prepare(`
+  const { results: rows } = await database(c).prepare(`
     SELECT * FROM wht_entries
      WHERE id IN (${placeholders}) AND is_deleted = 0 AND direction = 'PAYABLE' AND remitted_at IS NULL AND branch_id = ?
   `).bind(...ids, branchId).all();
@@ -203,7 +204,7 @@ whtRoutes.post('/remit', managerOnly, async (c) => {
     // WITHOUT the branch filter to tell the three apart — this reveals
     // nothing a manager cannot already see, and the authorisation itself
     // is unchanged (resolveMutationBranchId still pins the branch).
-    const { results: elsewhere } = await c.env.DB.prepare(`
+    const { results: elsewhere } = await database(c).prepare(`
       SELECT id, branch_id, remitted_at FROM wht_entries
        WHERE id IN (${placeholders}) AND is_deleted = 0 AND direction = 'PAYABLE'
     `).bind(...ids).all();
@@ -253,18 +254,18 @@ whtRoutes.post('/remit', managerOnly, async (c) => {
     // `AND remitted_at IS NULL` makes the write itself the arbiter. The
     // meta.changes check below then refuses the whole batch if the row
     // count moved, so the GL entry is never posted against a stale total.
-    c.env.DB.prepare(`
+    database(c).prepare(`
       UPDATE wht_entries
          SET remitted_at = datetime('now'), remittance_ref = ?, updated_at = datetime('now')
        WHERE id IN (${rowPlaceholders}) AND remitted_at IS NULL AND is_deleted = 0
     `).bind(ref, ...rows.map((r) => r.id)),
   ];
-  const gl = await glService.postWhtRemittance(c.env.DB, {
+  const gl = await glService.postWhtRemittance(database(c), {
     branchId, remittanceId, recordedBy: user.id, amount: total, method: body.method || 'TRANSFER',
   });
   if (gl) statements.push(...gl.statements);
 
-  const results = await withD1Retry(() => c.env.DB.batch(statements), 'wht remittance');
+  const results = await withD1Retry(() => database(c).batch(statements), 'wht remittance');
 
   // BUG 44: verify the compare-and-swap actually claimed every row it was
   // billed for. A guard whose result is never inspected is not a guard —

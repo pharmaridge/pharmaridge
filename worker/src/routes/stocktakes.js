@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, assertBranchAccess, assertBranchActive, resolveMutationBranchId, resolveScopedBranchId } = require('../lib/auth');
 const stocktakeService = require('../services/stocktakeService');
@@ -19,12 +20,12 @@ stocktakes.get('/', async (c) => {
   const params = [];
   if (branchId) { sql += ' AND ss.branch_id = ?'; params.push(branchId); }
   sql += ' ORDER BY ss.started_at DESC LIMIT 50';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
 stocktakes.get('/:id', async (c) => {
-  const s = await stocktakeService.getStocktake(c.env.DB, c.req.param('id'));
+  const s = await stocktakeService.getStocktake(database(c), c.req.param('id'));
   if (!s) return c.json({ error: 'Stocktake not found' }, 404);
   try {
     assertBranchAccess(c, s.branch_id);
@@ -40,8 +41,8 @@ stocktakes.post('/', async (c) => {
   const branchId = resolveMutationBranchId(c, body.branch_id);
   if (!branchId) return c.json({ error: 'branch_id is required' }, 400);
   try {
-    await assertBranchActive(c.env.DB, branchId, 'start a stocktake');
-    const result = await stocktakeService.startStocktake(c.env.DB, { branchId, startedBy: user.id, notes: body.notes, productIds: body.product_ids });
+    await assertBranchActive(database(c), branchId, 'start a stocktake');
+    const result = await stocktakeService.startStocktake(database(c), { branchId, startedBy: user.id, notes: body.notes, productIds: body.product_ids });
     return c.json(result, 201);
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || (e.code ? 409 : 400));
@@ -53,12 +54,12 @@ stocktakes.put('/lines/:lineId/count', async (c) => {
   const user = c.get('user');
   const body = await readJsonBody(c);
   try {
-    const line = await c.env.DB.prepare(`
+    const line = await database(c).prepare(`
       SELECT ss.branch_id FROM stocktake_lines sl JOIN stocktake_sessions ss ON ss.id = sl.stocktake_id WHERE sl.id = ?
     `).bind(c.req.param('lineId')).first();
     if (!line) return c.json({ error: 'Stocktake line not found' }, 404);
     assertBranchAccess(c, line.branch_id);
-    const result = await stocktakeService.recordCount(c.env.DB, { lineId: c.req.param('lineId'), countedQuantity: body.counted_quantity, countedBy: user.id, notes: body.notes });
+    const result = await stocktakeService.recordCount(database(c), { lineId: c.req.param('lineId'), countedQuantity: body.counted_quantity, countedBy: user.id, notes: body.notes });
     return c.json(result);
   } catch (e) {
     return c.json({ error: e.message }, e.status || 400);
@@ -73,7 +74,7 @@ stocktakes.post('/:id/close', async (c) => {
   const user = c.get('user');
   const body = await readJsonBody(c);
   try {
-    const session = await c.env.DB.prepare('SELECT branch_id, started_by, status FROM stocktake_sessions WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
+    const session = await database(c).prepare('SELECT branch_id, started_by, status FROM stocktake_sessions WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
     if (!session) return c.json({ error: 'Stocktake session not found' }, 404);
     assertBranchAccess(c, session.branch_id);
 
@@ -134,9 +135,9 @@ stocktakes.post('/:id/close', async (c) => {
     // two) closes normally; anything bigger needs a manager, who can then
     // close the very same session with the counts already recorded.
     if (user.role === 'STAFF') {
-      const variances = await stocktakeService.previewVariances(c.env.DB, c.req.param('id'));
+      const variances = await stocktakeService.previewVariances(database(c), c.req.param('id'));
       const largest = variances.reduce((max, v) => Math.max(max, Math.abs(v.variance)), 0);
-      const staffErr = await assertStaffCanAdjust(c.env.DB, user, largest);
+      const staffErr = await assertStaffCanAdjust(database(c), user, largest);
       if (staffErr) {
         return c.json({
           error: 'Closing this count would write off more stock than a cashier may adjust unaided '
@@ -148,7 +149,7 @@ stocktakes.post('/:id/close', async (c) => {
       }
     }
 
-    const result = await stocktakeService.closeStocktake(c.env.DB, {
+    const result = await stocktakeService.closeStocktake(database(c), {
       stocktakeId: c.req.param('id'), closedBy: user.id, forceClose: isForceClose, forceReason: body.force_reason,
     });
     return c.json(result);
@@ -165,7 +166,7 @@ stocktakes.post('/:id/cancel', async (c) => {
   const user = c.get('user');
   const body = await readJsonBody(c);
   try {
-    const session = await c.env.DB.prepare('SELECT branch_id, started_by, status FROM stocktake_sessions WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
+    const session = await database(c).prepare('SELECT branch_id, started_by, status FROM stocktake_sessions WHERE id = ? AND is_deleted = 0').bind(c.req.param('id')).first();
     if (!session) return c.json({ error: 'Stocktake session not found' }, 404);
     assertBranchAccess(c, session.branch_id);
 
@@ -182,7 +183,7 @@ stocktakes.post('/:id/cancel', async (c) => {
     }
     const isForceCancel = cancellingSomeoneElses && session.status === 'OPEN';
 
-    const result = await stocktakeService.cancelStocktake(c.env.DB, {
+    const result = await stocktakeService.cancelStocktake(database(c), {
       stocktakeId: c.req.param('id'), cancelledBy: user.id, forceCancel: isForceCancel, reason: body.reason,
     });
     return c.json(result);

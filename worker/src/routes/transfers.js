@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { withD1Retry } = require('../lib/d1Retry');
 const { idempotent } = require('../lib/idempotency');
@@ -25,7 +26,7 @@ transfers.get('/', async (c) => {
   const params = [];
   if (branchId) { sql += ' AND (st.from_branch_id = ? OR st.to_branch_id = ?)'; params.push(branchId, branchId); }
   sql += ' ORDER BY st.initiated_at DESC LIMIT 200';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
@@ -40,7 +41,7 @@ transfers.post('/', idempotent, async (c) => {
   const tqErr = validateQuantity(quantity, 'quantity');
   if (tqErr) return c.json({ error: tqErr }, 400);
 
-  const batch = await c.env.DB.prepare('SELECT * FROM stock_batches WHERE id = ? AND is_deleted = 0').bind(stock_batch_id).first();
+  const batch = await database(c).prepare('SELECT * FROM stock_batches WHERE id = ? AND is_deleted = 0').bind(stock_batch_id).first();
   if (!batch) return c.json({ error: 'Stock batch not found' }, 404);
   // CROSS-BRANCH STOCK PULL FOUND AND FIXED (live-reproduced): this
   // checked `role === 'STAFF'` only, so a MANAGER pinned to Minna
@@ -62,7 +63,7 @@ transfers.post('/', idempotent, async (c) => {
   // source, since a branch being wound down still needs to be able to move
   // its existing stock OUT to another active branch.
   try {
-    await assertBranchActive(c.env.DB, to_branch_id, 'receive a stock transfer');
+    await assertBranchActive(database(c), to_branch_id, 'receive a stock transfer');
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || 403);
   }
@@ -70,9 +71,9 @@ transfers.post('/', idempotent, async (c) => {
   // REGULATORY-COMPLIANCE — mirrors the identical fix + full write-up in the
   // original design: fail fast at initiation time (the receive-time check is
   // the authoritative enforcement and remains in place regardless).
-  const transferProductForInit = await c.env.DB.prepare('SELECT dispensing_type FROM products WHERE id = ?').bind(batch.product_id).first();
+  const transferProductForInit = await database(c).prepare('SELECT dispensing_type FROM products WHERE id = ?').bind(batch.product_id).first();
   if (transferProductForInit && transferProductForInit.dispensing_type === 'POM') {
-    const destBranchForInit = await c.env.DB.prepare('SELECT license_type FROM branches WHERE id = ?').bind(to_branch_id).first();
+    const destBranchForInit = await database(c).prepare('SELECT license_type FROM branches WHERE id = ?').bind(to_branch_id).first();
     if (destBranchForInit && destBranchForInit.license_type === 'PPMV') {
       return c.json({
         error: 'This is a prescription-only (POM) product — the destination branch is licensed as a Patent Medicine Vendor (PPMV) and is not permitted to receive or stock it under PCN regulations.',
@@ -82,9 +83,9 @@ transfers.post('/', idempotent, async (c) => {
   }
 
   const id = uuid();
-  await c.env.DB.prepare(`INSERT INTO stock_transfers (id, from_branch_id, to_branch_id, stock_batch_id, quantity, status, initiated_by) VALUES (?,?,?,?,?,'PENDING',?)`)
+  await database(c).prepare(`INSERT INTO stock_transfers (id, from_branch_id, to_branch_id, stock_batch_id, quantity, status, initiated_by) VALUES (?,?,?,?,?,'PENDING',?)`)
     .bind(id, batch.branch_id, to_branch_id, stock_batch_id, quantity, user.id).run();
-  return c.json(await c.env.DB.prepare('SELECT * FROM stock_transfers WHERE id = ?').bind(id).first(), 201);
+  return c.json(await database(c).prepare('SELECT * FROM stock_transfers WHERE id = ?').bind(id).first(), 201);
 });
 
 // Marking a transfer in-transit is a sending-branch action; previously
@@ -93,21 +94,21 @@ transfers.post('/', idempotent, async (c) => {
 // bug this closes).
 transfers.post('/:id/mark-in-transit', async (c) => {
   const id = c.req.param('id');
-  const transfer = await c.env.DB.prepare('SELECT * FROM stock_transfers WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const transfer = await database(c).prepare('SELECT * FROM stock_transfers WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!transfer) return c.json({ error: 'Transfer not found' }, 404);
   try {
     assertBranchAccess(c, transfer.from_branch_id);
   } catch (e) {
     return c.json({ error: e.message }, e.status || 403);
   }
-  await c.env.DB.prepare(`UPDATE stock_transfers SET status = 'IN_TRANSIT', updated_at = datetime('now') WHERE id = ? AND status = 'PENDING'`).bind(id).run();
-  return c.json(await c.env.DB.prepare('SELECT * FROM stock_transfers WHERE id = ?').bind(id).first());
+  await database(c).prepare(`UPDATE stock_transfers SET status = 'IN_TRANSIT', updated_at = datetime('now') WHERE id = ? AND status = 'PENDING'`).bind(id).run();
+  return c.json(await database(c).prepare('SELECT * FROM stock_transfers WHERE id = ?').bind(id).first());
 });
 
 transfers.post('/:id/receive', idempotent, async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
-  const transfer = await c.env.DB.prepare('SELECT * FROM stock_transfers WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const transfer = await database(c).prepare('SELECT * FROM stock_transfers WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!transfer) return c.json({ error: 'Transfer not found' }, 404);
   if (!['PENDING', 'IN_TRANSIT'].includes(transfer.status)) return c.json({ error: `Cannot receive a transfer in status ${transfer.status}` }, 400);
   // Same fix as transfer creation: a pinned MANAGER, not just STAFF, may
@@ -123,12 +124,12 @@ transfers.post('/:id/receive', idempotent, async (c) => {
   // in the original design — covers the edge case where the destination
   // branch was deactivated AFTER this transfer was already initiated.
   try {
-    await assertBranchActive(c.env.DB, transfer.to_branch_id, 'receive a stock transfer');
+    await assertBranchActive(database(c), transfer.to_branch_id, 'receive a stock transfer');
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || 403);
   }
 
-  const sourceBatch = await c.env.DB.prepare('SELECT * FROM stock_batches WHERE id = ?').bind(transfer.stock_batch_id).first();
+  const sourceBatch = await database(c).prepare('SELECT * FROM stock_batches WHERE id = ?').bind(transfer.stock_batch_id).first();
 
   // BUG 107 — AN OFFLINE SALE MUST NOT FREEZE A TRANSFER.
   //
@@ -159,7 +160,7 @@ transfers.post('/:id/receive', idempotent, async (c) => {
   // is no stock to move, so completing would create an empty batch row at the
   // destination and post a zero-value GL entry. Cancel it instead and say why.
   if (moving <= 0) {
-    await c.env.DB.prepare(`
+    await database(c).prepare(`
       UPDATE stock_transfers
          SET status = 'CANCELLED', quantity_received = 0, shortfall_quantity = ?,
              shortfall_reason = ?, updated_at = datetime('now')
@@ -177,9 +178,9 @@ transfers.post('/:id/receive', idempotent, async (c) => {
   // original design: a PPMV branch is legally prohibited from stocking POM
   // medication, so it must not be able to receive it via inter-branch
   // transfer either.
-  const transferProduct = await c.env.DB.prepare('SELECT dispensing_type FROM products WHERE id = ?').bind(sourceBatch.product_id).first();
+  const transferProduct = await database(c).prepare('SELECT dispensing_type FROM products WHERE id = ?').bind(sourceBatch.product_id).first();
   if (transferProduct && transferProduct.dispensing_type === 'POM') {
-    const destBranch = await c.env.DB.prepare('SELECT license_type FROM branches WHERE id = ?').bind(transfer.to_branch_id).first();
+    const destBranch = await database(c).prepare('SELECT license_type FROM branches WHERE id = ?').bind(transfer.to_branch_id).first();
     if (destBranch && destBranch.license_type === 'PPMV') {
       return c.json({
         error: 'This transfer carries a prescription-only (POM) product — the destination branch is licensed as a Patent Medicine Vendor (PPMV) and is not permitted to receive or stock it under PCN regulations.',
@@ -201,8 +202,8 @@ transfers.post('/:id/receive', idempotent, async (c) => {
   // first attempt committed, the re-run matches no rows and the existing
   // changes!==1 guard below correctly treats it as the loser. Unwrapped, a
   // routine D1 blip surfaced as a FALSE "someone else did this" conflict.
-  const claim = await withD1Retry(() => c.env.DB.batch([
-    c.env.DB.prepare(`UPDATE stock_transfers SET received_by = ? WHERE id = ? AND status IN ('PENDING','IN_TRANSIT') AND received_by IS NULL`)
+  const claim = await withD1Retry(() => database(c).batch([
+    database(c).prepare(`UPDATE stock_transfers SET received_by = ? WHERE id = ? AND status IN ('PENDING','IN_TRANSIT') AND received_by IS NULL`)
       .bind(user.id, id),
   ]), 'transfer receive claim');
   if (claim[0]?.meta?.changes !== 1) {
@@ -216,9 +217,9 @@ transfers.post('/:id/receive', idempotent, async (c) => {
   const newBatchId = crypto.randomUUID().replace(/-/g, '');
   try {
     const statements = [
-      c.env.DB.prepare(`UPDATE stock_batches SET quantity_remaining = quantity_remaining - ?, updated_at = datetime('now') WHERE id = ?`)
+      database(c).prepare(`UPDATE stock_batches SET quantity_remaining = quantity_remaining - ?, updated_at = datetime('now') WHERE id = ?`)
         .bind(moving, sourceBatch.id),
-      c.env.DB.prepare(`
+      database(c).prepare(`
         INSERT INTO stock_batches (id, branch_id, product_id, batch_no, expiry_date, quantity_received, quantity_remaining, cost_price_per_unit, selling_price_per_unit, pack_price, carton_price, supplier_id, received_by,
                                    received_unit, received_unit_count, units_per_pack_at_receipt, packs_per_carton_at_receipt, selling_pattern, total_cost)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -246,7 +247,7 @@ transfers.post('/:id/receive', idempotent, async (c) => {
               sourceBatch.packs_per_carton_at_receipt,
               sourceBatch.selling_pattern,
               null),
-      c.env.DB.prepare(`
+      database(c).prepare(`
         UPDATE stock_transfers
            SET status = 'RECEIVED', received_at = datetime('now'), new_batch_id = ?,
                quantity_received = ?, shortfall_quantity = ?, shortfall_reason = ?,
@@ -270,24 +271,24 @@ transfers.post('/:id/receive', idempotent, async (c) => {
     // inter-branch clearing account permanently out by the shortfall.
     const transferValue = glService.round2(moving * sourceBatch.cost_price_per_unit);
     if (transferValue > 0) {
-      const outResult = await glService.postStockTransferOut(c.env.DB, { branchId: sourceBatch.branch_id, transferId: transfer.id, initiatedBy: transfer.initiated_by, value: transferValue });
+      const outResult = await glService.postStockTransferOut(database(c), { branchId: sourceBatch.branch_id, transferId: transfer.id, initiatedBy: transfer.initiated_by, value: transferValue });
       if (outResult) statements.push(...outResult.statements);
-      const inResult = await glService.postStockTransferIn(c.env.DB, { branchId: transfer.to_branch_id, transferId: transfer.id, receivedBy: user.id, value: transferValue });
+      const inResult = await glService.postStockTransferIn(database(c), { branchId: transfer.to_branch_id, transferId: transfer.id, receivedBy: user.id, value: transferValue });
       if (inResult) statements.push(...inResult.statements);
     }
 
-    await withD1Retry(() => c.env.DB.batch(statements), 'stock transfer');
+    await withD1Retry(() => database(c).batch(statements), 'stock transfer');
   } catch (e) {
     // Release our claim so the transfer remains receivable (e.g. the
     // source batch's stock genuinely changed since our check above and
     // the CHECK (quantity_remaining >= 0) constraint rejected the
     // decrement) rather than getting permanently stuck half-claimed.
-    await c.env.DB.prepare(`UPDATE stock_transfers SET received_by = NULL WHERE id = ?`).bind(id).run();
+    await database(c).prepare(`UPDATE stock_transfers SET received_by = NULL WHERE id = ?`).bind(id).run();
     if (String(e.message).includes('CHECK constraint')) return c.json({ error: 'Source batch no longer has enough stock' }, 400);
     throw e;
   }
 
-  return c.json(await c.env.DB.prepare('SELECT * FROM stock_transfers WHERE id = ?').bind(id).first());
+  return c.json(await database(c).prepare('SELECT * FROM stock_transfers WHERE id = ?').bind(id).first());
 });
 
 // Cancelling a transfer previously had NO branch check at all either — see
@@ -297,7 +298,7 @@ transfers.post('/:id/receive', idempotent, async (c) => {
 transfers.post('/:id/cancel', async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
-  const transfer = await c.env.DB.prepare('SELECT * FROM stock_transfers WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const transfer = await database(c).prepare('SELECT * FROM stock_transfers WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!transfer) return c.json({ error: 'Transfer not found' }, 404);
   // Same fix again: a pinned MANAGER may only cancel a transfer their own
   // branch is a party to (either end). Cancelling someone else's in-flight
@@ -308,8 +309,8 @@ transfers.post('/:id/cancel', async (c) => {
       return c.json({ error: 'You can only cancel a transfer involving your own branch.', code: 'BRANCH_SCOPE_VIOLATION' }, 403);
     }
   }
-  await c.env.DB.prepare(`UPDATE stock_transfers SET status = 'CANCELLED', updated_at = datetime('now') WHERE id = ? AND status IN ('PENDING','IN_TRANSIT')`).bind(id).run();
-  return c.json(await c.env.DB.prepare('SELECT * FROM stock_transfers WHERE id = ?').bind(id).first());
+  await database(c).prepare(`UPDATE stock_transfers SET status = 'CANCELLED', updated_at = datetime('now') WHERE id = ? AND status IN ('PENDING','IN_TRANSIT')`).bind(id).run();
+  return c.json(await database(c).prepare('SELECT * FROM stock_transfers WHERE id = ?').bind(id).first());
 });
 
 module.exports = transfers;

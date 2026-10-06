@@ -1,3 +1,4 @@
+const { database } = require('./database');
 // Auth middleware for Hono, mirroring the original implementation in the
 // original design (same JWT-per-request re-validation policy: a token's
 // claims are never trusted on their own — the live user row is always
@@ -17,7 +18,7 @@ async function authRequired(c, next) {
     return c.json({ error: 'Invalid or expired token' }, 401);
   }
 
-  const liveUser = await c.env.DB.prepare(
+  const liveUser = await database(c).prepare(
     'SELECT id, branch_id, full_name, username, role, is_active, credentials_changed_at FROM users WHERE id = ? AND is_deleted = 0'
   ).bind(payload.id).first();
 
@@ -40,7 +41,7 @@ async function authRequired(c, next) {
       code: 'SESSION_REFRESH_REQUIRED',
     }, 401);
   }
-  const activeSession = await c.env.DB.prepare(
+  const activeSession = await database(c).prepare(
     'SELECT session_id FROM user_sessions WHERE user_id = ?'
   ).bind(liveUser.id).first();
   if (!activeSession || activeSession.session_id !== payload.sid) {

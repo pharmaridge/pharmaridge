@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { withD1Retry } = require('../lib/d1Retry');
 const { idempotent } = require('../lib/idempotency');
@@ -26,7 +27,7 @@ creditors.get('/balances', managerOnly, async (c) => {
   let sql = `SELECT cb.*, s.name AS supplier_name FROM v_creditor_balances cb JOIN suppliers s ON s.id = cb.supplier_id`;
   const params = [];
   if (branchId) { sql += ' WHERE cb.branch_id = ?'; params.push(branchId); }
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
@@ -57,7 +58,7 @@ creditors.post('/:supplierId/payments', managerOnly, idempotent, async (c) => {
   // otherwise the final balances an owner signs off keep moving after the
   // shop has shut.
   try {
-    await assertBranchActive(c.env.DB, branchId, 'record a supplier payment');
+    await assertBranchActive(database(c), branchId, 'record a supplier payment');
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || 403);
   }
@@ -80,7 +81,7 @@ creditors.post('/:supplierId/payments', managerOnly, idempotent, async (c) => {
   // else subtracts) rather than reading the view, precisely because the
   // view's HAVING clause is what concealed the problem.
   {
-    const owedRow = await c.env.DB.prepare(`
+    const owedRow = await database(c).prepare(`
       SELECT COALESCE(SUM(CASE WHEN entry_type = 'DEBIT' THEN amount ELSE -amount END), 0) AS owed
         FROM creditor_ledger
        WHERE supplier_id = ? AND branch_id = ? AND is_deleted = 0
@@ -105,7 +106,7 @@ creditors.post('/:supplierId/payments', managerOnly, idempotent, async (c) => {
   // equal to every deduction ever made. See lib/wht.js.
   let deduction = null;
   try {
-    deduction = await wht.resolveDeduction(c.env.DB, {
+    deduction = await wht.resolveDeduction(database(c), {
       grossAmount: body.amount,
       rateCode: body.wht_rate_code,
       ratePercentOverride: body.wht_rate_percent,
@@ -136,11 +137,11 @@ creditors.post('/:supplierId/payments', managerOnly, idempotent, async (c) => {
   const netRatio = deduction ? (deduction.net / body.amount) : 1;
 
   if (drawerPart) {
-    const openTill = await c.env.DB.prepare(
+    const openTill = await database(c).prepare(
       `SELECT id FROM till_sessions WHERE branch_id = ? AND status = 'OPEN' AND is_deleted = 0 LIMIT 1`
     ).bind(branchId).first();
     if (openTill) {
-      const available = await tillService.computeExpectedCash(c.env.DB, openTill.id);
+      const available = await tillService.computeExpectedCash(database(c), openTill.id);
       const drawerOut = Math.round(drawerPart.amount * netRatio * 100) / 100;
       if (drawerOut > Number(available) + 0.005) {
         return c.json({
@@ -156,20 +157,20 @@ creditors.post('/:supplierId/payments', managerOnly, idempotent, async (c) => {
   if (safePart) {
     const safeOut = Math.round(safePart.amount * netRatio * 100) / 100;
     if (user.role === 'STAFF') {
-      const capped = await assertStaffSafeSpend(c.env.DB, user, safeOut);
+      const capped = await assertStaffSafeSpend(database(c), user, safeOut);
       if (capped) return c.json(capped, capped.status);
     } else {
       const denied = safeService.assertCanMoveSafe(user, branchId);
       if (denied) return c.json({ error: denied.error, code: denied.code }, denied.status);
     }
-    const short = await safeService.assertSufficientFunds(c.env.DB, branchId, safeOut,
+    const short = await safeService.assertSufficientFunds(database(c), branchId, safeOut,
       { label: 'this supplier payment' });
     if (short) return c.json(short, short.status);
   }
 
   const id = uuid();
   const statements = [
-    c.env.DB.prepare(`INSERT INTO creditor_ledger (id, branch_id, supplier_id, purchase_order_id, entry_type, amount, recorded_by, notes) VALUES (?,?,?,?,'PAYMENT',?,?,?)`)
+    database(c).prepare(`INSERT INTO creditor_ledger (id, branch_id, supplier_id, purchase_order_id, entry_type, amount, recorded_by, notes) VALUES (?,?,?,?,'PAYMENT',?,?,?)`)
       .bind(id, branchId, supplierId, body.purchase_order_id || null, body.amount, user.id, body.notes || 'Payment to supplier'),
   ];
 
@@ -179,7 +180,7 @@ creditors.post('/:supplierId/payments', managerOnly, idempotent, async (c) => {
   if (safePart) {
     // Only the safe's share, apportioned by the net — see the same note in
     // routes/expenses.js. The withheld tax never leaves the branch.
-    const mv = safeService.movementStatements(c.env.DB, {
+    const mv = safeService.movementStatements(database(c), {
       branchId, entryType: 'SUPPLIER_PAID',
       amount: Math.round(safePart.amount * netRatio * 100) / 100,
       reason: (body.notes || 'Payment to supplier')
@@ -190,8 +191,8 @@ creditors.post('/:supplierId/payments', managerOnly, idempotent, async (c) => {
   }
 
   if (deduction) {
-    const supplier = await c.env.DB.prepare('SELECT name FROM suppliers WHERE id = ?').bind(supplierId).first();
-    statements.push(wht.buildEntryStatement(c.env.DB, {
+    const supplier = await database(c).prepare('SELECT name FROM suppliers WHERE id = ?').bind(supplierId).first();
+    statements.push(wht.buildEntryStatement(database(c), {
       id: uuid(), branchId, direction: 'PAYABLE', sourceType: 'SUPPLIER_PAYMENT', sourceId: id,
       deduction,
       supplierId,
@@ -205,7 +206,7 @@ creditors.post('/:supplierId/payments', managerOnly, idempotent, async (c) => {
   // GENERAL LEDGER: Accounts Payable debited by the GROSS, Cash credited
   // by the NET, WHT Payable credited with the deduction — see
   // worker/src/services/glService.js's postSupplierPayment().
-  const glResult = await glService.postSupplierPayment(c.env.DB, {
+  const glResult = await glService.postSupplierPayment(database(c), {
     branchId, paymentId: id, recordedBy: user.id, amount: body.amount,
     whtAmount: deduction ? deduction.wht : 0,
     paidByMethod: cashSources.length > 1 ? 'CASH' : (cashSources[0] ? cashSources[0].source : paidByMethod),
@@ -213,8 +214,8 @@ creditors.post('/:supplierId/payments', managerOnly, idempotent, async (c) => {
   });
   if (glResult) statements.push(...glResult.statements);
 
-  await withD1Retry(() => c.env.DB.batch(statements), 'supplier payment');
-  const saved = await c.env.DB.prepare('SELECT * FROM creditor_ledger WHERE id = ?').bind(id).first();
+  await withD1Retry(() => database(c).batch(statements), 'supplier payment');
+  const saved = await database(c).prepare('SELECT * FROM creditor_ledger WHERE id = ?').bind(id).first();
   if (deduction) {
     saved.wht = {
       rate_code: deduction.rateCode,

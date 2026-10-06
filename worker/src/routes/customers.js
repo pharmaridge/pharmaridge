@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { withD1Retry } = require('../lib/d1Retry');
 const { idempotent } = require('../lib/idempotency');
@@ -19,7 +20,7 @@ customers.get('/', async (c) => {
   if (branchId) { sql += ' AND branch_id = ?'; params.push(branchId); }
   if (q) { sql += ' AND (name LIKE ? OR phone LIKE ?)'; params.push(`%${q}%`, `%${q}%`); }
   sql += ' ORDER BY name LIMIT 200';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
@@ -29,9 +30,9 @@ customers.post('/', async (c) => {
   if (!body.name) return c.json({ error: 'name is required' }, 400);
   const effectiveBranch = resolveMutationBranchId(c, body.branch_id);
   const id = uuid();
-  await c.env.DB.prepare(`INSERT INTO customers (id, branch_id, name, phone, address, id_type, id_number) VALUES (?,?,?,?,?,?,?)`)
+  await database(c).prepare(`INSERT INTO customers (id, branch_id, name, phone, address, id_type, id_number) VALUES (?,?,?,?,?,?,?)`)
     .bind(id, effectiveBranch, body.name, body.phone || null, body.address || null, body.id_type || null, body.id_number || null).run();
-  return c.json(await c.env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first(), 201);
+  return c.json(await database(c).prepare('SELECT * FROM customers WHERE id = ?').bind(id).first(), 201);
 });
 
 // FUNCTIONAL GAP CLOSED — customers never
@@ -41,7 +42,7 @@ customers.post('/', async (c) => {
 // /:id/payments routes.
 customers.put('/:id', async (c) => {
   const id = c.req.param('id');
-  const customer = await c.env.DB.prepare('SELECT * FROM customers WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const customer = await database(c).prepare('SELECT * FROM customers WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!customer) return c.json({ error: 'Customer not found' }, 404);
   try {
     assertBranchAccess(c, customer.branch_id);
@@ -73,17 +74,17 @@ customers.put('/:id', async (c) => {
         code: 'INVALID_CREDIT_LIMIT',
       }, 400);
     }
-    await c.env.DB.prepare("UPDATE customers SET credit_limit = ?, updated_at = datetime('now') WHERE id = ?")
+    await database(c).prepare("UPDATE customers SET credit_limit = ?, updated_at = datetime('now') WHERE id = ?")
       .bind(normaliseMoney(body.credit_limit), id).run();
   }
 
   const fields = ['name', 'phone', 'address', 'id_type', 'id_number'];
   const updates = fields.filter((f) => body[f] !== undefined);
   if (updates.length) {
-    await c.env.DB.prepare(`UPDATE customers SET ${updates.map((f) => f + ' = ?').join(', ')}, updated_at = datetime('now') WHERE id = ?`)
+    await database(c).prepare(`UPDATE customers SET ${updates.map((f) => f + ' = ?').join(', ')}, updated_at = datetime('now') WHERE id = ?`)
       .bind(...updates.map((f) => body[f]), id).run();
   }
-  return c.json(await c.env.DB.prepare('SELECT * FROM customers WHERE id = ?').bind(id).first());
+  return c.json(await database(c).prepare('SELECT * FROM customers WHERE id = ?').bind(id).first());
 });
 
 // A customer with a NULL branch_id is a shared/org-wide record and stays
@@ -93,18 +94,18 @@ customers.put('/:id', async (c) => {
 // customer's branch at all).
 customers.get('/:id/balance', async (c) => {
   const id = c.req.param('id');
-  const customer = await c.env.DB.prepare('SELECT branch_id FROM customers WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const customer = await database(c).prepare('SELECT branch_id FROM customers WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!customer) return c.json({ error: 'Customer not found' }, 404);
   try {
     assertBranchAccess(c, customer.branch_id);
   } catch (e) {
     return c.json({ error: e.message }, e.status || 403);
   }
-  const row = await c.env.DB.prepare(`
+  const row = await database(c).prepare(`
     SELECT COALESCE(SUM(CASE WHEN entry_type='DEBIT' THEN amount ELSE -amount END), 0) AS balance_owed
     FROM debtor_ledger WHERE customer_id = ? AND is_deleted = 0
   `).bind(id).first();
-  const { results: history } = await c.env.DB.prepare('SELECT * FROM debtor_ledger WHERE customer_id = ? AND is_deleted = 0 ORDER BY created_at DESC').bind(id).all();
+  const { results: history } = await database(c).prepare('SELECT * FROM debtor_ledger WHERE customer_id = ? AND is_deleted = 0 ORDER BY created_at DESC').bind(id).all();
   return c.json({ balance_owed: row.balance_owed, history });
 });
 
@@ -124,7 +125,7 @@ customers.get('/aging', managerOnly, async (c) => {
   const branchId = resolveScopedBranchId(c);
   const scope = branchId ? 'AND dl.branch_id = ?' : '';
   const params = branchId ? [branchId] : [];
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await database(c).prepare(`
     SELECT
       cu.id                AS customer_id,
       cu.name              AS customer_name,
@@ -172,7 +173,7 @@ customers.post('/:id/payments', idempotent, async (c) => {
   const user = c.get('user');
   const id = c.req.param('id');
   const body = await readJsonBody(c);
-  const customer = await c.env.DB.prepare('SELECT * FROM customers WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const customer = await database(c).prepare('SELECT * FROM customers WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!customer) return c.json({ error: 'Customer not found' }, 404);
   try {
     assertBranchAccess(c, customer.branch_id);
@@ -199,7 +200,7 @@ customers.post('/:id/payments', idempotent, async (c) => {
   // request body as a final, validated fallback.
   let branchId = customer.branch_id || user.branch_id || null;
   if (!branchId && body.branch_id) {
-    const branchExists = await c.env.DB.prepare('SELECT 1 FROM branches WHERE id = ? AND is_deleted = 0').bind(body.branch_id).first();
+    const branchExists = await database(c).prepare('SELECT 1 FROM branches WHERE id = ? AND is_deleted = 0').bind(body.branch_id).first();
     if (!branchExists) return c.json({ error: `Unknown branch ${body.branch_id}` }, 400);
     branchId = body.branch_id;
   }
@@ -217,7 +218,7 @@ customers.post('/:id/payments', idempotent, async (c) => {
   // branch actually charged may come from the customer, the user, or the
   // request body.
   try {
-    await assertBranchActive(c.env.DB, branchId, 'record a customer repayment');
+    await assertBranchActive(database(c), branchId, 'record a customer repayment');
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || 403);
   }
@@ -241,7 +242,7 @@ customers.post('/:id/payments', idempotent, async (c) => {
   // real business case, but it needs its own deliberate feature (a customer
   // deposit) rather than a silently negative debt.
   {
-    const owedRow = await c.env.DB.prepare(`
+    const owedRow = await database(c).prepare(`
       SELECT COALESCE(SUM(CASE WHEN entry_type = 'DEBIT' THEN amount ELSE -amount END), 0) AS owed
         FROM debtor_ledger
        WHERE customer_id = ? AND branch_id = ? AND is_deleted = 0
@@ -260,19 +261,19 @@ customers.post('/:id/payments', idempotent, async (c) => {
 
   const paymentId = uuid();
   const statements = [
-    c.env.DB.prepare(`INSERT INTO debtor_ledger (id, branch_id, customer_id, entry_type, amount, recorded_by, notes) VALUES (?,?,?,'PAYMENT',?,?,?)`)
+    database(c).prepare(`INSERT INTO debtor_ledger (id, branch_id, customer_id, entry_type, amount, recorded_by, notes) VALUES (?,?,?,'PAYMENT',?,?,?)`)
       .bind(paymentId, branchId, id, body.amount, user.id, body.notes || 'Debt repayment'),
   ];
 
   // GENERAL LEDGER: Cash debited, Accounts Receivable credited — see
   // worker/src/services/glService.js's postCustomerPayment().
-  const glResult = await glService.postCustomerPayment(c.env.DB, {
+  const glResult = await glService.postCustomerPayment(database(c), {
     branchId, paymentId, recordedBy: user.id, amount: body.amount, method: 'CASH',
   });
   if (glResult) statements.push(...glResult.statements);
 
-  await withD1Retry(() => c.env.DB.batch(statements), 'customer payment');
-  return c.json(await c.env.DB.prepare('SELECT * FROM debtor_ledger WHERE id = ?').bind(paymentId).first(), 201);
+  await withD1Retry(() => database(c).batch(statements), 'customer payment');
+  return c.json(await database(c).prepare('SELECT * FROM debtor_ledger WHERE id = ?').bind(paymentId).first(), 201);
 });
 
 module.exports = customers;

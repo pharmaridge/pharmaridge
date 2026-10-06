@@ -1,3 +1,4 @@
+const { database } = require('./database');
 // Idempotency middleware for D1 — same contract as the original
 // implementation in the original design: a client sends the same
 // `Idempotency-Key` header on every retry of one logical mutation (e.g.
@@ -17,7 +18,7 @@ async function idempotent(c, next) {
   // silently replay the WRONG endpoint's response.
   const requestHash = await sha256Hex(`${c.req.method} ${c.req.path}\n${bodyText || ''}`);
 
-  const existing = await c.env.DB.prepare(
+  const existing = await database(c).prepare(
     'SELECT * FROM idempotency_keys WHERE idempotency_key = ? AND user_id = ?'
   ).bind(key, user.id).first();
 
@@ -33,7 +34,7 @@ async function idempotent(c, next) {
   }
 
   try {
-    await c.env.DB.prepare(
+    await database(c).prepare(
       `INSERT INTO idempotency_keys (idempotency_key, user_id, method, path, request_hash, status) VALUES (?, ?, ?, ?, ?, 'IN_PROGRESS')`
     ).bind(key, user.id, c.req.method, c.req.path, requestHash).run();
   } catch (e) {
@@ -49,7 +50,7 @@ async function idempotent(c, next) {
   try {
     await next();
   } catch (err) {
-    await c.env.DB.prepare(
+    await database(c).prepare(
       'DELETE FROM idempotency_keys WHERE idempotency_key = ? AND user_id = ?'
     ).bind(key, user.id).run().catch(() => {});
     throw err;
@@ -78,14 +79,14 @@ async function idempotent(c, next) {
   // doesn't re-run the handler each time. On a 5xx the claim row is
   // released instead, leaving the key free for a clean retry.
   if (status >= 500) {
-    await c.env.DB.prepare(
+    await database(c).prepare(
       'DELETE FROM idempotency_keys WHERE idempotency_key = ? AND user_id = ?'
     ).bind(key, user.id).run().catch(() => {});
     return;
   }
 
   const responseBodyText = await c.res.clone().text();
-  await c.env.DB.prepare(
+  await database(c).prepare(
     `UPDATE idempotency_keys SET response_status = ?, response_body = ?, status = 'COMPLETED' WHERE idempotency_key = ? AND user_id = ?`
   ).bind(status, responseBodyText, key, user.id).run();
 }

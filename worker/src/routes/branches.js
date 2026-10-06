@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, managerOnly, pinnedBranchIdOf } = require('../lib/auth');
 const { uuid } = require('../lib/crypto');
@@ -87,7 +88,7 @@ branches.get('/', async (c) => {
   // Branch Manager receiving a transfer has to know which shop sent it.
   // Hiding the directory would break those screens while protecting
   // nothing that is not already protected one layer down.
-  const { results } = await c.env.DB.prepare('SELECT * FROM branches WHERE is_deleted = 0 ORDER BY name LIMIT 1000').all();
+  const { results } = await database(c).prepare('SELECT * FROM branches WHERE is_deleted = 0 ORDER BY name LIMIT 1000').all();
   return c.json(results);
 });
 
@@ -112,24 +113,24 @@ branches.post('/', managerOnly, async (c) => {
   }
 
   try {
-    await assertCanAddBranch(c.env.DB);
+    await assertCanAddBranch(database(c));
   } catch (e) {
     if (e instanceof PlanLimitError) return c.json({ error: e.message, code: e.code }, e.status);
     throw e;
   }
 
   const id = uuid();
-  await c.env.DB.prepare(`
+  await database(c).prepare(`
     INSERT INTO branches (id, name, address, phone, license_type, pcn_license_no, superintendent_pharmacist, latitude, longitude, geofence_radius_meters, attendance_mode, pcn_license_expiry_date, superintendent_registration_expiry_date)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).bind(id, body.name, body.address || null, body.phone || null, body.license_type || 'PHARMACY', body.pcn_license_no || null, body.superintendent_pharmacist || null,
           body.latitude ?? null, body.longitude ?? null, body.geofence_radius_meters || 100, body.attendance_mode || 'GEOLOCATION', body.pcn_license_expiry_date || null, body.superintendent_registration_expiry_date || null).run();
-  return c.json(await c.env.DB.prepare('SELECT * FROM branches WHERE id = ?').bind(id).first(), 201);
+  return c.json(await database(c).prepare('SELECT * FROM branches WHERE id = ?').bind(id).first(), 201);
 });
 
 branches.put('/:id', managerOnly, async (c) => {
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM branches WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const existing = await database(c).prepare('SELECT * FROM branches WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!existing) return c.json({ error: 'Branch not found' }, 404);
   // A branch-scoped manager may edit ONLY their own branch's record
   // (address, phone, geofence...). Live-reproduced before this guard: a
@@ -165,22 +166,22 @@ branches.put('/:id', managerOnly, async (c) => {
   // BUG 86: capture what is still open BEFORE the closure lands, so the
   // response can tell the owner exactly what still needs settling.
   const closing = isExplicitFalse(body.is_active) && existing.is_active;
-  const inFlight = closing ? await workInFlight(c.env.DB, id) : null;
+  const inFlight = closing ? await workInFlight(database(c), id) : null;
 
   // A closed branch does not consume a paid slot. Reopening it does, so this
   // direct edit route must enforce the exact same cap as branch creation and
   // relocation. Otherwise a lower plan can be bypassed by toggle-on.
   const reopening = !existing.is_active && (body.is_active === true || body.is_active === 1);
   if (reopening) {
-    try { await assertCanAddBranch(c.env.DB); }
+    try { await assertCanAddBranch(database(c)); }
     catch (e) {
       if (e instanceof PlanLimitError) return c.json({ error: e.message, code: e.code }, e.status);
       throw e;
     }
   }
 
-  await c.env.DB.prepare(`UPDATE branches SET ${setClause}, updated_at = datetime('now') WHERE id = ?`).bind(...vals, id).run();
-  const updated = await c.env.DB.prepare('SELECT * FROM branches WHERE id = ?').bind(id).first();
+  await database(c).prepare(`UPDATE branches SET ${setClause}, updated_at = datetime('now') WHERE id = ?`).bind(...vals, id).run();
+  const updated = await database(c).prepare('SELECT * FROM branches WHERE id = ?').bind(id).first();
 
   if (closing && inFlight && inFlight.items.length) {
     return c.json({
@@ -224,7 +225,7 @@ branches.put('/:id', managerOnly, async (c) => {
 // because estate decisions belong to the proprietor.
 branches.post('/:id/relocate', managerOnly, async (c) => {
   const id = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT * FROM branches WHERE id = ? AND is_deleted = 0').bind(id).first();
+  const existing = await database(c).prepare('SELECT * FROM branches WHERE id = ? AND is_deleted = 0').bind(id).first();
   if (!existing) return c.json({ error: 'Branch not found' }, 404);
 
   {
@@ -263,12 +264,12 @@ branches.post('/:id/relocate', managerOnly, async (c) => {
     // Reopening consumes a slot again, so the plan limit must be re-checked —
     // the branch was not counted while it was closed (BUG 85).
     try {
-      await assertCanAddBranch(c.env.DB);
+      await assertCanAddBranch(database(c));
     } catch (e) {
       if (e instanceof PlanLimitError) return c.json({ error: e.message, code: e.code }, e.status);
       throw e;
     }
-    await c.env.DB.prepare(`
+    await database(c).prepare(`
       UPDATE branches
          SET name = ?, address = ?, phone = ?, latitude = ?, longitude = ?, geofence_radius_meters = ?,
              is_active = 1, updated_at = datetime('now')
@@ -282,7 +283,7 @@ branches.post('/:id/relocate', managerOnly, async (c) => {
       body.geofence_radius_meters !== undefined ? body.geofence_radius_meters : existing.geofence_radius_meters,
       id,
     ).run();
-    const row = await c.env.DB.prepare('SELECT * FROM branches WHERE id = ?').bind(id).first();
+    const row = await database(c).prepare('SELECT * FROM branches WHERE id = ?').bind(id).first();
     return c.json({
       ...row,
       relocation: {
@@ -296,14 +297,14 @@ branches.post('/:id/relocate', managerOnly, async (c) => {
   // FRESH_START — a genuinely new branch; the old one stays closed and keeps
   // its own history under its own name.
   try {
-    await assertCanAddBranch(c.env.DB);
+    await assertCanAddBranch(database(c));
   } catch (e) {
     if (e instanceof PlanLimitError) return c.json({ error: e.message, code: e.code }, e.status);
     throw e;
   }
   if (!name) return c.json({ error: 'A name is required for the new branch.', code: 'NAME_REQUIRED' }, 400);
   const newId = uuid();
-  await c.env.DB.prepare(`
+  await database(c).prepare(`
     INSERT INTO branches (id, name, address, phone, license_type, latitude, longitude, geofence_radius_meters, attendance_mode, is_active)
     VALUES (?,?,?,?,?,?,?,?,?,1)
   `).bind(
@@ -315,7 +316,7 @@ branches.post('/:id/relocate', managerOnly, async (c) => {
     body.geofence_radius_meters !== undefined ? body.geofence_radius_meters : existing.geofence_radius_meters,
     body.attendance_mode || existing.attendance_mode,
   ).run();
-  const row = await c.env.DB.prepare('SELECT * FROM branches WHERE id = ?').bind(newId).first();
+  const row = await database(c).prepare('SELECT * FROM branches WHERE id = ?').bind(newId).first();
   return c.json({
     ...row,
     relocation: {

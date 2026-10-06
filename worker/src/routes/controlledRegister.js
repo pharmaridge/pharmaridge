@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, resolveScopedBranchId, pinnedBranchIdOf } = require('../lib/auth');
 
@@ -47,7 +48,7 @@ controlledRegister.get('/', async (c) => {
   const productId = c.req.query('product_id');
   if (productId) { sql += ' AND r.product_id = ?'; params.push(productId); }
   sql += ' ORDER BY r.created_at DESC LIMIT 500';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
@@ -100,7 +101,7 @@ controlledRegister.get('/verify/:branchId', async (c) => {
       return c.json({ error: 'You can only verify your own branch\'s controlled drug register.', code: 'BRANCH_SCOPE_VIOLATION' }, 403);
     }
   }
-  return c.json(await verifyChain(c.env.DB, branchId));
+  return c.json(await verifyChain(database(c), branchId));
 });
 
 module.exports = controlledRegister;

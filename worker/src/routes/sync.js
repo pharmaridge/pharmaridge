@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, managerOnly, resolveMutationBranchId } = require('../lib/auth');
 const { uuid } = require('../lib/crypto');
@@ -62,24 +63,24 @@ sync.post('/heartbeat', async (c) => {
   const branchId = resolveMutationBranchId(c, body.branch_id);
   if (!branchId) return c.json({ error: 'branch_id is required' }, 400);
 
-  const existing = await c.env.DB.prepare('SELECT * FROM branch_sync_status WHERE branch_id = ?').bind(branchId).first();
+  const existing = await database(c).prepare('SELECT * FROM branch_sync_status WHERE branch_id = ?').bind(branchId).first();
   if (existing) {
-    await c.env.DB.prepare(`
+    await database(c).prepare(`
       UPDATE branch_sync_status SET device_id = ?, app_version = ?, last_heartbeat_at = datetime('now'), pending_push_count = ?, updated_at = datetime('now') WHERE branch_id = ?
     `).bind(body.device_id || null, body.app_version || null, body.pending_push_count || 0, branchId).run();
   } else {
-    await c.env.DB.prepare(`
+    await database(c).prepare(`
       INSERT INTO branch_sync_status (branch_id, device_id, app_version, last_heartbeat_at, pending_push_count, updated_at) VALUES (?,?,?,datetime('now'),?,datetime('now'))
     `).bind(branchId, body.device_id || null, body.app_version || null, body.pending_push_count || 0).run();
   }
-  await c.env.DB.prepare(`INSERT INTO sync_change_log (id, branch_id, device_id, direction, table_name, row_count, status) VALUES (?,?,?,'HEARTBEAT',NULL,0,'SUCCESS')`)
+  await database(c).prepare(`INSERT INTO sync_change_log (id, branch_id, device_id, direction, table_name, row_count, status) VALUES (?,?,?,'HEARTBEAT',NULL,0,'SUCCESS')`)
     .bind(uuid(), branchId, body.device_id || null).run();
 
-  return c.json(await c.env.DB.prepare('SELECT * FROM v_branch_sync_overview WHERE branch_id = ?').bind(branchId).first());
+  return c.json(await database(c).prepare('SELECT * FROM v_branch_sync_overview WHERE branch_id = ?').bind(branchId).first());
 });
 
 sync.get('/overview', managerOnly, async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT * FROM v_branch_sync_overview ORDER BY connectivity_status, branch_name').all();
+  const { results } = await database(c).prepare('SELECT * FROM v_branch_sync_overview ORDER BY connectivity_status, branch_name').all();
   return c.json(results);
 });
 
@@ -96,7 +97,7 @@ sync.post('/push', idempotent, async (c) => {
   if (!branchId) return c.json({ error: 'branch_id is required' }, 400);
   if (!body.changes) return c.json({ error: 'changes object is required' }, 400);
   try {
-    const summary = await syncService.applyPush(c.env.DB, {
+    const summary = await syncService.applyPush(database(c), {
       branchId,
       deviceId: body.device_id,
       appVersion: body.app_version,
@@ -110,7 +111,7 @@ sync.post('/push', idempotent, async (c) => {
     // PUSH_BATCH_TOO_LARGE is deliberately not logged as a sync-health failure
     // — see Node's comment for why.
     if (e.code !== 'PUSH_BATCH_TOO_LARGE') {
-      try { await syncService.recordPushFailure(c.env.DB, { branchId, deviceId: body.device_id, errorMessage: e.message }); } catch (_) { /* never let audit-logging itself break the error response */ }
+      try { await syncService.recordPushFailure(database(c), { branchId, deviceId: body.device_id, errorMessage: e.message }); } catch (_) { /* never let audit-logging itself break the error response */ }
     }
     return c.json({ error: e.message, code: e.code }, e.status || (e.code === 'PUSH_BATCH_TOO_LARGE' ? 413 : 400));
   }
@@ -120,13 +121,13 @@ sync.post('/push', idempotent, async (c) => {
 // that haven't been reviewed yet. Mirrors the original implementation's
 // GET /conflicts exactly.
 sync.get('/conflicts', managerOnly, async (c) => {
-  return c.json(await syncService.getUnreviewedConflicts(c.env.DB));
+  return c.json(await syncService.getUnreviewedConflicts(database(c)));
 });
 
 sync.post('/conflicts/:id/review', managerOnly, async (c) => {
   const user = c.get('user');
   try {
-    await syncService.reviewConflict(c.env.DB, { conflictId: c.req.param('id'), reviewedBy: user.id });
+    await syncService.reviewConflict(database(c), { conflictId: c.req.param('id'), reviewedBy: user.id });
     return c.json({ ok: true });
   } catch (e) {
     return c.json({ error: e.message }, e.status || 400);

@@ -1,10 +1,10 @@
 # Turso Migration Checkpoint
 
-**Stage:** 2 — schema compatibility pilot
+**Stage:** 2.5 — request-scoped provider adoption
 
-**Status:** Stages 0–2 completed safely. The Turso pilot has the verified reference/setup schema only; no Client operational data was written to Turso.
+**Status:** Stages 0–2.5 completed safely. The Turso pilot has the verified reference/setup schema only; no Client operational data was written to Turso, and D1 remains the active runtime.
 
-**Purpose:** Establish a verified, reversible migration seam and an exact schema baseline before any Client-data migration begins.
+**Purpose:** Establish a verified, reversible provider seam and an exact schema baseline before any Client-data migration begins.
 
 ## Guardrails
 
@@ -100,6 +100,28 @@ migration manifest rows: 2
 Turso starts a fresh connection with `PRAGMA foreign_keys` disabled. The adapter now enables it before every application statement path, and the live adapter audit proves the pragma reports `1`. This restores D1's always-on foreign-key guarantee before any route is allowed to adopt Turso.
 
 The pilot has the default chart of accounts, WHT rates, and client settings created by the existing initial schema, but it has no Client Admin/Owner/Staff accounts, branches, products, stock, customers, suppliers, sales, receipts, or GL transactions.
+
+## Stage 2.5 result — request-scoped provider adoption
+
+All **370** executable request-context database call sites now resolve through:
+
+```text
+worker/src/lib/database.js → database(c)
+```
+
+`worker/src/index.js` selects the provider once per Hono request and stores it in the request context. The default remains the native D1 binding; no existing Worker changes provider unless a future deployment explicitly sets `DATABASE_PROVIDER=TURSO` and supplies Turso Worker secrets.
+
+This removes route-by-route provider drift while retaining the D1 fallback required by isolated unit tests. It also means a future Turso canary can be enabled per Worker rather than by editing each route again.
+
+Validation:
+
+```text
+DATABASE PROVIDER CONTEXT AUDIT: 4 passed, 0 failed
+BARCODE FLOW AUDIT (D1 default): 15 passed, 0 failed
+DATA MANAGEMENT AUDIT: 21 passed, 0 failed
+```
+
+No Cloudflare Worker was redeployed during this stage. The current D1 instances remain the active runtime.
 
 ## Current D1 baseline locked for comparison
 

@@ -1,3 +1,4 @@
+const { database } = require('./database');
 // Plan-limits / subscription-gate helpers — Cloudflare D1 port of the
 // original implementation Same single-tenant-per-client model and the same
 // three enforcement mechanisms (branch/staff hard caps, feature toggles,
@@ -129,7 +130,7 @@ async function assertFeatureEnabled(db, featureColumn, featureLabel) {
 function requireFeature(featureColumn, featureLabel) {
   return async (c, next) => {
     try {
-      await assertFeatureEnabled(c.env.DB, featureColumn, featureLabel);
+      await assertFeatureEnabled(database(c), featureColumn, featureLabel);
       await next();
     } catch (e) {
       if (e instanceof FeatureDisabledError) return c.json({ error: e.message, code: e.code }, e.status);
@@ -147,7 +148,7 @@ async function subscriptionGate(c, next) {
   const user = c.get('user');
   if (user && user.role === 'ADMIN') return next();
 
-  const settings = await getClientSettings(c.env.DB);
+  const settings = await getClientSettings(database(c));
   if (settings.subscription_status === 'SUSPENDED' || settings.subscription_status === 'EXPIRED') {
     const err = new SubscriptionInactiveError(
       `This account's subscription is currently ${settings.subscription_status.toLowerCase()}. ` +

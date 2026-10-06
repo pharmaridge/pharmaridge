@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 // BRANCH SAFE — the shop's cash reserve, held outside the counter drawer.
 //
 // Bug 96 correctly stopped a CASH expense exceeding the till. This is the
@@ -33,11 +34,11 @@ safe.get('/', async (c) => {
   if (scoped) {
     return c.json({
       branch_id: scoped,
-      safe_balance: await safeService.safeBalance(c.env.DB, scoped),
-      movements: await safeService.listMovements(c.env.DB, scoped, c.req.query('limit')),
+      safe_balance: await safeService.safeBalance(database(c), scoped),
+      movements: await safeService.listMovements(database(c), scoped, c.req.query('limit')),
     });
   }
-  return c.json(await safeService.allBalances(c.env.DB));
+  return c.json(await safeService.allBalances(database(c)));
 });
 
 safe.get('/:branchId/movements', async (c) => {
@@ -46,8 +47,8 @@ safe.get('/:branchId/movements', async (c) => {
   catch (e) { return c.json({ error: e.message, code: e.code || 'BRANCH_SCOPE_VIOLATION' }, e.status || 403); }
   return c.json({
     branch_id: branchId,
-    safe_balance: await safeService.safeBalance(c.env.DB, branchId),
-    movements: await safeService.listMovements(c.env.DB, branchId, c.req.query('limit')),
+    safe_balance: await safeService.safeBalance(database(c), branchId),
+    movements: await safeService.listMovements(database(c), branchId, c.req.query('limit')),
   });
 });
 
@@ -69,7 +70,7 @@ safe.post('/movements', idempotent, async (c) => {
   const denied = safeService.assertCanMoveSafe(user, branchId);
   if (denied) return c.json({ error: denied.error, code: denied.code }, denied.status);
 
-  try { await assertBranchActive(c.env.DB, branchId, 'move money in the safe'); }
+  try { await assertBranchActive(database(c), branchId, 'move money in the safe'); }
   catch (e) { return c.json({ error: e.message, code: e.code || 'BRANCH_INACTIVE' }, e.status || 400); }
 
   const ENTRY_TYPES = ['DEPOSIT', 'WITHDRAWAL', 'TILL_TRANSFER'];
@@ -113,7 +114,7 @@ safe.post('/movements', idempotent, async (c) => {
 
   // A safe cannot go negative, for exactly the reason a drawer cannot.
   if (signed < 0) {
-    const short = await safeService.assertSufficientFunds(c.env.DB, branchId, signed, { label: 'this withdrawal' });
+    const short = await safeService.assertSufficientFunds(database(c), branchId, signed, { label: 'this withdrawal' });
     if (short) return c.json(short, short.status);
   }
 
@@ -134,11 +135,11 @@ safe.post('/movements', idempotent, async (c) => {
   // Only the drawer-emptying direction is checked: topping the drawer UP is
   // limited by the safe, which the block above already enforces.
   if (entryType === 'TILL_TRANSFER' && signed > 0) {
-    const openTill = await c.env.DB.prepare(
+    const openTill = await database(c).prepare(
       "SELECT id FROM till_sessions WHERE branch_id = ? AND status = 'OPEN' AND is_deleted = 0",
     ).bind(branchId).first();
     if (openTill) {
-      const available = await tillService.computeExpectedCash(c.env.DB, openTill.id);
+      const available = await tillService.computeExpectedCash(database(c), openTill.id);
       if (signed > Number(available) + 0.005) {
         return c.json({
           error: `This is more cash than the drawer holds. The till has N${Number(available).toFixed(2)} `
@@ -150,15 +151,15 @@ safe.post('/movements', idempotent, async (c) => {
     }
   }
 
-  const mv = safeService.movementStatements(c.env.DB, {
+  const mv = safeService.movementStatements(database(c), {
     branchId, entryType, amount: signed, reason, recordedBy: user.id,
   });
-  const gl = await glService.postSafeMovement(c.env.DB, {
+  const gl = await glService.postSafeMovement(database(c), {
     branchId, movementId: mv.id, recordedBy: user.id, signedAmount: mv.signed, memo: reason,
   });
   const statements = [...mv.statements];
   if (gl && gl.statements) statements.push(...gl.statements);
-  await withD1Retry(() => c.env.DB.batch(statements), 'safe movement');
+  await withD1Retry(() => database(c).batch(statements), 'safe movement');
 
   return c.json({
     id: mv.id,
@@ -166,7 +167,7 @@ safe.post('/movements', idempotent, async (c) => {
     entry_type: entryType,
     amount: mv.signed,
     reason,
-    safe_balance: await safeService.safeBalance(c.env.DB, branchId),
+    safe_balance: await safeService.safeBalance(database(c), branchId),
   }, 201);
 });
 

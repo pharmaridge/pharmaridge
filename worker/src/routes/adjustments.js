@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { withD1Retry } = require('../lib/d1Retry');
 const { idempotent } = require('../lib/idempotency');
@@ -28,7 +29,7 @@ adjustments.get('/', async (c) => {
   const params = [];
   if (branchId) { sql += ' AND sa.branch_id = ?'; params.push(branchId); }
   sql += ' ORDER BY sa.created_at DESC LIMIT 200';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await database(c).prepare(sql).bind(...params).all();
   return c.json(results);
 });
 
@@ -75,7 +76,7 @@ adjustments.post('/', idempotent, async (c) => {
       code: 'INVALID_ADJUSTMENT_TYPE',
     }, 400);
   }
-  const batch = await c.env.DB.prepare('SELECT * FROM stock_batches WHERE id = ? AND is_deleted = 0').bind(stock_batch_id).first();
+  const batch = await database(c).prepare('SELECT * FROM stock_batches WHERE id = ? AND is_deleted = 0').bind(stock_batch_id).first();
   if (!batch) return c.json({ error: 'Stock batch not found' }, 404);
   // CROSS-BRANCH STOCK WRITE-OFF FOUND AND FIXED (live-reproduced): a
   // MANAGER pinned to Minna posted a -25 DAMAGE adjustment against a
@@ -90,7 +91,7 @@ adjustments.post('/', idempotent, async (c) => {
     return c.json({ error: e.message }, e.status || 403);
   }
   try {
-    await assertBranchActive(c.env.DB, batch.branch_id, 'record a stock adjustment');
+    await assertBranchActive(database(c), batch.branch_id, 'record a stock adjustment');
   } catch (e) {
     return c.json({ error: e.message, code: e.code }, e.status || 403);
   }
@@ -105,7 +106,7 @@ adjustments.post('/', idempotent, async (c) => {
   // carton was damaged" needs a manager. See
   // lib/planLimits.assertStaffCanAdjust.
   {
-    const staffErr = await assertStaffCanAdjust(c.env.DB, user, quantity_change);
+    const staffErr = await assertStaffCanAdjust(database(c), user, quantity_change);
     if (staffErr) return c.json({ error: staffErr.message, code: staffErr.code }, staffErr.status);
   }
 
@@ -115,9 +116,9 @@ adjustments.post('/', idempotent, async (c) => {
     // guarantee against a negative result; this is submitted as one
     // atomic batch exactly like the sales engine.
     const statements = [
-      c.env.DB.prepare(`INSERT INTO stock_adjustments (id, branch_id, stock_batch_id, adjustment_type, quantity_change, reason, recorded_by) VALUES (?,?,?,?,?,?,?)`)
+      database(c).prepare(`INSERT INTO stock_adjustments (id, branch_id, stock_batch_id, adjustment_type, quantity_change, reason, recorded_by) VALUES (?,?,?,?,?,?,?)`)
         .bind(id, batch.branch_id, stock_batch_id, adjustment_type, quantity_change, reason || null, user.id),
-      c.env.DB.prepare(`UPDATE stock_batches SET quantity_remaining = quantity_remaining + ?, updated_at = datetime('now') WHERE id = ?`)
+      database(c).prepare(`UPDATE stock_batches SET quantity_remaining = quantity_remaining + ?, updated_at = datetime('now') WHERE id = ?`)
         .bind(quantity_change, stock_batch_id),
     ];
 
@@ -125,12 +126,12 @@ adjustments.post('/', idempotent, async (c) => {
     // Inventory Shrinkage Expense / credits Inventory Asset; positive
     // (correction) posts the reverse — see
     // worker/src/services/glService.js's postStockAdjustment().
-    const glResult = await glService.postStockAdjustment(c.env.DB, {
+    const glResult = await glService.postStockAdjustment(database(c), {
       branchId: batch.branch_id, adjustmentId: id, recordedBy: user.id, quantityChange: quantity_change, costPricePerUnit: batch.cost_price_per_unit,
     });
     if (glResult) statements.push(...glResult.statements);
 
-    await withD1Retry(() => c.env.DB.batch(statements), 'stock adjustment');
+    await withD1Retry(() => database(c).batch(statements), 'stock adjustment');
   } catch (e) {
     // Only claim "would go negative" when the failing constraint really is
     // the stock one. Any other CHECK is reported as itself instead of being
@@ -150,7 +151,7 @@ adjustments.post('/', idempotent, async (c) => {
     }
     throw e;
   }
-  return c.json(await c.env.DB.prepare('SELECT * FROM stock_adjustments WHERE id = ?').bind(id).first(), 201);
+  return c.json(await database(c).prepare('SELECT * FROM stock_adjustments WHERE id = ?').bind(id).first(), 201);
 });
 
 module.exports = adjustments;

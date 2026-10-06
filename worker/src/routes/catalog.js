@@ -1,3 +1,4 @@
+const { database } = require('../lib/database');
 const { Hono } = require('hono');
 const { authRequired, resolveScopedBranchId } = require('../lib/auth');
 
@@ -33,7 +34,7 @@ catalog.get('/', async (c) => {
   if (!q) {
     // No search term: a small, stable sample so the UI can show something
     // useful before the user types. Never the whole table.
-    const { results } = await c.env.DB.prepare(
+    const { results } = await database(c).prepare(
       `SELECT id, nafdac_reg_no, product_name, ingredient_name, strength, dosage_form,
               manufacturer, pack_size, category, base_unit, is_controlled, dispensing_type
        FROM nafdac_catalog ORDER BY product_name LIMIT ?`
@@ -47,7 +48,7 @@ catalog.get('/', async (c) => {
 
   const like = `%${q}%`;
   const prefix = `${q}%`;
-  const { results } = await c.env.DB.prepare(
+  const { results } = await database(c).prepare(
     `SELECT id, nafdac_reg_no, product_name, ingredient_name, strength, dosage_form,
             manufacturer, pack_size, category, base_unit, is_controlled, dispensing_type
      FROM nafdac_catalog
@@ -82,7 +83,7 @@ catalog.get('/alternatives', async (c) => {
   const limit = clampLimit(c.req.query('limit'));
   if (!key) return c.json({ error: 'ingredient_key is required' }, 400);
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await database(c).prepare(
     `SELECT id, nafdac_reg_no, product_name, ingredient_name, strength, dosage_form,
             manufacturer, pack_size, category, base_unit, is_controlled, dispensing_type
      FROM nafdac_catalog
@@ -116,7 +117,7 @@ catalog.get('/in-stock-alternatives', async (c) => {
   // OR its own generic_name matches — the latter covers manually-added
   // products that were never linked to the catalog at all, which must not be
   // invisible to this lookup.
-  const { results } = await c.env.DB.prepare(
+  const { results } = await database(c).prepare(
     `SELECT p.id, p.name, p.generic_name, p.base_unit, p.is_controlled, p.dispensing_type,
             COALESCE(SUM(sb.quantity_remaining), 0) AS quantity_available
      FROM products p
@@ -147,7 +148,7 @@ catalog.get('/ingredients', async (c) => {
   const q = (c.req.query('q') || '').trim().toLowerCase();
   const limit = clampLimit(c.req.query('limit'));
   const like = `%${q}%`;
-  const { results } = await c.env.DB.prepare(
+  const { results } = await database(c).prepare(
     `SELECT ingredient_key, ingredient_name, COUNT(*) AS product_count
      FROM nafdac_catalog
      WHERE ingredient_key IS NOT NULL AND (? = '' OR ingredient_key LIKE ?)
@@ -162,7 +163,7 @@ catalog.get('/ingredients', async (c) => {
 // NAFDAC-approved products available"), also used by the tests as a cheap
 // health probe that the catalog migration actually ran.
 catalog.get('/stats', async (c) => {
-  const row = await c.env.DB.prepare(
+  const row = await database(c).prepare(
     `SELECT COUNT(*) AS total_products,
             COUNT(DISTINCT ingredient_key) AS total_ingredients,
             SUM(CASE WHEN is_controlled = 1 THEN 1 ELSE 0 END) AS controlled_products,
@@ -175,13 +176,13 @@ catalog.get('/stats', async (c) => {
 // GET /api/catalog/:id — full detail for one catalog entry, used when the user
 // picks a suggestion and the form pre-fills.
 catalog.get('/:id', async (c) => {
-  const row = await c.env.DB.prepare('SELECT * FROM nafdac_catalog WHERE id = ?')
+  const row = await database(c).prepare('SELECT * FROM nafdac_catalog WHERE id = ?')
     .bind(c.req.param('id')).first();
   if (!row) return c.json({ error: 'Catalog entry not found' }, 404);
 
   // Does this client already stock it? Prevents the #1 duplicate-entry
   // mistake: adding "Panadol Extra" twice under slightly different names.
-  const existing = await c.env.DB.prepare(
+  const existing = await database(c).prepare(
     `SELECT id, name FROM products WHERE is_deleted = 0 AND (nafdac_catalog_id = ? OR lower(name) = lower(?)) LIMIT 1`
   ).bind(row.id, row.product_name).first();
 
