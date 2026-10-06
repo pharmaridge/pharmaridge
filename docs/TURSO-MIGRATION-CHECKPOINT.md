@@ -1,10 +1,10 @@
 # Turso Migration Checkpoint
 
-**Stage:** 2.5 — request-scoped provider adoption
+**Stage:** 3 — isolated provider rehearsal
 
-**Status:** Stages 0–2.5 completed safely. The Turso pilot has the verified reference/setup schema only; no Client operational data was written to Turso, and D1 remains the active runtime.
+**Status:** Stages 0–3 completed safely. The Turso pilot remains a clean reference/setup schema only; no Client operational data was retained in Turso, and D1 remains the active runtime.
 
-**Purpose:** Establish a verified, reversible provider seam and an exact schema baseline before any Client-data migration begins.
+**Purpose:** Establish a verified, reversible provider seam, exact schema baseline, and real Worker-route rehearsal before any Client-data migration or deployment cutover.
 
 ## Guardrails
 
@@ -123,6 +123,40 @@ DATA MANAGEMENT AUDIT: 21 passed, 0 failed
 
 No Cloudflare Worker was redeployed during this stage. The current D1 instances remain the active runtime.
 
+## Stage 3 result — isolated Turso provider rehearsal
+
+A temporary, dedicated Turso rehearsal database was provisioned in the same region as the schema pilot. It received the verified two-migration schema, then ran a disposable local Worker with:
+
+```text
+DATABASE_PROVIDER=TURSO
+```
+
+The rehearsal used random, terminal-only test identities. It did not reuse, reveal, or persist a Client PIN in source, Git, documentation, generated SQL, or the workspace.
+
+The selected D1 source, `sample2`, was first inspected read-only. It contained only its active Admin and reference setup; it had **zero** branches, products, barcodes, stock, customers, suppliers, sales, and GL journals. There was therefore no operational Client dataset to export. The Admin record was deliberately not exported or copied.
+
+Instead, the isolated rehearsal exercised the same operational flow with synthetic records:
+
+```text
+TURSO PROVIDER ROUTE CANARY: 14 passed, 0 failed
+```
+
+Verified through the real Worker routes:
+
+1. Turso-backed health response;
+2. Admin login;
+3. Admin creates Owner;
+4. Owner creates a branch and Staff account;
+5. Owner creates supplier and barcoded product;
+6. purchase order, receiving, stock, and accounting post;
+7. Staff opens till and scans the barcode at POS;
+8. sale and receipt retain barcode trace;
+9. trial balance remains exactly equal.
+
+A Turso row-shape defect was discovered during the first run: Turso compatibility rows were array-like when JSON-serialized, while D1 routes expect JSON objects. The adapter now converts every result row into a D1-style object before a route returns it. The regression is covered by the live adapter audit.
+
+After the successful canary, the entire rehearsal database was deleted. The clean schema-reference pilot remains untouched, and no synthetic records or temporary credentials were retained.
+
 ## Current D1 baseline locked for comparison
 
 Only these migrations are valid in the current application baseline:
@@ -155,7 +189,7 @@ The baseline contains application tables, indexes, foreign keys, triggers, the r
 
 **Exit gate:** schema comparison is clean and no D1 database has been changed.
 
-### Stage 3 — Isolated sample-data rehearsal
+### Stage 3 — Isolated sample-data rehearsal — completed
 
 1. Choose one non-production sample database only.
 2. Export a consistent D1 snapshot.
@@ -178,4 +212,4 @@ Migrate remaining Clients one at a time with separate Turso databases and separa
 
 ## Resume point
 
-The next safe action is **Stage 3 only**: provision a separate Turso rehearsal database, export one non-production D1 sample into it, and reconcile every operational and accounting control before any Client Worker is redirected. The current Turso schema pilot must remain the clean reference baseline; it is not a Client-data import target.
+The next safe action is **Stage 4 only**: create a dedicated, clean Turso database for one selected public sample, bootstrap a unique non-shared Admin credential, configure only that sample Worker with Turso secrets, and deploy it as a canary. Preserve its current D1 database unchanged for rollback. The clean Turso schema pilot remains a reference baseline; it is not a Client-data import target.

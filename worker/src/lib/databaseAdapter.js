@@ -12,10 +12,23 @@ function providerFrom(env) {
   return String((env && env.DATABASE_PROVIDER) || 'D1').trim().toUpperCase();
 }
 
+function plainRow(result, row) {
+  if (!row || !Array.isArray(result.columns) || !result.columns.length) return row;
+  // Turso compat rows expose named properties for server-side access but are
+  // array-like when JSON-stringified. D1 results are ordinary objects, and
+  // PharmaRidge returns many of them directly in API JSON, so convert them
+  // here before a route can accidentally send `[value, value, ...]` to the UI.
+  return Object.fromEntries(result.columns.map((column, index) => [column, row[column] === undefined ? row[index] : row[column]]));
+}
+
+function plainRows(result) {
+  return (result.rows || []).map((row) => plainRow(result, row));
+}
+
 function d1Result(result) {
   return {
     success: true,
-    results: result.rows || [],
+    results: plainRows(result),
     meta: {
       changes: Number(result.rowsAffected || 0),
       last_row_id: result.lastInsertRowid == null ? null : String(result.lastInsertRowid),
@@ -48,7 +61,7 @@ class TursoPreparedStatement {
 
   async first(columnName) {
     const result = await this.adapter.execute(this.asStatement());
-    const row = (result.rows || [])[0] || null;
+    const row = plainRow(result, (result.rows || [])[0] || null);
     return columnName && row ? row[columnName] : row;
   }
 

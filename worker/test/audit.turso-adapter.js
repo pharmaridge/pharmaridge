@@ -65,6 +65,8 @@ function result({ rows = [], rowsAffected = 0, lastInsertRowid, rowsRead = 0, ro
     check('live Turso read-only prepared query succeeds', remoteFirst && remoteFirst.label === 'adapter-read-only' && !!remoteFirst.sqlite_version, JSON.stringify(remoteFirst));
     const foreignKeys = await remote.prepare('PRAGMA foreign_keys').first('foreign_keys');
     check('live Turso adapter enables foreign-key enforcement', Number(foreignKeys) === 1, String(foreignKeys));
+    const remoteList = await remote.prepare("SELECT 'json-object' AS label").all();
+    check('live Turso result rows are D1-style JSON objects, not array-like rows', remoteList.results[0] && remoteList.results[0].label === 'json-object' && !Array.isArray(remoteList.results[0]), JSON.stringify(remoteList.results));
     const remoteBatch = await remote.batch([
       remote.prepare("SELECT 'first' AS label"),
       remote.prepare("SELECT 'second' AS label"),
