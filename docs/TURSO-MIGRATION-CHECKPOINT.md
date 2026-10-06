@@ -181,7 +181,8 @@ The Stage 4 Worker deployment is complete:
 Worker: sample-turso
 Database provider: TURSO
 Public URL: https://sample-turso.pharmaridge.workers.dev
-Worker version: b443fcf9-b762-4bd3-ae2e-6dbe470b3527
+Initial Worker version: b443fcf9-b762-4bd3-ae2e-6dbe470b3527
+Current Worker version: 4a6c3d06-3e33-4b80-9b4f-0ddea93a957b
 ```
 
 The Worker has only production provider flags in its public configuration. Its Turso database URL, Turso database token, and unique JWT signing secret are stored as Cloudflare Worker secrets and are not present in this repository or checkpoint.
@@ -191,6 +192,8 @@ Post-deployment verification:
 ```text
 five root health requests: HTTP 200
 API health: verified
+Turso Free storage reference: 5,120 MB
+PWA cache: pharmaridge-v89
 sole Admin login: verified
 active Admin: 1
 non-Admin accounts: 0
