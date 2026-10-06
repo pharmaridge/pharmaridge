@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sample-turso",
+  "main": "src/index.js",
+  "workers_dev": true,
+  "compatibility_date": "2025-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "DATABASE_PROVIDER": "TURSO"
+  },
+  "triggers": { "crons": ["0 */6 * * *"] },
+  "assets": {
+    "directory": "../public",
+    "run_worker_first": ["/api/*"]
+  }
+}

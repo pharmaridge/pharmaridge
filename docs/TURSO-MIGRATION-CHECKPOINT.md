@@ -1,10 +1,10 @@
 # Turso Migration Checkpoint
 
-**Stage:** 4 — clean Turso sample provisioned; Worker deployment pending
+**Stage:** 4 — Cloudflare Turso sample canary deployed
 
-**Status:** Stages 0–3 completed safely. A dedicated clean Turso sample database is provisioned and validated; no existing Client D1 database or public Worker has been redirected yet.
+**Status:** Stages 0–4 completed safely. One new public sample Worker runs against a dedicated clean Turso database; existing Client D1 databases and Workers remain unchanged for rollback.
 
-**Purpose:** Establish a verified, reversible provider seam, exact schema baseline, real Worker-route rehearsal, and one clean public-sample target before a controlled Worker canary deployment.
+**Purpose:** Establish a verified, reversible provider seam, exact schema baseline, real Worker-route rehearsal, and one clean public-sample Turso canary before any Client migration.
 
 ## Guardrails
 
@@ -175,7 +175,33 @@ branches/products/barcodes/stock/sales/GL: 0
 
 The sole Admin was created directly from terminal-only bootstrap input. Its plaintext credential, hash, Turso database token, platform token, and database URL are not written to this checkpoint, source, Git, generated SQL, or deployment configuration.
 
-The remaining Stage 4 action is deliberately narrow: configure the new Cloudflare Worker with the Turso provider and database secrets, deploy it under the selected public sample hostname, then run health, login, barcode, stock, receipt, accounting, and isolation checks. The existing D1 sample Workers remain rollback references.
+The Stage 4 Worker deployment is complete:
+
+```text
+Worker: sample-turso
+Database provider: TURSO
+Public URL: https://sample-turso.pharmaridge.workers.dev
+Worker version: b443fcf9-b762-4bd3-ae2e-6dbe470b3527
+```
+
+The Worker has only production provider flags in its public configuration. Its Turso database URL, Turso database token, and unique JWT signing secret are stored as Cloudflare Worker secrets and are not present in this repository or checkpoint.
+
+Post-deployment verification:
+
+```text
+five root health requests: HTTP 200
+API health: verified
+sole Admin login: verified
+active Admin: 1
+non-Admin accounts: 0
+branches/products/barcodes/stock/sales: 0
+NAFDAC catalog: 6,801 rows
+schema migration manifest: 2 rows
+barcode unique index: 1
+foreign keys: enabled
+```
+
+No barcode, stock, sale, accounting, or destructive test was run against the public canary. Those flows were already exercised in the deleted isolated rehearsal database. The existing D1 sample Workers remain rollback references.
 
 ## Current D1 baseline locked for comparison
 
@@ -232,4 +258,4 @@ Migrate remaining Clients one at a time with separate Turso databases and separa
 
 ## Resume point
 
-The next safe action is the **Stage 4 deployment action only**: configure the dedicated clean Turso sample database URL/token as secrets on the new public canary Worker, deploy that Worker, and run health, Admin-login, barcode, stock, receipt, GL, and isolation checks. Preserve every existing D1 sample Worker/database unchanged for rollback. The clean Turso schema pilot remains a reference baseline; it is not a Client-data import target.
+The next safe action is **Stage 5 observation only**: keep the new Turso canary available for Client evaluation, monitor its health and provider errors, and retain every existing D1 sample Worker/database unchanged as rollback references. Do not migrate a Client dataset or redirect an existing D1 sample until the canary is accepted in writing. The clean Turso schema pilot remains a reference baseline; it is not a Client-data import target.
