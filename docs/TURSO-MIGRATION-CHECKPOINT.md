@@ -1,10 +1,10 @@
 # Turso Migration Checkpoint
 
-**Stage:** 1 — adapter compatibility spike
+**Stage:** 2 — schema compatibility pilot
 
-**Status:** Stages 0 and 1 completed safely; no PharmaRidge data or schema was written to Turso.
+**Status:** Stages 0–2 completed safely. The Turso pilot has the verified reference/setup schema only; no Client operational data was written to Turso.
 
-**Purpose:** Establish a verified, reversible migration seam before any schema or data migration begins.
+**Purpose:** Establish a verified, reversible migration seam and an exact schema baseline before any Client-data migration begins.
 
 ## Guardrails
 
@@ -64,6 +64,43 @@ TURSO ADAPTER AUDIT: 12 passed, 0 failed
 
 The audit included a live, read-only Turso prepared query and a read-only two-statement adapter batch. A post-test schema read confirmed that the target still contains only Turso's internal MVCC metadata table. No PharmaRidge table, data row, or migration record was created.
 
+## Stage 2 result — schema compatibility pilot
+
+The approved empty Turso pilot now contains the current PharmaRidge **reference/setup baseline only**. No Client operational data was copied from D1.
+
+A guarded runner was added at:
+
+```text
+worker/tools/turso-schema-pilot.js
+```
+
+The runner:
+
+- refuses to apply to any non-empty non-internal Turso target;
+- requires an explicit terminal-only confirmation before writing;
+- applies the existing two source migrations as one transaction per migration without splitting trigger bodies on semicolons;
+- records only the two source filename/hash pairs in a Turso-local migration manifest;
+- creates no third business-schema migration;
+- compares named schema objects, table columns, foreign keys, indexes, triggers, views, seed counts, barcode uniqueness, and migration hashes against a fresh local application of the same two migrations.
+
+Final live verification:
+
+```text
+clean schema comparison: true
+foreign-key enforcement: true
+missing schema objects: 0
+unexpected non-internal schema objects: 0
+changed schema objects: 0
+changed table shapes: 0
+NAFDAC catalog: 6,801 rows
+barcode unique index: 1
+migration manifest rows: 2
+```
+
+Turso starts a fresh connection with `PRAGMA foreign_keys` disabled. The adapter now enables it before every application statement path, and the live adapter audit proves the pragma reports `1`. This restores D1's always-on foreign-key guarantee before any route is allowed to adopt Turso.
+
+The pilot has the default chart of accounts, WHT rates, and client settings created by the existing initial schema, but it has no Client Admin/Owner/Staff accounts, branches, products, stock, customers, suppliers, sales, receipts, or GL transactions.
+
 ## Current D1 baseline locked for comparison
 
 Only these migrations are valid in the current application baseline:
@@ -77,7 +114,7 @@ The baseline contains application tables, indexes, foreign keys, triggers, the r
 
 ## Proposed staged path
 
-### Stage 1 — Adapter and compatibility spike
+### Stage 1 — Adapter and compatibility spike — completed
 
 1. Add a small database adapter behind the current D1 API contract.
 2. Keep D1 as the default runtime and keep every deployed Worker pointed at D1.
@@ -87,7 +124,7 @@ The baseline contains application tables, indexes, foreign keys, triggers, the r
 
 **Exit gate:** no route changes directly call a Turso client; they call the adapter. D1 remains behaviourally unchanged.
 
-### Stage 2 — Schema compatibility pilot
+### Stage 2 — Schema compatibility pilot — completed
 
 1. Translate only the two D1 migrations into a Turso migration runner; do not add a third business-schema migration.
 2. Apply the translated schema to the empty Turso pilot.
@@ -119,4 +156,4 @@ Migrate remaining Clients one at a time with separate Turso databases and separa
 
 ## Resume point
 
-The next safe action is **Stage 1 only**: introduce and test the database-adapter seam while retaining D1 as the active runtime. No Cloudflare deployment should be changed in that stage.
+The next safe action is **Stage 3 only**: provision a separate Turso rehearsal database, export one non-production D1 sample into it, and reconcile every operational and accounting control before any Client Worker is redirected. The current Turso schema pilot must remain the clean reference baseline; it is not a Client-data import target.

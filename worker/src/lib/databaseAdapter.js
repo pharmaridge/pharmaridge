@@ -29,8 +29,8 @@ function d1Result(result) {
 }
 
 class TursoPreparedStatement {
-  constructor(client, sql, args = []) {
-    this.client = client;
+  constructor(adapter, sql, args = []) {
+    this.adapter = adapter;
     this.sql = String(sql);
     this.args = args;
   }
@@ -39,7 +39,7 @@ class TursoPreparedStatement {
   // so one statement template cannot accidentally leak bound values into a
   // later request.
   bind(...args) {
-    return new TursoPreparedStatement(this.client, this.sql, args);
+    return new TursoPreparedStatement(this.adapter, this.sql, args);
   }
 
   asStatement() {
@@ -47,17 +47,17 @@ class TursoPreparedStatement {
   }
 
   async first(columnName) {
-    const result = await this.client.execute(this.asStatement());
+    const result = await this.adapter.execute(this.asStatement());
     const row = (result.rows || [])[0] || null;
     return columnName && row ? row[columnName] : row;
   }
 
   async all() {
-    return d1Result(await this.client.execute(this.asStatement()));
+    return d1Result(await this.adapter.execute(this.asStatement()));
   }
 
   async run() {
-    return d1Result(await this.client.execute(this.asStatement()));
+    return d1Result(await this.adapter.execute(this.asStatement()));
   }
 }
 
@@ -65,10 +65,20 @@ class TursoDatabaseAdapter {
   constructor(client) {
     this.client = client;
     this.provider = 'TURSO';
+    // D1 enforces foreign keys for every request. A fresh Turso connection
+    // reports PRAGMA foreign_keys=0, so enabling it is mandatory before any
+    // application statement runs; otherwise a future provider switch could
+    // accept orphaned branch/product/user records that D1 correctly refuses.
+    this.foreignKeysReady = this.client.execute('PRAGMA foreign_keys = ON');
+  }
+
+  async execute(statement) {
+    await this.foreignKeysReady;
+    return this.client.execute(statement);
   }
 
   prepare(sql) {
-    return new TursoPreparedStatement(this.client, sql);
+    return new TursoPreparedStatement(this, sql);
   }
 
   // D1 batch() is atomic. Turso's compat client accepts the explicit `write`
@@ -76,9 +86,10 @@ class TursoDatabaseAdapter {
   // Refuse foreign statement objects rather than silently mixing a D1 and a
   // Turso database in one operation.
   async batch(statements) {
-    if (!Array.isArray(statements) || statements.some((statement) => !(statement instanceof TursoPreparedStatement))) {
-      throw new TypeError('Turso batch accepts only statements prepared by the Turso adapter.');
+    if (!Array.isArray(statements) || statements.some((statement) => !(statement instanceof TursoPreparedStatement) || statement.adapter !== this)) {
+      throw new TypeError('Turso batch accepts only statements prepared by the same Turso adapter.');
     }
+    await this.foreignKeysReady;
     const results = await this.client.batch(statements.map((statement) => statement.asStatement()), 'write');
     return results.map(d1Result);
   }

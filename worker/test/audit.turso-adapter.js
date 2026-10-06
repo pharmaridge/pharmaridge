@@ -24,9 +24,10 @@ function result({ rows = [], rowsAffected = 0, lastInsertRowid, rowsRead = 0, ro
   const calls = [];
   const fakeClient = {
     async execute(statement) {
-      calls.push({ kind: 'execute', statement });
-      if (/^UPDATE/i.test(statement.sql)) return result({ rowsAffected: 1, rowsRead: 2, rowsWritten: 1, queryDurationMs: 3 });
-      return result({ rows: [{ value: statement.args[0], answer: 42 }], rowsRead: 1, queryDurationMs: 2 });
+      const normalized = typeof statement === 'string' ? { sql: statement, args: [] } : statement;
+      calls.push({ kind: 'execute', statement: normalized });
+      if (/^UPDATE/i.test(normalized.sql)) return result({ rowsAffected: 1, rowsRead: 2, rowsWritten: 1, queryDurationMs: 3 });
+      return result({ rows: [{ value: normalized.args[0], answer: 42 }], rowsRead: 1, queryDurationMs: 2 });
     },
     async batch(statements, mode) {
       calls.push({ kind: 'batch', statements, mode });
@@ -36,6 +37,7 @@ function result({ rows = [], rowsAffected = 0, lastInsertRowid, rowsRead = 0, ro
   const db = createTursoDatabase({ TURSO_DATABASE_URL: 'turso://unit-test.example', TURSO_AUTH_TOKEN: 'unit-test-token' }, () => fakeClient);
   const first = await db.prepare('SELECT ? AS value, 42 AS answer').bind('bound value').first();
   check('prepare/bind/first returns the first row', first && first.value === 'bound value' && first.answer === 42, JSON.stringify(first));
+  check('the adapter enables foreign-key enforcement before application SQL', calls[0] && calls[0].statement.sql === 'PRAGMA foreign_keys = ON', JSON.stringify(calls[0]));
   const firstColumn = await db.prepare('SELECT ? AS value').bind('first column').first('value');
   check('first(column) preserves D1 shorthand', firstColumn === 'first column', String(firstColumn));
   const list = await db.prepare('SELECT ? AS value').bind('list value').all();
@@ -61,6 +63,8 @@ function result({ rows = [], rowsAffected = 0, lastInsertRowid, rowsRead = 0, ro
     });
     const remoteFirst = await remote.prepare("SELECT 'adapter-read-only' AS label, sqlite_version() AS sqlite_version").first();
     check('live Turso read-only prepared query succeeds', remoteFirst && remoteFirst.label === 'adapter-read-only' && !!remoteFirst.sqlite_version, JSON.stringify(remoteFirst));
+    const foreignKeys = await remote.prepare('PRAGMA foreign_keys').first('foreign_keys');
+    check('live Turso adapter enables foreign-key enforcement', Number(foreignKeys) === 1, String(foreignKeys));
     const remoteBatch = await remote.batch([
       remote.prepare("SELECT 'first' AS label"),
       remote.prepare("SELECT 'second' AS label"),
