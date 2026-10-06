@@ -118,6 +118,27 @@ async function login(username, pin) {
   check('Owner void reverses a Turso sale with an auditable reason', voided.status === 200, JSON.stringify(voided.body));
   const stockAfterVoid = list((await api('GET', `/api/stock?branch_id=${branchId}&product_id=${product.body && product.body.id}`, { token: owner.token })).body)[0];
   check('void restores the exact pack quantity to Turso stock', stockAfterVoid && Number(stockAfterVoid.quantity_remaining) === 19, JSON.stringify(stockAfterVoid));
+  const concurrencyBarcode = `INT-CON-${id}`;
+  const concurrencyProduct = await api('POST', '/api/products', { token: owner.token, body: {
+    name: `Turso One-Unit Concurrency ${id}`, retail_category: 'FOOD_DRINKS', category: 'Rehearsal', base_unit: 'bottle', units_per_pack: 1, dispensing_type: 'OTC', reorder_level: 0,
+    primary_barcode: concurrencyBarcode, primary_barcode_unit_type: 'BASE_UNIT',
+  } });
+  const concurrencyPo = await api('POST', '/api/purchase-orders', { token: owner.token, body: {
+    branch_id: branchId, supplier_id: supplier.body && supplier.body.id,
+    items: [{ product_id: concurrencyProduct.body && concurrencyProduct.body.id, quantity_ordered: 1, expected_unit_cost: 5 }],
+  } });
+  const concurrencyReceive = await api('POST', `/api/purchase-orders/${concurrencyPo.body && concurrencyPo.body.id}/receive`, { token: owner.token, body: {
+    batches: [{ product_id: concurrencyProduct.body && concurrencyProduct.body.id, quantity_received: 1, cost_price_per_unit: 5, selling_price_per_unit: 12, batch_no: `CON-${id}`, expiry_date: '2031-12-31' }],
+  } });
+  check('one-unit concurrent-sale stock is received on Turso', concurrencyProduct.status === 201 && concurrencyPo.status === 201 && (concurrencyReceive.status === 200 || concurrencyReceive.status === 201), JSON.stringify({ product: concurrencyProduct.status, po: concurrencyPo.status, receive: concurrencyReceive.status }));
+  const simultaneousSales = await Promise.all([1, 2].map(() => api('POST', '/api/sales', { token: staff.token, body: {
+    branch_id: branchId, items: [{ product_id: concurrencyProduct.body && concurrencyProduct.body.id, unit_type: 'BASE_UNIT', quantity: 1, barcode_value: concurrencyBarcode }], payments: [{ method: 'CASH', amount: 12 }],
+  } })));
+  const completedConcurrent = simultaneousSales.filter((response) => response.status === 201).length;
+  const rejectedConcurrent = simultaneousSales.filter((response) => response.status >= 400 && response.status < 500).length;
+  check('concurrent sale claims allow exactly one last unit on Turso', completedConcurrent === 1 && rejectedConcurrent === 1, JSON.stringify(simultaneousSales));
+  const concurrencyStock = list((await api('GET', `/api/stock?branch_id=${branchId}&product_id=${concurrencyProduct.body && concurrencyProduct.body.id}`, { token: owner.token })).body)[0];
+  check('concurrent Turso sales never make stock negative', concurrencyStock && Number(concurrencyStock.quantity_remaining) === 0, JSON.stringify(concurrencyStock));
   const trial = await api('GET', '/api/gl/trial-balance', { token: owner.token });
   const totals = list(trial.body).reduce((sum, row) => ({ dr: sum.dr + Number(row.total_debits || 0), cr: sum.cr + Number(row.total_credits || 0) }), { dr: 0, cr: 0 });
   check('Turso sales and voids leave the books exactly balanced', trial.status === 200 && Math.abs(totals.dr - totals.cr) < 0.005, JSON.stringify(totals));

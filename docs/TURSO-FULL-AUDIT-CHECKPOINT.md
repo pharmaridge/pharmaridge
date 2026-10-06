@@ -13,7 +13,7 @@
 | 0 | Public-canary read-only reachability, provider, PWA, and static-asset fingerprint | Complete |
 | 1 | Provision an isolated disposable Turso rehearsal database and validate schema baseline | Complete |
 | 2 | Admin → Owner → branch/team → supplier/product/barcode → PO/receive → POS/receipt lifecycle | Complete — 14 passed |
-| 3 | Stock, barcode-unit, duplicate, permissions, accounting, VAT/GL and trial-balance reconciliation | Complete — 27 passed |
+| 3 | Stock, barcode-unit, duplicate, permissions, accounting, VAT/GL, concurrency and trial-balance reconciliation | Complete — 30 passed |
 | 4 | Browser/PWA/mobile rendering, service-worker, responsive and print-label probe against the rehearsal Worker | Complete — 6 passed |
 | 5 | Read-only canary re-check, rehearsal report, deletion of temporary rehearsal database, final checkpoint | Complete |
 
@@ -76,7 +76,7 @@ The real HTTP lifecycle covered Admin login, Owner/branch/Staff creation, suppli
 The enhanced rehearsal canary completed:
 
 ```text
-TURSO PROVIDER ROUTE CANARY: 27 passed, 0 failed
+TURSO PROVIDER ROUTE CANARY: 30 passed, 0 failed
 ```
 
 Additional verified controls:
@@ -92,7 +92,8 @@ Additional verified controls:
 - Retail Category GL attribution;
 - Owner-only void with mandatory reason;
 - stock restoration after void;
-- exact post-void trial-balance equality.
+- simultaneous sale claims against one remaining base unit: exactly one commit, one clean rejection, and never negative stock;
+- exact post-void and post-concurrency trial-balance equality.
 
 ## Stage 4 — browser, PWA and mobile rehearsal
 
@@ -123,14 +124,14 @@ PWA cache: pharmaridge-v89
 Service-worker SHA-256 prefix: 83ab936db034ee93
 ```
 
-The entire disposable rehearsal database was then deleted successfully. No random test identity, synthetic branch, supplier, product, barcode, stock batch, sale, receipt, journal, or temporary token remains in Turso.
+Both disposable rehearsal databases were then deleted successfully. No random test identity, synthetic branch, supplier, product, barcode, stock batch, sale, receipt, journal, or temporary token remains in Turso.
 
 ## Final result
 
 ```text
 Public canary read-only check: passed
 Schema baseline: passed
-Turso Worker lifecycle: 27 passed, 0 failed
+Turso Worker lifecycle: 30 passed, 0 failed
 Turso browser/PWA/mobile: 6 passed, 0 failed
 Accounting/trial balance: passed
 Disposable rehearsal teardown: passed
