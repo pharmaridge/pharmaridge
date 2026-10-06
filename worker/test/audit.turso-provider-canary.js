@@ -64,6 +64,15 @@ async function login(username, pin) {
     primary_barcode: barcode, primary_barcode_unit_type: 'BASE_UNIT',
   } });
   check('Owner can create a barcoded product through the Turso provider', product.status === 201 && product.body && product.body.id, JSON.stringify(product.body));
+  const packBarcode = `INT-PACK-${id}`;
+  const packRegistration = await api('POST', `/api/products/${product.body && product.body.id}/barcodes`, { token: owner.token, body: { barcode: packBarcode, unit_type: 'PACK', label: 'Rehearsal pack' } });
+  check('Owner can register a pack barcode through Turso', packRegistration.status === 201 && packRegistration.body && packRegistration.body.unit_type === 'PACK', JSON.stringify(packRegistration.body));
+  const duplicateBarcode = await api('POST', `/api/products/${product.body && product.body.id}/barcodes`, { token: owner.token, body: { barcode: packBarcode, unit_type: 'PACK' } });
+  check('Turso preserves globally unique barcode registration', duplicateBarcode.status === 409 && duplicateBarcode.body && duplicateBarcode.body.code === 'BARCODE_ALREADY_REGISTERED', JSON.stringify(duplicateBarcode.body));
+  const invalidBarcode = await api('POST', `/api/products/${product.body && product.body.id}/barcodes`, { token: owner.token, body: { barcode: '4006381333932', unit_type: 'BASE_UNIT' } });
+  check('Turso preserves numeric GS1 check-digit validation', invalidBarcode.status === 400 && invalidBarcode.body && invalidBarcode.body.code === 'INVALID_BARCODE', JSON.stringify(invalidBarcode.body));
+  const staffProductAttempt = await api('POST', '/api/products', { token: staff.token, body: { name: `Forbidden Product ${id}` } });
+  check('Staff cannot create a product through the Turso provider', staffProductAttempt.status === 403, JSON.stringify(staffProductAttempt.body));
 
   const purchaseOrder = await api('POST', '/api/purchase-orders', { token: owner.token, body: {
     branch_id: branchId, supplier_id: supplier.body && supplier.body.id,
@@ -74,6 +83,8 @@ async function login(username, pin) {
     batches: [{ product_id: product.body && product.body.id, quantity_received: 20, cost_price_per_unit: 5, selling_price_per_unit: 12, pack_price: 110, batch_no: `TURSO-${id}`, expiry_date: '2031-12-31' }],
   } });
   check('stock receiving and accounting post on Turso', receive.status === 200 || receive.status === 201, JSON.stringify(receive.body));
+  const stockBefore = list((await api('GET', `/api/stock?branch_id=${branchId}&product_id=${product.body && product.body.id}`, { token: owner.token })).body)[0];
+  check('received Turso stock has the expected opening quantity', stockBefore && Number(stockBefore.quantity_remaining) === 20, JSON.stringify(stockBefore));
 
   const till = await api('POST', '/api/till/open', { token: staff.token, body: { branch_id: branchId, opening_cash: 1000 } });
   check('Staff can open a till on Turso', till.status === 201 && till.body && till.body.id, JSON.stringify(till.body));
@@ -85,9 +96,31 @@ async function login(username, pin) {
   check('barcode sale completes on Turso', sale.status === 201 && sale.body && Number(sale.body.total) === 12, JSON.stringify(sale.body));
   const receipt = await api('GET', `/api/sales/${sale.body && sale.body.id}`, { token: owner.token });
   check('receipt preserves the barcode trace on Turso', receipt.status === 200 && receipt.body && receipt.body.items[0] && receipt.body.items[0].barcode_value === barcode, JSON.stringify(receipt.body && receipt.body.items));
+  const packLookup = await api('GET', `/api/products/barcode/${packBarcode}`, { token: staff.token });
+  check('pack barcode lookup returns the PACK selling unit on Turso', packLookup.status === 200 && packLookup.body && packLookup.body.barcode_unit_type === 'PACK', JSON.stringify(packLookup.body));
+  const packSale = await api('POST', '/api/sales', { token: staff.token, body: {
+    branch_id: branchId, items: [{ product_id: product.body && product.body.id, unit_type: 'PACK', quantity: 1, barcode_value: packBarcode }], payments: [{ method: 'CASH', amount: 110 }],
+  } });
+  check('pack barcode sale uses pack pricing on Turso', packSale.status === 201 && packSale.body && Number(packSale.body.total) === 110, JSON.stringify(packSale.body));
+  const stockAfterPack = list((await api('GET', `/api/stock?branch_id=${branchId}&product_id=${product.body && product.body.id}`, { token: owner.token })).body)[0];
+  check('pack barcode removes ten additional base units', stockAfterPack && Number(stockBefore.quantity_remaining) - Number(stockAfterPack.quantity_remaining) === 11, JSON.stringify({ before: stockBefore, after: stockAfterPack }));
+  const mismatch = await api('POST', '/api/sales', { token: staff.token, body: {
+    branch_id: branchId, items: [{ product_id: product.body && product.body.id, unit_type: 'BASE_UNIT', quantity: 1, barcode_value: packBarcode }], payments: [{ method: 'CASH', amount: 12 }],
+  } });
+  check('barcode/unit mismatch is refused before sale creation', mismatch.status === 400 && mismatch.body && mismatch.body.code === 'BARCODE_PRODUCT_UNIT_MISMATCH', JSON.stringify(mismatch.body));
+  const categorySales = await api('GET', '/api/sales/category-summary?retail_category=FOOD_DRINKS', { token: owner.token });
+  const categoryRow = list(categorySales.body)[0];
+  check('category sales history includes immutable Food & Drinks sale lines', categorySales.status === 200 && categoryRow && Number(categoryRow.base_units_sold) >= 11 && Number(categoryRow.gross_sales) >= 122, JSON.stringify(categorySales.body));
+  const categoryGl = await api('GET', '/api/gl/retail-category-summary?retail_category=FOOD_DRINKS', { token: owner.token });
+  const categoryGlRow = list(categoryGl.body)[0];
+  check('category GL analysis attributes revenue and COGS on Turso', categoryGl.status === 200 && categoryGlRow && Number(categoryGlRow.net_revenue) > 0 && Number(categoryGlRow.cost_of_goods_sold) > 0, JSON.stringify(categoryGl.body));
+  const voided = await api('POST', `/api/sales/${packSale.body && packSale.body.id}/void`, { token: owner.token, body: { reason: 'Turso rehearsal void check' } });
+  check('Owner void reverses a Turso sale with an auditable reason', voided.status === 200, JSON.stringify(voided.body));
+  const stockAfterVoid = list((await api('GET', `/api/stock?branch_id=${branchId}&product_id=${product.body && product.body.id}`, { token: owner.token })).body)[0];
+  check('void restores the exact pack quantity to Turso stock', stockAfterVoid && Number(stockAfterVoid.quantity_remaining) === 19, JSON.stringify(stockAfterVoid));
   const trial = await api('GET', '/api/gl/trial-balance', { token: owner.token });
   const totals = list(trial.body).reduce((sum, row) => ({ dr: sum.dr + Number(row.total_debits || 0), cr: sum.cr + Number(row.total_credits || 0) }), { dr: 0, cr: 0 });
-  check('Turso rehearsal sale leaves the books exactly balanced', trial.status === 200 && Math.abs(totals.dr - totals.cr) < 0.005, JSON.stringify(totals));
+  check('Turso sales and voids leave the books exactly balanced', trial.status === 200 && Math.abs(totals.dr - totals.cr) < 0.005, JSON.stringify(totals));
 
   console.log(`\nTURSO PROVIDER ROUTE CANARY: ${pass} passed, ${fail} failed`);
   if (fail) process.exitCode = 1;

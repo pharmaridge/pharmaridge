@@ -70,3 +70,6 @@ if ! curl -fsS "${BASE}/api/health" >/dev/null; then
 fi
 
 WORKER_BASE="${BASE}" node test/audit.turso-provider-canary.js
+if [ "${TURSO_BROWSER_AUDIT:-0}" = "1" ]; then
+  WORKER_BASE="${BASE}" node test/audit.turso-browser-pwa.js
+fi
